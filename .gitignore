@@ -1,0 +1,106 @@
+# ── .NET / C# ─────────────────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.nupkg
+*.snupkg
+*.lock.json
+!packages.lock.json
+project.lock.json
+TestResults/
+*.Coverage
+coverage/
+*.opencover.xml
+*.cobertura.xml
+BenchmarkDotNet.Artifacts/
+
+# EF Core migrations snapshot (keep Migrations folder, ignore snapshots if regenerating)
+# Uncomment the line below only if you manage migrations externally:
+# **/Migrations/
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Publish
+publish/
+PublishProfiles/
+
+# ── Runtime / SQLite DB ───────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── Secrets & Config Overrides ────────────────────────────────────────────────
+appsettings.*.json
+!appsettings.Development.json
+secrets.json
+.env
+.env.*
+!.env.example
+
+# ── Angular / Node ────────────────────────────────────────────────────────────
+node_modules/
+dist/
+.angular/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+.yarn/install-state.gz
+# Angular build output (already covered by dist/ but be explicit)
+src/Veda.Web/dist/
+src/Veda.Web/.angular/
+src/Veda.Web/node_modules/
+
+# ── OS artifacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+nul
+nul.*
+
+# ── IDE & Editors ─────────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.docker/
+
+# ── SSH / Deploy keys (never commit) ─────────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+~/.ssh/
+
+# ── Test artifacts ────────────────────────────────────────────────────────────
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
