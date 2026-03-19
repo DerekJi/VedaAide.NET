@@ -49,14 +49,20 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         int topK = 5,
         float minSimilarity = 0.6f,
         DocumentType? filterType = null,
+        DateTimeOffset? dateFrom = null,
+        DateTimeOffset? dateTo = null,
         CancellationToken ct = default)
     {
         var query = db.VectorChunks.AsNoTracking();
         if (filterType.HasValue)
             query = query.Where(x => x.DocumentType == (int)filterType.Value);
+        if (dateFrom.HasValue)
+            query = query.Where(x => x.CreatedAtTicks >= dateFrom.Value.UtcTicks);
+        if (dateTo.HasValue)
+            query = query.Where(x => x.CreatedAtTicks <= dateTo.Value.UtcTicks);
 
         var candidates = await query
-            .Select(x => new { x.Id, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingBlob, x.MetadataJson, x.CreatedAtTicks })
+            .Select(x => new { x.Id, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingBlob, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks })
             .ToListAsync(ct);
 
         return candidates
@@ -73,6 +79,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
                         DocumentType = (DocumentType)e.DocumentType,
                         ChunkIndex = e.ChunkIndex,
                         Embedding = embedding,
+                        EmbeddingModel = e.EmbeddingModel,
                         Metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(e.MetadataJson) ?? new(),
                         CreatedAt = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero)
                     },
@@ -105,6 +112,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         ChunkIndex = chunk.ChunkIndex,
         ContentHash = hash,
         EmbeddingBlob = FloatsToBlob(chunk.Embedding ?? []),
+        EmbeddingModel = chunk.EmbeddingModel,
         MetadataJson = JsonSerializer.Serialize(chunk.Metadata),
         CreatedAtTicks = chunk.CreatedAt.UtcTicks
     };

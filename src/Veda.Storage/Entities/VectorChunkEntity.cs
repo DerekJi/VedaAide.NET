@@ -13,6 +13,7 @@ public class VectorChunkEntity
     public int ChunkIndex      { get; set; }
     public string ContentHash  { get; set; } = string.Empty;  // SHA256 for dedup
     public byte[] EmbeddingBlob { get; set; } = Array.Empty<byte>();  // float[] as little-endian bytes
+    public string EmbeddingModel { get; set; } = string.Empty;  // 记录生成 Embedding 时使用的模型版本，切换模型时用于重新索引
     public string MetadataJson { get; set; } = "{}";
     public long CreatedAtTicks { get; set; }
 }

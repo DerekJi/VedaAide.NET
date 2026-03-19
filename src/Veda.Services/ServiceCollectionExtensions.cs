@@ -24,6 +24,9 @@ public static class ServiceCollectionExtensions
         // DIP 适配器：将 SK 的 IChatCompletionService 包装为领域接口 IChatService
         services.AddScoped<IChatService, OllamaChatService>();
 
+        // Phase 2: 防幻觉服务
+        services.AddScoped<IHallucinationGuardService, HallucinationGuardService>();
+
         // ISP 拆分的具体服务
         services.AddScoped<IDocumentIngestor, DocumentIngestService>();
         services.AddScoped<IQueryService, QueryService>();

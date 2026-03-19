@@ -33,22 +33,43 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TMPFILE=$(mktemp)
+trap 'rm -f "$TMPFILE"; pkill -f "Veda.Api" 2>/dev/null || true' EXIT
 
 # ── 可选：自动启动 API ─────────────────────────────────────────────────────────
 if [[ "$START_API" == "true" ]]; then
   # 只停止 Veda.Api，不影响其他 dotnet 项目
   pkill -f "Veda.Api" 2>/dev/null && echo "Stopped previous Veda.Api." || true
   dotnet run --project "$REPO_ROOT/src/Veda.Api" &
-  API_PID=$!
-  echo "Waiting for Veda.Api (PID $API_PID)..."
+  echo "Waiting for Veda.Api to start..."
   for i in $(seq 1 30); do
     curl -s -o /dev/null "$API_BASE/swagger/index.html" && break
     sleep 1
   done
-  trap 'pkill -f "Veda.Api" 2>/dev/null || true' EXIT
 fi
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+# curl_json <method> <url> <json_body>
+# 将 HTTP 状态码写入 CURL_CODE，响应体写入 CURL_BODY
+curl_json() {
+  local method="$1" url="$2" body="$3"
+  CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" -X "$method" "$url" \
+    -H "Content-Type: application/json" -d "$body")
+  CURL_BODY=$(cat "$TMPFILE")
+}
+
+assert_http_code() {
+  local label="$1" code="$2" expected="$3"
+  if [[ "$code" == "$expected" ]]; then
+    echo -e "${GREEN}[PASS]${NC} $label (HTTP $code)"
+    ((PASS++)) || true
+  else
+    echo -e "${RED}[FAIL]${NC} $label (HTTP $code, expected $expected)"
+    ((FAIL++)) || true
+  fi
+}
+
 assert_contains() {
   local label="$1" body="$2" expected="$3"
   if echo "$body" | grep -qi "$expected"; then
@@ -62,14 +83,16 @@ assert_contains() {
   fi
 }
 
-assert_http_ok() {
-  local label="$1" code="$2"
-  if [[ "$code" == "200" ]]; then
-    echo -e "${GREEN}[PASS]${NC} $label (HTTP $code)"
-    ((PASS++)) || true
-  else
-    echo -e "${RED}[FAIL]${NC} $label (HTTP $code, expected 200)"
+assert_not_contains() {
+  local label="$1" body="$2" unexpected="$3"
+  if echo "$body" | grep -qi "$unexpected"; then
+    echo -e "${RED}[FAIL]${NC} $label"
+    echo "       Expected response NOT to contain: '$unexpected'"
+    echo "       Got: $(echo "$body" | head -c 300)"
     ((FAIL++)) || true
+  else
+    echo -e "${GREEN}[PASS]${NC} $label"
+    ((PASS++)) || true
   fi
 }
 
@@ -79,79 +102,77 @@ echo "Target: $API_BASE"
 echo ""
 
 echo "--- 0. Health check (Swagger) ---"
-http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE/swagger/index.html")
-assert_http_ok "Swagger UI accessible" "$http_code"
+SWAGGER_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE/swagger/index.html")
+assert_http_code "Swagger UI accessible" "$SWAGGER_CODE" "200"
 
-# ── 1. 文档摄取 ───────────────────────────────────────────────────────────────
+# ── 1. 文档摄取（阶段一） ─────────────────────────────────────────────────────
 echo ""
 echo "--- 1. Document ingestion ---"
-INGEST_BODY=$(curl -s -X POST "$API_BASE/api/documents" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "VedaAide smoke test: The system follows SOLID principles. ISP stands for Interface Segregation Principle. DIP stands for Dependency Inversion Principle.",
-    "documentName": "smoke-test-doc.txt",
-    "documentType": "Specification"
-  }')
-
-INGEST_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_BASE/api/documents" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Duplicate ingestion test: this content should be deduplicated on second insert.",
-    "documentName": "dedup-test.txt"
-  }')
-
-assert_http_ok "POST /api/documents returns 200" "200"
-assert_contains "Response contains documentId"     "$INGEST_BODY" "documentId"
-assert_contains "Response contains chunksStored"   "$INGEST_BODY" "chunksStored"
-assert_contains "Response contains documentName"   "$INGEST_BODY" "documentName"
+curl_json POST "$API_BASE/api/documents" '{
+  "content": "VedaAide smoke test: The system follows SOLID principles. ISP stands for Interface Segregation Principle. DIP stands for Dependency Inversion Principle.",
+  "documentName": "smoke-test-doc.txt",
+  "documentType": "Specification"
+}'
+assert_http_code "POST /api/documents returns 201"  "$CURL_CODE" "201"
+assert_contains  "Response contains documentId"     "$CURL_BODY" "documentId"
+assert_contains  "Response contains chunksStored"   "$CURL_BODY" "chunksStored"
+assert_contains  "Response contains documentName"   "$CURL_BODY" "documentName"
 
 # ── 2. 输入验证 — 应返回 400 ─────────────────────────────────────────────────
 echo ""
 echo "--- 2. Input validation ---"
-EMPTY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_BASE/api/documents" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "", "documentName": ""}')
-if [[ "$EMPTY_CODE" == "400" ]]; then
-  echo -e "${GREEN}[PASS]${NC} Empty content returns HTTP 400"
-  ((PASS++)) || true
-else
-  echo -e "${RED}[FAIL]${NC} Empty content should return 400, got $EMPTY_CODE"
-  ((FAIL++)) || true
-fi
+curl_json POST "$API_BASE/api/documents" '{"content": "", "documentName": ""}'
+assert_http_code "Empty content returns HTTP 400" "$CURL_CODE" "400"
 
-# ── 3. 问答查询 ───────────────────────────────────────────────────────────────
+# ── 3. 向量相似度去重（阶段二） ───────────────────────────────────────────────
 echo ""
-echo "--- 3. Query (RAG pipeline) ---"
-QUERY_BODY=$(curl -s -X POST "$API_BASE/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "What does ISP stand for in VedaAide?",
-    "topK": 3,
-    "minSimilarity": 0.4
-  }')
+echo "--- 3. Similarity dedup (Phase 2) ---"
+DEDUP_CONTENT='{"content": "VedaAide dedup probe: this exact sentence will be submitted twice to verify near-duplicate detection.", "documentName": "dedup-probe.txt"}'
 
-QUERY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_BASE/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{"question": "What does ISP stand for in VedaAide?", "topK": 3, "minSimilarity": 0.4}')
+# 第一次摄取
+curl_json POST "$API_BASE/api/documents" "$DEDUP_CONTENT"
+assert_http_code "First ingestion returns 201"      "$CURL_CODE" "201"
+assert_contains  "First ingestion stores chunks"    "$CURL_BODY" "chunksStored"
 
-assert_http_ok "POST /api/query returns 200" "$QUERY_CODE"
-assert_contains "Response contains answer field"       "$QUERY_BODY" "answer"
-assert_contains "Response contains sources field"      "$QUERY_BODY" "sources"
-assert_contains "Response contains answerConfidence"   "$QUERY_BODY" "answerConfidence"
+# 第二次摄取完全相同的内容 → 相似度 = 1.0，应触发去重 → chunksStored = 0
+curl_json POST "$API_BASE/api/documents" "$DEDUP_CONTENT"
+assert_http_code "Second ingestion returns 201"                  "$CURL_CODE" "201"
+assert_contains  "Duplicate ingestion: chunksStored is 0"        "$CURL_BODY" '"chunksStored":0'
 
-# ── 4. Query 输入验证 — 应返回 400 ───────────────────────────────────────────
+# ── 4. 问答查询（阶段一） ────────────────────────────────────────────────────
 echo ""
-echo "--- 4. Query input validation ---"
-QUERY_EMPTY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_BASE/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{"question": ""}')
-if [[ "$QUERY_EMPTY_CODE" == "400" ]]; then
-  echo -e "${GREEN}[PASS]${NC} Empty question returns HTTP 400"
-  ((PASS++)) || true
-else
-  echo -e "${RED}[FAIL]${NC} Empty question should return 400, got $QUERY_EMPTY_CODE"
-  ((FAIL++)) || true
-fi
+echo "--- 4. Query (RAG pipeline) ---"
+curl_json POST "$API_BASE/api/query" '{
+  "question": "What does ISP stand for in VedaAide?",
+  "topK": 3,
+  "minSimilarity": 0.4
+}'
+assert_http_code "POST /api/query returns 200"             "$CURL_CODE" "200"
+assert_contains  "Response contains answer field"          "$CURL_BODY" "answer"
+assert_contains  "Response contains sources field"         "$CURL_BODY" "sources"
+assert_contains  "Response contains answerConfidence"      "$CURL_BODY" "answerConfidence"
+
+# ── 5. 防幻觉字段（阶段二） ──────────────────────────────────────────────────
+echo ""
+echo "--- 5. Hallucination guard field (Phase 2) ---"
+assert_contains "Response contains isHallucination field" "$CURL_BODY" "isHallucination"
+
+# ── 6. 日期范围过滤（阶段二） ────────────────────────────────────────────────
+echo ""
+echo "--- 6. Date range filter (Phase 2) ---"
+curl_json POST "$API_BASE/api/query" '{
+  "question": "What does ISP stand for in VedaAide?",
+  "dateFrom": "2099-01-01T00:00:00Z"
+}'
+assert_http_code "Query with future dateFrom returns 200"  "$CURL_CODE" "200"
+assert_contains  "Future dateFrom yields no-info answer"  "$CURL_BODY" "don"
+assert_not_contains "Future dateFrom returns no sources"  "$CURL_BODY" "documentName"
+
+# ── 7. Query 输入验证 — 应返回 400 ───────────────────────────────────────────
+echo ""
+echo "--- 7. Query input validation ---"
+curl_json POST "$API_BASE/api/query" '{"question": ""}'
+assert_http_code "Empty question returns HTTP 400" "$CURL_CODE" "400"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

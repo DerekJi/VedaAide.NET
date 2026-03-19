@@ -8,8 +8,11 @@ public sealed class DocumentIngestService(
     IDocumentProcessor processor,
     IEmbeddingService embeddingService,
     IVectorStore vectorStore,
+    IOptions<RagOptions> options,
+    IOptions<VedaOptions> vedaOptions,
     ILogger<DocumentIngestService> logger) : IDocumentIngestor
 {
+    private const int LogSnippetLength = 50;
     public async Task<IngestResult> IngestAsync(
         string content,
         string documentName,
@@ -30,11 +33,34 @@ public sealed class DocumentIngestService(
         var embeddings = await embeddingService.GenerateEmbeddingsAsync(texts, ct);
 
         for (var i = 0; i < chunks.Count; i++)
+        {
             chunks[i].Embedding = embeddings[i];
+            chunks[i].EmbeddingModel = vedaOptions.Value.EmbeddingModel;
+        }
 
-        await vectorStore.UpsertBatchAsync(chunks, ct);
+        // 第二层去重：过滤与已存储内容向量相似度过高的块（语义近似重复）。
+        var dedupThreshold = options.Value.SimilarityDedupThreshold;
+        var deduped = new List<DocumentChunk>();
+        foreach (var chunk in chunks)
+        {
+            var similar = await vectorStore.SearchAsync(
+                chunk.Embedding!, topK: 1, minSimilarity: dedupThreshold, ct: ct);
+            if (similar.Count == 0)
+                deduped.Add(chunk);
+            else
+                logger.LogDebug(
+                    "Skipping near-duplicate chunk (similarity: {Score:P0}): '{Snippet}'",
+                    similar[0].Similarity,
+                    chunk.Content[..Math.Min(LogSnippetLength, chunk.Content.Length)]);
+        }
 
-        logger.LogInformation("Stored {Count} chunks for '{Name}'", chunks.Count, documentName);
-        return new IngestResult(documentId, documentName, chunks.Count);
+        if (deduped.Count > 0)
+            await vectorStore.UpsertBatchAsync(deduped, ct);
+
+        logger.LogInformation(
+            "Stored {Stored}/{Total} chunks for '{Name}' (skipped {Skipped} near-duplicates)",
+            deduped.Count, chunks.Count, documentName, chunks.Count - deduped.Count);
+
+        return new IngestResult(documentId, documentName, deduped.Count);
     }
 }

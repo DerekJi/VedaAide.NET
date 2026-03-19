@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
 using Veda.Core;
@@ -24,10 +25,25 @@ public class DocumentIngestServiceTests
         _embedding = new Mock<IEmbeddingService>();
         _vectorStore = new Mock<IVectorStore>();
         _logger = new Mock<ILogger<DocumentIngestService>>();
+
+        // Default: threshold = 1.1f → similarity never reaches it → no chunk is skipped as near-duplicate
+        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 1.1f });
+        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
+
+        // Default: SearchAsync (dedup check) returns empty → nothing is a near-duplicate
+        _vectorStore
+            .Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<(DocumentChunk, float)>());
+
         _sut = new DocumentIngestService(
             _processor.Object,
             _embedding.Object,
             _vectorStore.Object,
+            options,
+            vedaOptions,
             _logger.Object);
     }
 
@@ -138,6 +154,78 @@ public class DocumentIngestServiceTests
         // Assert
         _vectorStore.Verify(v => v.UpsertBatchAsync(
             It.IsAny<IEnumerable<DocumentChunk>>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task IngestAsync_NearDuplicateChunk_ShouldSkipItAndReduceChunksStored()
+    {
+        // Arrange: 2 chunks; second one's SearchAsync returns a similar chunk (near-duplicate)
+        var chunk1 = MakeChunk("unique content");
+        var chunk2 = MakeChunk("near duplicate content");
+        _processor
+            .Setup(p => p.Process(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<string>()))
+            .Returns([chunk1, chunk2]);
+        _embedding
+            .Setup(e => e.GenerateEmbeddingsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<float[]> { new float[3], new float[3] });
+        _vectorStore
+            .Setup(v => v.UpsertBatchAsync(It.IsAny<IEnumerable<DocumentChunk>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // First dedup check: chunk1 → no similar found
+        // Second dedup check: chunk2 → similar found (near-duplicate detected)
+        var existingChunk = MakeChunk("near duplicate content");
+        _vectorStore
+            .SetupSequence(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<(DocumentChunk, float)>())         // chunk1: not a duplicate
+            .ReturnsAsync([(existingChunk, 0.97f)]);                   // chunk2: near-duplicate detected
+
+        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
+        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
+        var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
+            _vectorStore.Object, options, vedaOptions, _logger.Object);
+
+        // Act
+        var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);
+
+        // Assert: only 1 chunk stored (chunk2 skipped as near-duplicate)
+        result.ChunksStored.Should().Be(1);
+    }
+
+    [Test]
+    public async Task IngestAsync_AllChunksNearDuplicate_ShouldNotCallUpsertBatch()
+    {
+        // Arrange
+        var chunk = MakeChunk("existing content");
+        _processor
+            .Setup(p => p.Process(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<string>()))
+            .Returns([chunk]);
+        _embedding
+            .Setup(e => e.GenerateEmbeddingsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<float[]> { new float[3] });
+        // Dedup check returns a similar chunk
+        _vectorStore
+            .Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(MakeChunk("existing"), 0.98f)]);
+
+        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
+        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
+        var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
+            _vectorStore.Object, options, vedaOptions, _logger.Object);
+
+        // Act
+        var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);
+
+        // Assert: UpsertBatch never called since nothing new to store
+        _vectorStore.Verify(v => v.UpsertBatchAsync(
+            It.IsAny<IEnumerable<DocumentChunk>>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.ChunksStored.Should().Be(0);
     }
 
     private static DocumentChunk MakeChunk(string content) => new()

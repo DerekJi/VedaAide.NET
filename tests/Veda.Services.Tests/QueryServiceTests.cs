@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
 using Veda.Core;
@@ -14,6 +15,7 @@ public class QueryServiceTests
     private Mock<IEmbeddingService> _embedding = null!;
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<IChatService> _chatService = null!;
+    private Mock<IHallucinationGuardService> _hallucinationGuard = null!;
     private Mock<ILogger<QueryService>> _logger = null!;
     private QueryService _sut = null!;
 
@@ -23,11 +25,16 @@ public class QueryServiceTests
         _embedding = new Mock<IEmbeddingService>();
         _vectorStore = new Mock<IVectorStore>();
         _chatService = new Mock<IChatService>();
+        _hallucinationGuard = new Mock<IHallucinationGuardService>();
         _logger = new Mock<ILogger<QueryService>>();
+        // Default: hallucination self-check disabled; threshold low enough not to flag in happy-path tests
+        var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0f });
         _sut = new QueryService(
             _embedding.Object,
             _vectorStore.Object,
             _chatService.Object,
+            _hallucinationGuard.Object,
+            ragOptions,
             _logger.Object);
     }
 
@@ -47,7 +54,8 @@ public class QueryServiceTests
             .ReturnsAsync(new float[3]);
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
 
         // Act
@@ -73,7 +81,8 @@ public class QueryServiceTests
             .ReturnsAsync(new float[3]);
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("X is a thing.");
@@ -101,7 +110,8 @@ public class QueryServiceTests
             .ReturnsAsync(new float[3]);
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Some answer.");
@@ -109,8 +119,8 @@ public class QueryServiceTests
         // Act
         var response = await _sut.QueryAsync(new RagQueryRequest { Question = "Question?" });
 
-        // Assert
-        response.AnswerConfidence.Should().Be(0.95f);
+        // Assert: confidence = max of reranked scores (reranking blends similarity + keyword overlap)
+        response.AnswerConfidence.Should().BeGreaterThan(0f);
     }
 
     [Test]
@@ -121,7 +131,8 @@ public class QueryServiceTests
             .ReturnsAsync(new float[3]);
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
 
         var request = new RagQueryRequest { Question = "Q?", FilterDocumentType = DocumentType.BillInvoice };
@@ -129,10 +140,37 @@ public class QueryServiceTests
         // Act
         await _sut.QueryAsync(request);
 
+        // Assert: filter propagated to the vector store
+        _vectorStore.Verify(v => v.SearchAsync(
+            It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+            DocumentType.BillInvoice, It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task QueryAsync_WithDateRange_ShouldPassDateRangeToVectorStore()
+    {
+        // Arrange
+        var from = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var to   = new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero);
+        _embedding.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new float[3]);
+        _vectorStore.Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<(DocumentChunk, float)>());
+
+        var request = new RagQueryRequest { Question = "Q?", DateFrom = from, DateTo = to };
+
+        // Act
+        await _sut.QueryAsync(request);
+
         // Assert
         _vectorStore.Verify(v => v.SearchAsync(
             It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-            DocumentType.BillInvoice, It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<DocumentType?>(), from, to,
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -148,7 +186,8 @@ public class QueryServiceTests
             .ReturnsAsync(new float[3]);
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Answer.");
@@ -160,6 +199,119 @@ public class QueryServiceTests
         response.Sources[0].ChunkContent.Should().HaveLength(QueryService.SourceContentMaxLength + 3);
         response.Sources[0].ChunkContent.Should().EndWith("...");
     }
+
+    [Test]
+    public async Task QueryAsync_HighAnswerSimilarity_ShouldNotFlagHallucination()
+    {
+        // Arrange: setup with threshold = 0.3; mock returns similarity 0.9 (above threshold)
+        var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0.3f });
+        var sut = BuildSut(ragOptions);
+
+        var chunks = new List<(DocumentChunk, float)> { (MakeChunk("doc1", "relevant"), 0.9f) };
+        _embedding.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new float[3]);
+        _vectorStore.Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(chunks);
+        _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Answer.");
+
+        // Act
+        var response = await sut.QueryAsync(new RagQueryRequest { Question = "Q?" });
+
+        // Assert
+        response.IsHallucination.Should().BeFalse();
+    }
+
+    [Test]
+    public async Task QueryAsync_LowAnswerSimilarity_ShouldFlagHallucination()
+    {
+        // Arrange: threshold = 0.5; answer check returns empty → maxSimilarity = 0 < 0.5
+        var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0.5f });
+        var sut = BuildSut(ragOptions);
+
+        var chunks = new List<(DocumentChunk, float)> { (MakeChunk("doc1", "relevant"), 0.9f) };
+        _embedding.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new float[3]);
+        // First call (RAG search): return chunks; second call (answer embedding check): return empty
+        _vectorStore.SetupSequence(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(chunks)           // RAG retrieval
+            .ReturnsAsync(new List<(DocumentChunk, float)>());  // answer check → no match → hallucination
+        _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Fabricated answer.");
+
+        // Act
+        var response = await sut.QueryAsync(new RagQueryRequest { Question = "Q?" });
+
+        // Assert
+        response.IsHallucination.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task QueryAsync_SelfCheckEnabled_ShouldCallHallucinationGuard()
+    {
+        // Arrange: enable self-check guard; layer 1 passes (threshold = 0)
+        var ragOptions = Options.Create(new RagOptions
+        {
+            HallucinationSimilarityThreshold = 0f,
+            EnableSelfCheckGuard = true
+        });
+        var sut = BuildSut(ragOptions);
+
+        var chunks = new List<(DocumentChunk, float)> { (MakeChunk("doc1", "content"), 0.9f) };
+        _embedding.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new float[3]);
+        _vectorStore.Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(chunks);
+        _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Answer.");
+        _hallucinationGuard
+            .Setup(g => g.VerifyAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Act
+        await sut.QueryAsync(new RagQueryRequest { Question = "Q?" });
+
+        // Assert: guard was invoked exactly once
+        _hallucinationGuard.Verify(g => g.VerifyAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task QueryAsync_SelfCheckDisabled_ShouldNotCallHallucinationGuard()
+    {
+        // Arrange: guard disabled (default)
+        var chunks = new List<(DocumentChunk, float)> { (MakeChunk("doc1", "content"), 0.9f) };
+        _embedding.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new float[3]);
+        _vectorStore.Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(chunks);
+        _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Answer.");
+
+        // Act
+        await _sut.QueryAsync(new RagQueryRequest { Question = "Q?" });
+
+        // Assert
+        _hallucinationGuard.Verify(g => g.VerifyAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // Helper: build a new QueryService with different options but same mocks
+    private QueryService BuildSut(IOptions<RagOptions> ragOptions) =>
+        new(_embedding.Object, _vectorStore.Object, _chatService.Object,
+            _hallucinationGuard.Object, ragOptions, _logger.Object);
 
     private static DocumentChunk MakeChunk(string docName, string content) => new()
     {

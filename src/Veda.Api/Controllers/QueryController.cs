@@ -1,4 +1,3 @@
-using Veda.Api.Extensions;
 using Veda.Api.Models;
 
 namespace Veda.Api.Controllers;
@@ -11,6 +10,8 @@ public class QueryController(IQueryService queryService) : ControllerBase
     /// 问答：向量检索 → LLM 生成 → 返回答案及来源。
     /// </summary>
     [HttpPost]
+    [ProducesResponseType(typeof(RagQueryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Query([FromBody] QueryRequest request, CancellationToken ct)
     {
         var ragRequest = new RagQueryRequest
@@ -18,7 +19,9 @@ public class QueryController(IQueryService queryService) : ControllerBase
             Question = request.Question,
             FilterDocumentType = DocumentTypeParser.ParseOrNull(request.DocumentType),
             TopK = request.TopK,
-            MinSimilarity = request.MinSimilarity
+            MinSimilarity = request.MinSimilarity,
+            DateFrom = request.DateFrom,
+            DateTo = request.DateTo
         };
 
         var response = await queryService.QueryAsync(ragRequest, ct);
