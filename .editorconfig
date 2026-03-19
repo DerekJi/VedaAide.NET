@@ -1,0 +1,12 @@
+root = true
+
+[*.cs]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# EF Core 自动生成的迁移文件：让 IDE 和 Roslyn 分析器完全忽略它们。
+# #nullable disable 和 #pragma warning disable 是 EF 工具写入的，不需要手动维护，也不应修改。
+[**/Migrations/**.cs]
+generated_code = true

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Veda.Api/Veda.Api.csproj" />
+    <Project Path="src/Veda.Core/Veda.Core.csproj" />
+    <Project Path="src/Veda.Prompts/Veda.Prompts.csproj" />
+    <Project Path="src/Veda.Services/Veda.Services.csproj" />
+    <Project Path="src/Veda.Storage/Veda.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Veda.Core.Tests/Veda.Core.Tests.csproj" />
+    <Project Path="tests/Veda.Services.Tests/Veda.Services.Tests.csproj" />
+  </Folder>
+</Solution>

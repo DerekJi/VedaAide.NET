@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    全局 MSBuild 属性，自动应用到 solution 下所有项目。
+    各 .csproj 无需再重复声明这些设置。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
