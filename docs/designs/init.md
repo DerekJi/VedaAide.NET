@@ -81,22 +81,35 @@
 4. RAG 查询端到端
    - `Veda.Api` 暴露两个 REST 端点：`POST /documents`（摄取）、`POST /query`（问答）。
    - Semantic Kernel 编排：检索相关块 → 构建提示 → 调用 Ollama LLM → 返回答案。
-这是项目的最大亮点，我们把刚才讨论的全部落地。
- 
-1. 智能去重模块
-- 基于哈希：先计算文本哈希，存在则跳过。
-- 基于相似度：分块后计算向量相似度，过滤高重复块。
+
+
+🔒 阶段二：RAG 质量增强 (Dedup + Anti-Hallucination + Ranking)
+
+这是项目最大亮点，体现产品级 AI 工程思维。
+
+1. 智能去重模块（双层）
+   - **第一层 — 哈希去重**（已在阶段一实现）：计算分块内容 SHA-256，已存在则跳过，防止完全相同内容重复入库。
+   - **第二层 — 向量相似度去重**：在摄取阶段，对每个新分块先做向量检索；若与已存储内容余弦相似度 ≥ `SimilarityDedupThreshold`（默认 0.95），则视为近似重复，跳过存储。
+     - 实现位置：`DocumentIngestService.IngestAsync`，在 Embedding 后、`UpsertBatchAsync` 前过滤。
+     - 好处：防止语义重复内容污染检索结果，提升回答质量。
+
 2. 双层防幻觉体系 (Dual Verification)
-- 第一层：向量相似度校验 (Answer Embedding Check)
-- 逻辑：LLM 生成回答 -> 做 Embedding -> 回向量库检索对比。
-- 作用：快速过滤低相似度、无依据的内容。
-- 第二层：LLM 自我校验 (Self-Check / Fact Check)
-- 逻辑：调用 DeepSeek 二次审核，检查每一句话是否源于资料。
-- 作用：修正逻辑错误、编造内容。
-3. RAG 优化
-- 集成 重排 (Reranking) 逻辑。
-- 配置 元数据过滤 (如时间范围、文档类型)。
- 
+   - **第一层 — 向量相似度校验 (Answer Embedding Check)**
+     - 逻辑：LLM 生成回答 → 对回答做 Embedding → 向向量库检索对比。
+     - 判断：若回答向量与检索到的最高相似度 < `HallucinationSimilarityThreshold`（默认 0.3），则判定为潜在幻觉。
+     - 结果：设置 `RagQueryResponse.IsHallucination = true`，同时保留答案供前端自行决策是否展示。
+     - 实现位置：`QueryService.QueryAsync`，在 `CompleteAsync` 之后。
+   - **第二层 — LLM 自我校验 (Self-Check)**
+     - 逻辑：通过 `IHallucinationGuardService` 再次调用 LLM，逐句审核回答是否有文档依据。
+     - Prompt 策略：给模型提供原始 context 和生成的回答，要求返回 `true/false` 及置信理由。
+     - 实现位置：新增 `IHallucinationGuardService`（`Veda.Core.Interfaces`）+ `HallucinationGuardService`（`Veda.Services`）。
+     - 注意：此层会额外消耗 1 次 LLM 调用，通过配置 `Veda:EnableSelfCheckGuard: true/false` 控制是否开启。
+
+3. RAG 检索优化
+   - **Reranking（重排序）**：初始检索 `2 × TopK` 个候选块，通过 `IRerankService` 接口对候选列表重新打分排序，取分数最高的 `TopK` 个作为最终上下文。Phase 2 使用基于关键词覆盖率的轻量重排策略（无额外 API 调用）；Phase 4 可替换为 cross-encoder 模型。
+   - **时间范围元数据过滤**：`RagQueryRequest` 新增可选字段 `DateFrom`/`DateTo`；`IVectorStore.SearchAsync` 新增对应参数；`SqliteVectorStore` 在 `WHERE` 子句中过滤 `CreatedAtTicks` 范围。
+
+
 🌐 阶段三：API 层 + 前端 (Full-Stack)
 
 1. `Veda.Api` 完善
@@ -253,7 +266,7 @@ public class RagQueryRequest
 6.1 问题：大文档处理慢。
 - 方案：批量处理 + 异步任务队列（Background Service）。
 6.2 问题：跨模型向量不兼容。
-- 方案：配置文件锁定 Embedding 模型版本；EF Core 记录每块文本使用的模型版本，切换模型时触发重新索引流程。
+- 方案：`VectorChunkEntity` 记录每块向量生成时使用的模型名称（`EmbeddingModel` 字段，已在阶段二实现）；切换模型时通过 `WHERE EmbeddingModel != 'new-model'` 批量重新摄取受影响的块，无需全量删除重建。
 6.3 问题：外网访问不稳定。
 - 方案：提供本地运行模式，外网仅作为可选演示功能；Azure Container Apps 作为稳定云端备选。
 6.4 问题：Prompt 效果难以量化，迭代无依据。
@@ -262,6 +275,14 @@ public class RagQueryRequest
 - 方案：每个 Agent 有独立日志 + 状态追踪；EF Core 持久化 Agent 执行历史，便于复盘问题。
 6.6 问题：MCP 工具调用引入外部依赖，测试成本高。
 - 方案：MCP Tool 接口化，单元测试使用 Mock 实现；集成测试仅在 CI 中使用真实工具。
+6.7 问题：`SqliteVectorStore.SearchAsync` 全量加载向量至内存，数据量大时性能下降。
+- 当前设计：全量 `ToListAsync` 后在内存中做余弦相似度计算，< 10 万块性能可接受。
+- 触发升级信号：单次查询延迟 > 1s 或内存占用 > 500MB。
+- 阶段三方案：引入 `sqlite-vec`（`sqlite-vss` 继任者），将 ANN 检索下推到 SQLite 扩展层，只取候选集进内存。
+- 阶段三/云端方案：切换 `IVectorStore` 实现为 Azure AI Search，上层代码无需任何修改（OCP 原则保障）。
+6.8 问题：`DocumentIngestService.IngestAsync` 中 documentId 在 Embedding 生成前已分配，若 Embedding 调用超时或失败，调用方无法感知文档是否已入库。
+- 当前行为（安全）：Embedding 失败 → 流程在写 DB 之前中断 → 文档完全未存入，documentId 不可用。重新摄取即可，幂等安全。
+- Phase 4 背景任务场景的补充方案：引入 `DocumentMeta` 表（已在 EF Core 初始迁移计划中）记录摄取状态（Pending / Completed / Failed），API 先返回 documentId + Pending 状态，后台任务更新状态；客户端可轮询或通过 SSE 接收完成通知。
 
 
 ## 7. 项目模块结构 (Solution Structure)

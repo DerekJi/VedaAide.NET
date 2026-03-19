@@ -1,0 +1,19 @@
+namespace Veda.Services;
+
+/// <summary>
+/// RAG 管道可配置阈值，通过 appsettings.json 的 Veda:Rag 节覆盖默认值。
+/// </summary>
+public sealed class RagOptions
+{
+    /// <inheritdoc cref="RagDefaults.SimilarityDedupThreshold"/>
+    public float SimilarityDedupThreshold { get; set; } = RagDefaults.SimilarityDedupThreshold;
+
+    /// <inheritdoc cref="RagDefaults.HallucinationSimilarityThreshold"/>
+    public float HallucinationSimilarityThreshold { get; set; } = RagDefaults.HallucinationSimilarityThreshold;
+
+    /// <summary>
+    /// 是否启用防幻觉第二层（LLM 自我校验）。
+    /// 启用后每次查询额外消耗一次 LLM 调用，默认关闭。
+    /// </summary>
+    public bool EnableSelfCheckGuard { get; set; } = false;
+}

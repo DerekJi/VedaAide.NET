@@ -150,20 +150,75 @@ public class SqliteVectorStoreIntegrationTests
     [Test]
     public async Task SearchAsync_WithTopKLimit_ShouldReturnAtMostTopKResults()
     {
-        // Arrange: 5 similar chunks
+        // Arrange: 5 chunks with distinct content (distinct SHA256 → hash dedup passes all 5 into DB)
+        //          but identical query vectors so all 5 score similarity = 1.0.
+        //          This test validates topK truncation in SearchAsync, not dedup behaviour.
         var chunks = Enumerable.Range(1, 5)
             .Select(i => MakeChunk($"doc-{i}", $"content {i}", new float[] { 1f, 0f, 0f }))
             .ToArray();
         await _sut.UpsertBatchAsync(chunks);
 
-        // Act: topK = 3
+        // Act: request only top 3
         var results = await _sut.SearchAsync(
             new float[] { 1f, 0f, 0f },
             topK: 3,
             minSimilarity: 0.9f);
 
-        // Assert
+        // Assert: exactly topK results returned even though all 5 match
         results.Should().HaveCount(3);
+    }
+
+    [Test]
+    public async Task SearchAsync_WithDateFromFilter_ShouldReturnOnlyChunksAfterDate()
+    {
+        // Arrange: insert old chunk, then capture a cutoff, then insert new chunk
+        var oldChunk = MakeChunk("old-doc", "old content", new float[] { 1f, 0f, 0f });
+        await _sut.UpsertBatchAsync([oldChunk]);
+
+        // Small delay + capture cutoff after old chunk is stored
+        await Task.Delay(50);
+        var cutoff = DateTimeOffset.UtcNow;
+        await Task.Delay(50);
+
+        var newChunk = MakeChunk("new-doc", "new content", new float[] { 1f, 0f, 0f });
+        await _sut.UpsertBatchAsync([newChunk]);
+
+        // Act: search with dateFrom = cutoff (should only return new chunk)
+        var results = await _sut.SearchAsync(
+            new float[] { 1f, 0f, 0f },
+            topK: 10,
+            minSimilarity: 0.9f,
+            dateFrom: cutoff);
+
+        // Assert
+        results.Should().HaveCount(1);
+        results[0].Chunk.DocumentName.Should().Be("new-doc");
+    }
+
+    [Test]
+    public async Task SearchAsync_WithDateToFilter_ShouldReturnOnlyChunksBeforeDate()
+    {
+        // Arrange: insert early chunk, capture cutoff, then insert late chunk
+        var earlyChunk = MakeChunk("early-doc", "early content", new float[] { 1f, 0f, 0f });
+        await _sut.UpsertBatchAsync([earlyChunk]);
+
+        await Task.Delay(50);
+        var cutoff = DateTimeOffset.UtcNow;
+        await Task.Delay(50);
+
+        var lateChunk = MakeChunk("late-doc", "late content", new float[] { 1f, 0f, 0f });
+        await _sut.UpsertBatchAsync([lateChunk]);
+
+        // Act: search with dateTo = cutoff (should only return early chunk)
+        var results = await _sut.SearchAsync(
+            new float[] { 1f, 0f, 0f },
+            topK: 10,
+            minSimilarity: 0.9f,
+            dateTo: cutoff);
+
+        // Assert
+        results.Should().HaveCount(1);
+        results[0].Chunk.DocumentName.Should().Be("early-doc");
     }
 
     private static DocumentChunk MakeChunk(

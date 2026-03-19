@@ -11,6 +11,10 @@ builder.Services.AddVedaAiServices(
     embeddingModel: cfg["Veda:EmbeddingModel"] ?? "nomic-embed-text",
     chatModel: cfg["Veda:ChatModel"] ?? "qwen3:8b");
 
+// ── RAG Options (thresholds / feature flags) ──────────────────────────────────
+builder.Services.Configure<RagOptions>(cfg.GetSection("Veda:Rag"));
+builder.Services.Configure<VedaOptions>(cfg.GetSection("Veda"));
+
 // ── Storage (SQLite + EF Core) ────────────────────────────────────────────────
 builder.Services.AddVedaStorage(cfg["Veda:DbPath"] ?? "veda.db");
 

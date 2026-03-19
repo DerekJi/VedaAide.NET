@@ -12,6 +12,8 @@ public interface IVectorStore
         int topK = 5,
         float minSimilarity = 0.6f,
         DocumentType? filterType = null,
+        DateTimeOffset? dateFrom = null,
+        DateTimeOffset? dateTo = null,
         CancellationToken ct = default);
     Task<bool> ExistsAsync(string contentHash, CancellationToken ct = default);
     Task DeleteByDocumentAsync(string documentId, CancellationToken ct = default);
