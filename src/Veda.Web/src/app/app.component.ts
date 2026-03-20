@@ -14,13 +14,13 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
         </div>
         <ul class="nav-links">
           <li>
-            <a routerLink="/documents" routerLinkActive="active">
-              <span class="nav-icon">📄</span> Documents
+            <a routerLink="/chat" routerLinkActive="active">
+              <span class="nav-icon">💬</span> Chat
             </a>
           </li>
           <li>
-            <a routerLink="/chat" routerLinkActive="active">
-              <span class="nav-icon">💬</span> Chat
+            <a routerLink="/ingest" routerLinkActive="active">
+              <span class="nav-icon">📥</span> Ingest
             </a>
           </li>
           <li>

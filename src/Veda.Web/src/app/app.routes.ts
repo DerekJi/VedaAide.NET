@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'documents', pathMatch: 'full' },
+  { path: '', redirectTo: 'chat', pathMatch: 'full' },
   {
-    path: 'documents',
-    loadComponent: () => import('./pages/documents/documents.component').then(m => m.DocumentsComponent),
-    title: 'VedaAide – Documents'
+    path: 'ingest',
+    loadComponent: () => import('./pages/ingest/ingest.component').then(m => m.IngestComponent),
+    title: 'VedaAide – Ingest'
   },
   {
     path: 'chat',
@@ -17,5 +17,5 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/prompts/prompts.component').then(m => m.PromptsComponent),
     title: 'VedaAide – Prompts'
   },
-  { path: '**', redirectTo: 'documents' }
+  { path: '**', redirectTo: 'chat' }
 ];
