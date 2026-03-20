@@ -1,10 +1,12 @@
 # 📁 项目设计草案：VedaAide .NET
- 
+
+> 💡 开发过程中积累的非显而易见设计决策，见 [docs/insights/](../insights/README.md)
+
 ## 1. 项目基本信息
  
 - 项目名称：VedaAide .NET
 - 核心定位：通用型、企业级、私有化 RAG 智能问答系统
-- 技术栈（后端）：.NET 8 / 9 (C#) + ASP.NET Core + EF Core + Semantic Kernel + MCP + Microsoft Agent Framework
+- 技术栈（后端）：.NET 10 (C#) + ASP.NET Core + EF Core 10 + Semantic Kernel 1.73 + HotChocolate 15 (GraphQL)
 - 技术栈（AI）：Ollama (本地 Embedding) + DeepSeek / Azure OpenAI (LLM)
 - 技术栈（前端）：Angular + TypeScript
 - 技术栈（API）：GraphQL (HotChocolate) + REST
@@ -110,19 +112,26 @@
    - **时间范围元数据过滤**：`RagQueryRequest` 新增可选字段 `DateFrom`/`DateTo`；`IVectorStore.SearchAsync` 新增对应参数；`SqliteVectorStore` 在 `WHERE` 子句中过滤 `CreatedAtTicks` 范围。
 
 
-🌐 阶段三：API 层 + 前端 (Full-Stack)
+🌐 阶段三：API 层 + 前端 (Full-Stack) ✅ **已完成**
 
 1. `Veda.Api` 完善
-   - 接入 GraphQL（HotChocolate），替代 / 并行 REST。
-   - 流式响应（Server-Sent Events）支持对话页实时输出。
-2. `Veda.Web`（Angular + TypeScript）
-   - 文档管理页：上传、摄取状态、删除。
-   - 对话页：流式问答，显示引用来源与置信度。
-   - Prompt 管理页：查看/编辑版本化模板。
+   - **HotChocolate 15.0.0** GraphQL 端点（`/graphql`）：`Query.AskAsync`、`Mutation.IngestDocumentAsync`。
+   - **Server-Sent Events（SSE）** 流式端点 `GET /api/querystream`：依次推送
+     `{type:"sources"}` → `{type:"token", token:"..."}` → `{type:"done", answerConfidence, isHallucination}`。
+   - `IChatService` 新增 `CompleteStreamAsync`；`IQueryService` 新增 `QueryStreamAsync`。
+   - `OllamaChatService` 通过 Semantic Kernel `GetStreamingChatMessageContentsAsync` 实现 token 级流式输出。
+2. `Veda.Web`（Angular 19 Standalone，独立组件 + Signals API）
+   - **Shell**：侧边栏导航，懒加载路由（`/documents`、`/chat`、`/prompts`）。
+   - **Documents 页**：文件上传 + 文本直接摄取，摄取历史表格，状态徽章。
+   - **Chat 页**：流式问答，消息气泡，引用来源折叠面板，幻觉警告徽章，置信度显示，实时打字光标动画。
+   - **Prompts 页**：Phase 4 占位页。
+   - 开发代理：`/api` 和 `/graphql` 通过 `proxy.conf.json` 转发到 `localhost:5126`。
 3. 部署
-   - Docker Compose 一键启动（API + Frontend + Ollama）。
-   - 方案 A（低成本）：本地服务器 + Cloudflare Tunnel。
-   - 方案 B（云端）：Azure Container Apps，自动扩缩容。
+   - `src/Veda.Api/Dockerfile`：多阶段构建（SDK→runtime），SQLite 数据目录挂载为 Volume。
+   - `src/Veda.Web/Dockerfile`：多阶段构建（Node 24 build→nginx:alpine serve），含 SPA fallback 和 SSE 无缓冲代理配置。
+   - `docker-compose.yml`：一键启动 `veda-api` + `veda-web` + `ollama` + `cloudflared` 四个服务。
+   - **方案 A（已实现）**：`cloudflare/config.yml` + `cloudflare/README.md`，完整 Cloudflare Tunnel 配置与操作指南。
+   - 方案 B（预留）：Azure Container Apps，自动扩缩容。
 
 
 🤖 阶段四：Agentic Workflow + MCP 集成

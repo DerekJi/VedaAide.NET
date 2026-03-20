@@ -1,0 +1,9 @@
+tunnel: <YOUR_TUNNEL_ID>
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Route all traffic to the nginx container on port 80
+  - service: http://veda-web:80
+
+  # Required catch-all (returns 404 for unmatched rules)
+  - service: http_status:404

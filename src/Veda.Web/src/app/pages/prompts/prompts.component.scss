@@ -1,0 +1,32 @@
+.prompts-page { padding: 0; }
+
+.page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; }
+
+.info-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-sm);
+  padding: 2.5rem;
+  max-width: 640px;
+  text-align: center;
+
+  .info-icon { font-size: 3rem; margin-bottom: 1rem; }
+
+  h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: .75rem; }
+
+  p {
+    color: var(--color-text-muted);
+    line-height: 1.7;
+    margin-bottom: 1.25rem;
+  }
+
+  ul {
+    text-align: left;
+    display: inline-block;
+    color: var(--color-text-muted);
+    line-height: 2;
+
+    li::marker { color: var(--color-primary); }
+  }
+}

@@ -9,4 +9,9 @@ public interface IChatService
     /// <param name="systemPrompt">系统指令，定义模型行为。</param>
     /// <param name="userMessage">用户消息（含检索到的上下文）。</param>
     Task<string> CompleteAsync(string systemPrompt, string userMessage, CancellationToken ct = default);
+
+    /// <summary>
+    /// 流式完成：逐 token 返回，适合 Server-Sent Events 场景。
+    /// </summary>
+    IAsyncEnumerable<string> CompleteStreamAsync(string systemPrompt, string userMessage, CancellationToken ct = default);
 }

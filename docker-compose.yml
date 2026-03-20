@@ -1,0 +1,76 @@
+services:
+
+  # ─────────────────────────────────────────────
+  # Ollama – local LLM inference
+  # ─────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: veda-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "11434:11434"
+    # Uncomment to enable GPU pass-through on Linux:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
+  # ─────────────────────────────────────────────
+  # Veda.Api – ASP.NET Core backend
+  # ─────────────────────────────────────────────
+  veda-api:
+    build:
+      context: .
+      dockerfile: src/Veda.Api/Dockerfile
+    container_name: veda-api
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    volumes:
+      - veda-db:/app/data
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__VedaDb: Data Source=/app/data/veda.db
+      Ollama__BaseUrl: http://ollama:11434
+      Veda__EmbeddingModel: nomic-embed-text
+      Rag__TopK: "5"
+      Rag__SimilarityThreshold: "0.4"
+    # Not exposed to the host – only reachable via veda-web's nginx proxy
+    expose:
+      - "8080"
+
+  # ─────────────────────────────────────────────
+  # Veda.Web – Angular frontend (nginx)
+  # ─────────────────────────────────────────────
+  veda-web:
+    build:
+      context: .
+      dockerfile: src/Veda.Web/Dockerfile
+    container_name: veda-web
+    restart: unless-stopped
+    depends_on:
+      - veda-api
+    ports:
+      - "80:80"
+
+  # ─────────────────────────────────────────────
+  # cloudflared – Cloudflare Tunnel (Plan A)
+  # ─────────────────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: veda-cloudflared
+    restart: unless-stopped
+    depends_on:
+      - veda-web
+    volumes:
+      - ./cloudflare:/etc/cloudflared:ro
+    command: tunnel --config /etc/cloudflared/config.yml run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+
+volumes:
+  ollama-models:
+  veda-db:

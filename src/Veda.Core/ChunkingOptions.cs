@@ -7,9 +7,10 @@ public record ChunkingOptions(int TokenSize, int OverlapTokens)
 {
     public static ChunkingOptions ForDocumentType(DocumentType type) => type switch
     {
-        DocumentType.BillInvoice  => new(256,  32),
+        DocumentType.BillInvoice   => new(256,  32),
         DocumentType.Specification => new(1024, 128),
-        DocumentType.Report       => new(512,  64),
-        _                         => new(512,  64)
+        DocumentType.Report        => new(512,  64),
+        DocumentType.PersonalNote  => new(256,  32),
+        _                          => new(512,  64)
     };
 }

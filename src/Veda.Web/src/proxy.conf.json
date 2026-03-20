@@ -1,0 +1,13 @@
+{
+  "/api": {
+    "target": "http://localhost:5126",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/graphql": {
+    "target": "http://localhost:5126",
+    "secure": false,
+    "changeOrigin": true,
+    "ws": true
+  }
+}

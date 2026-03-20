@@ -1,4 +1,5 @@
 using Microsoft.SemanticKernel.ChatCompletion;
+using System.Runtime.CompilerServices;
 
 namespace Veda.Services;
 
@@ -14,5 +15,19 @@ public sealed class OllamaChatService(IChatCompletionService inner) : IChatServi
         history.AddUserMessage(userMessage);
         var response = await inner.GetChatMessageContentAsync(history, cancellationToken: ct);
         return response.Content ?? string.Empty;
+    }
+
+    public async IAsyncEnumerable<string> CompleteStreamAsync(
+        string systemPrompt,
+        string userMessage,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var history = new ChatHistory(systemPrompt);
+        history.AddUserMessage(userMessage);
+        await foreach (var chunk in inner.GetStreamingChatMessageContentsAsync(history, cancellationToken: ct))
+        {
+            if (!string.IsNullOrEmpty(chunk.Content))
+                yield return chunk.Content;
+        }
     }
 }

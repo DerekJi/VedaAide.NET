@@ -5,6 +5,7 @@
     <Project Path="src/Veda.Prompts/Veda.Prompts.csproj" />
     <Project Path="src/Veda.Services/Veda.Services.csproj" />
     <Project Path="src/Veda.Storage/Veda.Storage.csproj" />
+    <Folder Name="/src/Veda.Web/" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Veda.Core.Tests/Veda.Core.Tests.csproj" />

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Veda.Api.GraphQL;
 using Veda.Services;
 using Veda.Storage;
 
@@ -26,6 +27,12 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "VedaAide API", Version = "v1" });
 });
 
+// ── GraphQL (HotChocolate) ────────────────────────────────────────────────────
+builder.Services
+    .AddGraphQLServer()
+    .AddQueryType<Query>()
+    .AddMutationType<Mutation>();
+
 var app = builder.Build();
 
 // ── Auto-migrate DB on startup ────────────────────────────────────────────────
@@ -44,5 +51,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapGraphQL();   // GraphQL endpoint: /graphql (Banana Cake Pop UI in dev)
 
 app.Run();
