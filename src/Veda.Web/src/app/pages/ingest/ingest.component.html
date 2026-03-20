@@ -1,0 +1,111 @@
+<div class="page">
+  <h1 class="page-title">Ingest</h1>
+
+  <div class="tab-header" role="tablist">
+    <button class="tab-btn" [class.active]="tab() === 'notes'"
+            (click)="tab.set('notes')" role="tab" aria-label="Notes tab">
+      📌 Notes
+    </button>
+    <button class="tab-btn" [class.active]="tab() === 'documents'"
+            (click)="tab.set('documents')" role="tab" aria-label="Documents tab">
+      📄 Documents
+    </button>
+  </div>
+
+  @if (tab() === 'notes') {
+    <div class="card">
+      <h2>Quick Note</h2>
+      <div class="form-group">
+        <label class="form-label">记录一件事</label>
+        <textarea
+          class="form-input note-input"
+          rows="3"
+          placeholder="例如：今天收到水费单，$319（Enter 保存，Shift+Enter 换行）"
+          [value]="noteText()"
+          (input)="noteText.set($any($event.target).value)"
+          (keydown)="onNoteKeyDown($event)"
+          [disabled]="noteBusy()"
+        ></textarea>
+      </div>
+      <button class="btn btn-primary" (click)="saveNote()"
+              [disabled]="!noteText().trim() || noteBusy()">
+        {{ noteBusy() ? '保存中…' : '📌 记住' }}
+      </button>
+    </div>
+  }
+
+  @if (tab() === 'documents') {
+    <div class="card">
+      <h2>Ingest New Document</h2>
+
+      <div class="form-group">
+        <label class="form-label">Upload File</label>
+        <input type="file" accept=".txt,.md,.pdf" class="file-input"
+               (change)="onFileSelected($event)" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label">Document Name</label>
+          <input type="text" class="form-input" [value]="documentName()"
+                 (input)="documentName.set($any($event.target).value)"
+                 placeholder="my-document.txt" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select class="form-input" [value]="documentType()"
+                  (change)="documentType.set($any($event.target).value)">
+            @for (t of documentTypes; track t) {
+              <option [value]="t">{{ t || '(auto-detect)' }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if (content()) {
+        <div class="form-group">
+          <label class="form-label">Preview (first 300 chars)</label>
+          <pre class="content-preview">{{ content().slice(0, 300) }}{{ content().length > 300 ? '…' : '' }}</pre>
+        </div>
+      }
+
+      <button class="btn btn-primary" (click)="ingestDocument()"
+              [disabled]="!content() || !documentName() || uploading()">
+        {{ uploading() ? 'Ingesting…' : 'Ingest Document' }}
+      </button>
+    </div>
+  }
+
+  @if (entries().length > 0) {
+    <div class="card">
+      <h2>Ingest History</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Chunks Stored</th>
+            <th>Document ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of entries(); track entry.name) {
+            <tr>
+              <td>{{ entry.name }}</td>
+              <td>
+                <span class="type-badge">{{ entry.type === 'note' ? '📌 Note' : '📄 Doc' }}</span>
+              </td>
+              <td>
+                <span class="badge" [class]="'badge-' + entry.status">{{ entry.status }}</span>
+              </td>
+              <td>{{ entry.result?.chunksStored ?? '—' }}</td>
+              <td class="mono">{{ entry.result?.documentId ?? entry.error ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
