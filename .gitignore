@@ -90,6 +90,10 @@ nul.*
 # ── Docker ────────────────────────────────────────────────────────────────────
 .docker/
 
+# ── Cloudflare Tunnel ─────────────────────────────────────────────────────────
+# Tunnel credentials contain private keys – never commit
+cloudflare/credentials.json
+
 # ── SSH / Deploy keys (never commit) ─────────────────────────────────────────
 *.pem
 *.key

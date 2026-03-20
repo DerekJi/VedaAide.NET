@@ -1,0 +1,72 @@
+<div class="page">
+  <h1 class="page-title">Document Management</h1>
+
+  <!-- Upload form -->
+  <div class="card upload-card">
+    <h2>Ingest New Document</h2>
+
+    <div class="form-group">
+      <label class="form-label">Upload File</label>
+      <input type="file" accept=".txt,.md,.pdf" class="file-input" (change)="onFileSelected($event)" />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label class="form-label">Document Name</label>
+        <input type="text" class="form-input" [value]="documentName()"
+               (input)="documentName.set($any($event.target).value)"
+               placeholder="my-document.txt" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-input" [value]="documentType()"
+                (change)="documentType.set($any($event.target).value)">
+          @for (t of documentTypes; track t) {
+            <option [value]="t">{{ t || '(auto-detect)' }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    @if (content()) {
+      <div class="form-group">
+        <label class="form-label">Preview (first 300 chars)</label>
+        <pre class="content-preview">{{ content().slice(0, 300) }}{{ content().length > 300 ? '…' : '' }}</pre>
+      </div>
+    }
+
+    <button class="btn btn-primary" (click)="ingest()" [disabled]="!content() || !documentName() || uploading()">
+      {{ uploading() ? 'Ingesting…' : 'Ingest Document' }}
+    </button>
+  </div>
+
+  <!-- History table -->
+  @if (entries().length > 0) {
+    <div class="card">
+      <h2>Ingest History</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Status</th>
+            <th>Chunks Stored</th>
+            <th>Document ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (entry of entries(); track entry.name) {
+            <tr>
+              <td>{{ entry.name }}</td>
+              <td>
+                <span class="badge" [class]="'badge-' + entry.status">{{ entry.status }}</span>
+              </td>
+              <td>{{ entry.result?.chunksStored ?? '—' }}</td>
+              <td class="mono">{{ entry.result?.documentId ?? entry.error ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

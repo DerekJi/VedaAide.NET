@@ -1,0 +1,87 @@
+<div class="chat-layout">
+  <div class="chat-header">
+    <h1 class="page-title">Chat</h1>
+    <div class="mode-toggle" role="group" aria-label="Mode">
+      <button class="mode-btn" [class.active]="mode() === 'ask'" (click)="mode.set('ask')">
+        💬 提问
+      </button>
+      <button class="mode-btn" [class.active]="mode() === 'remember'" (click)="mode.set('remember')">
+        📌 记录
+      </button>
+    </div>
+  </div>
+
+  <div class="messages-area">
+    @if (messages().length === 0) {
+      <div class="empty-state">
+        @if (mode() === 'ask') {
+          <p>Ask anything about your ingested documents.</p>
+        } @else {
+          <p>记录任何信息，例如：今天收到水费单，$319</p>
+        }
+      </div>
+    }
+
+    @for (msg of messages(); track $index) {
+      <div class="message" [class]="'message-' + msg.role">
+        @if (msg.role === 'note') {
+          <div class="note-bubble">
+            <p class="text">{{ msg.text }}</p>
+            @if (msg.noteResult) {
+              <div class="note-meta">✓ 已记录</div>
+            }
+            @if (msg.error) {
+              <div class="note-meta note-error">{{ msg.error }}</div>
+            }
+          </div>
+        } @else {
+          <div class="bubble">
+            <p class="text" [class.streaming]="msg.streaming">{{ msg.text }}@if (msg.streaming) {<span class="cursor">▌</span>}</p>
+
+            @if (msg.sources && msg.sources.length > 0) {
+              <div class="sources">
+                <p class="sources-label">Sources ({{ msg.sources.length }})</p>
+                @for (src of msg.sources; track src.documentName) {
+                  <div class="source-item">
+                    <span class="source-name">{{ src.documentName }}</span>
+                    <span class="source-sim">{{ (src.similarity * 100).toFixed(0) }}%</span>
+                    <p class="source-snippet">{{ src.chunkContent }}</p>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (!msg.streaming && msg.role === 'assistant') {
+              <div class="meta">
+                @if (msg.isHallucination) {
+                  <span class="badge badge-warn">⚠ Possible hallucination</span>
+                }
+                @if (msg.confidence != null) {
+                  <span class="confidence">Confidence: {{ (msg.confidence * 100).toFixed(0) }}%</span>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="input-bar">
+    <textarea
+      class="question-input"
+      [class.remember-mode]="mode() === 'remember'"
+      rows="2"
+      [placeholder]="mode() === 'ask' ? 'Ask a question… (Enter to send, Shift+Enter for new line)' : '记录一件事… 例如：今天收到水费单，$319（Enter 保存）'"
+      [value]="question()"
+      (input)="question.set($any($event.target).value)"
+      (keydown)="onKeyDown($event)"
+      [disabled]="busy()"
+    ></textarea>
+    <button class="btn btn-primary send-btn" (click)="submit()" [disabled]="!question().trim() || busy()">
+      @if (busy()) { … }
+      @else if (mode() === 'ask') { Ask }
+      @else { 记住 }
+    </button>
+  </div>
+</div>
