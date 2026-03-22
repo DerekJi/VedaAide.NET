@@ -3,6 +3,7 @@
     <Project Path="src/Veda.Api/Veda.Api.csproj" />
     <Project Path="src/Veda.Agents/Veda.Agents.csproj" />
     <Project Path="src/Veda.Core/Veda.Core.csproj" />
+    <Project Path="src/Veda.Evaluation/Veda.Evaluation.csproj" />
     <Project Path="src/Veda.MCP/Veda.MCP.csproj" />
     <Project Path="src/Veda.Prompts/Veda.Prompts.csproj" />
     <Project Path="src/Veda.Services/Veda.Services.csproj" />
@@ -11,6 +12,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Veda.Core.Tests/Veda.Core.Tests.csproj" />
+    <Project Path="tests/Veda.Evaluation.Tests/Veda.Evaluation.Tests.csproj" />
     <Project Path="tests/Veda.Services.Tests/Veda.Services.Tests.csproj" />
   </Folder>
 </Solution>

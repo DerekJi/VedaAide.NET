@@ -1,0 +1,249 @@
+<div class="page">
+  <!-- Page header -->
+  <div class="page-header">
+    <h1 class="page-title">AI Evaluation</h1>
+    <div class="tab-bar">
+      <button class="tab-btn" [class.active]="activeTab() === 'dataset'" (click)="activeTab.set('dataset')">
+        Golden Dataset
+      </button>
+      <button class="tab-btn" [class.active]="activeTab() === 'reports'" (click)="activeTab.set('reports')">
+        Reports
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Tab: Golden Dataset ─────────────────────────────────────────────── -->
+  @if (activeTab() === 'dataset') {
+    <div class="section-header">
+      <p class="section-desc">Maintain a set of reference Q&amp;A pairs used to evaluate RAG pipeline quality.</p>
+      @if (!showQForm()) {
+        <button class="btn btn-primary" (click)="showQForm.set(true)">+ Add Question</button>
+      }
+    </div>
+
+    @if (showQForm()) {
+      <div class="card form-card">
+        <h2 class="form-title">New Question</h2>
+
+        <div class="form-group">
+          <label class="form-label">Question</label>
+          <input class="form-input"
+                 type="text"
+                 [value]="formQuestion()"
+                 (input)="formQuestion.set($any($event.target).value)"
+                 placeholder="e.g. What is the cancellation policy?" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Expected Answer</label>
+          <textarea class="form-input answer-area"
+                    [value]="formExpected()"
+                    (input)="formExpected.set($any($event.target).value)"
+                    placeholder="The reference answer this question should produce…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tags <span class="hint">(comma-separated)</span></label>
+          <input class="form-input"
+                 type="text"
+                 [value]="formTags()"
+                 (input)="formTags.set($any($event.target).value)"
+                 placeholder="e.g. policy, billing" />
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-primary" (click)="saveQuestion()" [attr.disabled]="savingQ() ? '' : null">
+            {{ savingQ() ? 'Saving…' : 'Save' }}
+          </button>
+          <button class="btn" (click)="showQForm.set(false)">Cancel</button>
+        </div>
+      </div>
+    }
+
+    @if (loadingQ()) {
+      <p class="status-text">Loading…</p>
+    } @else if (questions().length === 0) {
+      <div class="empty-state card">
+        <p>No questions yet. Add your first question to start building the Golden Dataset.</p>
+      </div>
+    } @else {
+      <div class="card table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Expected Answer</th>
+              <th>Tags</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (q of questions(); track q.id) {
+              <tr>
+                <td class="q-cell">{{ q.question }}</td>
+                <td class="ans-cell">{{ q.expectedAnswer }}</td>
+                <td>
+                  @for (tag of q.tags; track tag) {
+                    <span class="tag">{{ tag }}</span>
+                  }
+                </td>
+                <td class="action-cell">
+                  <button class="btn-icon btn-danger" title="Delete" (click)="deleteQuestion(q.id)">✕</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ── Tab: Reports ────────────────────────────────────────────────────── -->
+  @if (activeTab() === 'reports') {
+    <div class="reports-layout">
+      <!-- Left: run + list -->
+      <div class="reports-list-col">
+        <div class="card run-card">
+          <h2 class="form-title">Run Evaluation</h2>
+          <div class="form-group">
+            <label class="form-label">Chat Model Override <span class="hint">(optional)</span></label>
+            <input class="form-input"
+                   type="text"
+                   [value]="runModelOverride()"
+                   (input)="runModelOverride.set($any($event.target).value)"
+                   placeholder="e.g. qwen3:8b (leave blank for default)" />
+          </div>
+          <button class="btn btn-primary run-btn"
+                  (click)="runEvaluation()"
+                  [attr.disabled]="running() ? '' : null">
+            {{ running() ? 'Running…' : '▶ Run All Questions' }}
+          </button>
+        </div>
+
+        @if (loadingR()) {
+          <p class="status-text">Loading reports…</p>
+        } @else if (reports().length === 0) {
+          <div class="card empty-state"><p>No reports yet. Run an evaluation first.</p></div>
+        } @else {
+          <div class="card table-card">
+            <table class="data-table reports-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Model</th>
+                  <th>Overall</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of reports(); track r.runId) {
+                  <tr class="report-row"
+                      [class.selected]="selectedReport()?.runId === r.runId"
+                      (click)="selectReport(r)">
+                    <td>{{ r.runAt | date:'MM/dd HH:mm' }}</td>
+                    <td class="model-cell">{{ r.modelName || '(default)' }}</td>
+                    <td><span class="score-badge" [ngClass]="scoreClass(r.avgOverall)">{{ pct(r.avgOverall) }}</span></td>
+                    <td class="action-cell">
+                      <button class="btn-icon btn-danger" title="Delete" (click)="deleteReport(r.runId, $event)">✕</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Right: report detail -->
+      <div class="report-detail-col">
+        @if (selectedReport()) {
+          <div class="card detail-card">
+            <div class="detail-header">
+              <div>
+                <h2 class="form-title">Run Detail</h2>
+                <p class="detail-meta">{{ selectedReport()!.runAt | date:'yyyy-MM-dd HH:mm:ss' }}
+                  &nbsp;·&nbsp; {{ selectedReport()!.results.length }} question(s)
+                  &nbsp;·&nbsp; {{ selectedReport()!.modelName || 'default model' }}</p>
+              </div>
+            </div>
+
+            <!-- Summary stats -->
+            <div class="stats-row">
+              <div class="stat-card">
+                <span class="stat-label">Faithfulness</span>
+                <span class="stat-value" [ngClass]="scoreClass(selectedReport()!.avgFaithfulness)">
+                  {{ pct(selectedReport()!.avgFaithfulness) }}
+                </span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Answer Relevancy</span>
+                <span class="stat-value" [ngClass]="scoreClass(selectedReport()!.avgAnswerRelevancy)">
+                  {{ pct(selectedReport()!.avgAnswerRelevancy) }}
+                </span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Context Recall</span>
+                <span class="stat-value" [ngClass]="scoreClass(selectedReport()!.avgContextRecall)">
+                  {{ pct(selectedReport()!.avgContextRecall) }}
+                </span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Overall</span>
+                <span class="stat-value" [ngClass]="scoreClass(selectedReport()!.avgOverall)">
+                  {{ pct(selectedReport()!.avgOverall) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Per-question results -->
+            <div class="results-list">
+              @for (res of selectedReport()!.results; track res.questionId) {
+                <details class="result-item">
+                  <summary class="result-summary">
+                    <span class="result-q">{{ res.question }}</span>
+                    <div class="result-scores">
+                      <span class="score-badge" [ngClass]="scoreClass(res.metrics.faithfulness)"
+                            title="Faithfulness">F: {{ pct(res.metrics.faithfulness) }}</span>
+                      <span class="score-badge" [ngClass]="scoreClass(res.metrics.answerRelevancy)"
+                            title="Answer Relevancy">R: {{ pct(res.metrics.answerRelevancy) }}</span>
+                      <span class="score-badge" [ngClass]="scoreClass(res.metrics.contextRecall)"
+                            title="Context Recall">C: {{ pct(res.metrics.contextRecall) }}</span>
+                      @if (res.isHallucination) {
+                        <span class="badge-hallucination">⚠ Hallucination</span>
+                      }
+                    </div>
+                  </summary>
+                  <div class="result-body">
+                    <div class="answer-block">
+                      <p class="block-label">Expected</p>
+                      <p class="block-text">{{ res.expectedAnswer }}</p>
+                    </div>
+                    <div class="answer-block">
+                      <p class="block-label">Actual</p>
+                      <p class="block-text">{{ res.actualAnswer || '(no answer)' }}</p>
+                    </div>
+                    @if (res.sources.length > 0) {
+                      <div class="sources-block">
+                        <p class="block-label">Retrieved Sources ({{ res.sources.length }})</p>
+                        @for (src of res.sources; track src.documentName + src.similarity) {
+                          <div class="source-item">
+                            <span class="source-doc">{{ src.documentName }}</span>
+                            <span class="source-sim">{{ (src.similarity * 100).toFixed(0) }}%</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                </details>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="card empty-state select-hint">
+            <p>👈 Select a report on the left to view details.</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

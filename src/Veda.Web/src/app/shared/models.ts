@@ -57,3 +57,54 @@ export interface SavePromptRequest {
   content: string;
   documentType?: number;
 }
+
+// ── Evaluation (Phase 6) ────────────────────────────────────────────────────
+
+export interface EvalQuestion {
+  id: string;
+  question: string;
+  expectedAnswer: string;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface SaveEvalQuestionRequest {
+  question: string;
+  expectedAnswer: string;
+  tags?: string[];
+}
+
+export interface EvalMetrics {
+  faithfulness: number;
+  answerRelevancy: number;
+  contextRecall: number;
+  overall: number;
+}
+
+export interface EvalResult {
+  questionId: string;
+  question: string;
+  expectedAnswer: string;
+  actualAnswer: string;
+  metrics: EvalMetrics;
+  sources: SourceReference[];
+  isHallucination: boolean;
+  modelName: string;
+  evaluatedAt: string;
+}
+
+export interface EvaluationReport {
+  runId: string;
+  runAt: string;
+  modelName: string;
+  results: EvalResult[];
+  avgFaithfulness: number;
+  avgAnswerRelevancy: number;
+  avgContextRecall: number;
+  avgOverall: number;
+}
+
+export interface RunEvaluationRequest {
+  questionIds?: string[];
+  chatModelOverride?: string;
+}

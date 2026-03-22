@@ -27,3 +27,12 @@ public record SavePromptRequest(
     [Required, MinLength(1), MaxLength(50)]  string Version,
     [Required, MinLength(1)]                 string Content,
     int? DocumentType = null);
+
+public record SaveEvalQuestionRequest(
+    [Required, MinLength(1)] string Question,
+    [Required, MinLength(1)] string ExpectedAnswer,
+    string[]? Tags = null);
+
+public record RunEvaluationRequest(
+    string[]? QuestionIds       = null,
+    string?   ChatModelOverride = null);

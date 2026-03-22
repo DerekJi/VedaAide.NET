@@ -1,7 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { IngestRequest, IngestResult, PromptTemplate, QueryRequest, QueryResponse, SavePromptRequest } from '../shared/models';
+import {
+  EvalQuestion, EvaluationReport, IngestRequest, IngestResult,
+  PromptTemplate, QueryRequest, QueryResponse,
+  RunEvaluationRequest, SaveEvalQuestionRequest, SavePromptRequest,
+} from '../shared/models';
 
 @Injectable({ providedIn: 'root' })
 export class VedaApiService {
@@ -26,5 +30,35 @@ export class VedaApiService {
 
   deletePrompt(id: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/prompts/${id}`);
+  }
+
+  // ── Evaluation ─────────────────────────────────────────────────────────────
+
+  listEvalQuestions(): Observable<EvalQuestion[]> {
+    return this.http.get<EvalQuestion[]>(`${this.base}/evaluation/questions`);
+  }
+
+  saveEvalQuestion(req: SaveEvalQuestionRequest): Observable<EvalQuestion> {
+    return this.http.post<EvalQuestion>(`${this.base}/evaluation/questions`, req);
+  }
+
+  deleteEvalQuestion(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/evaluation/questions/${id}`);
+  }
+
+  runEvaluation(req: RunEvaluationRequest): Observable<EvaluationReport> {
+    return this.http.post<EvaluationReport>(`${this.base}/evaluation/run`, req);
+  }
+
+  listEvalReports(limit = 20): Observable<EvaluationReport[]> {
+    return this.http.get<EvaluationReport[]>(`${this.base}/evaluation/reports?limit=${limit}`);
+  }
+
+  getEvalReport(runId: string): Observable<EvaluationReport> {
+    return this.http.get<EvaluationReport>(`${this.base}/evaluation/reports/${runId}`);
+  }
+
+  deleteEvalReport(runId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/evaluation/reports/${runId}`);
   }
 }

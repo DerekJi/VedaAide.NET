@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Veda.Agents;
 using Veda.Api.GraphQL;
+using Veda.Evaluation;
 using Veda.MCP;
 using Veda.Prompts;
 using Veda.Services;
@@ -34,6 +35,8 @@ builder.Services.AddVedaPrompts();
 
 // ── Agents (Orchestration) ────────────────────────────────────────────────────
 builder.Services.AddVedaAgents();
+// ── Evaluation (Phase 6) ──────────────────────────────────────────────────────
+builder.Services.AddVedaEvaluation();
 // ── Data Sources (MCP Client: file system + blob storage connectors) ────────
 builder.Services.Configure<FileSystemConnectorOptions>(cfg.GetSection("Veda:DataSources:FileSystem"));
 builder.Services.AddScoped<IDataSourceConnector, FileSystemConnector>();
