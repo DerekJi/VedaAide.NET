@@ -174,20 +174,25 @@ Hybrid local + cloud architecture maximizes cost control and privacy.
 - REST endpoints: `GET /api/prompts`, `POST /api/prompts`, `DELETE /api/prompts/{id}`.
 
 
-📊 Phase 6: AI Evaluation System ⏳ **Planned — Not Yet Implemented**
+📊 Phase 6: AI Evaluation System ✅ **Complete**
 
-1. Evaluation metrics
-- Faithfulness: does the answer rely only on retrieved context?
-- Answer Relevancy: is the answer on-topic?
-- Context Recall: were the relevant document chunks retrieved?
-- BLEU / ROUGE: text similarity to reference answers (optional).
+1. Evaluation metrics ✅
+- **Faithfulness**: `FaithfulnessScorer` — LLM scores how faithfully the answer is grounded in context ([0,1]).
+- **Answer Relevancy**: `AnswerRelevancyScorer` — cosine similarity between question and answer embeddings.
+- **Context Recall**: `ContextRecallScorer` — cosine similarity between expected answer and best-matching retrieved chunk.
 
-2. Automated Test Harness
-- Maintain a Golden Dataset: standard question set + expected answers.
-- Auto-evaluate after every model/prompt change, output comparison report.
-- A/B testing: compare scores across different models or prompt versions for the same question.
+2. Automated Test Harness ✅
+- **Golden Dataset**: `IEvalDatasetRepository` (EF Core `EvalQuestions` table), managed via REST API (`GET/POST/DELETE /api/evaluation/questions`).
+- **Batch evaluation**: `EvaluationRunner.RunAsync(EvalRunOptions)` — iterates Golden Dataset, calls RAG pipeline, computes three-dimensional metrics per question.
+- **A/B testing**: `EvalRunOptions.ChatModelOverride` allows specifying a different model name for the same dataset, produces a comparable report.
+- **Report persistence**: `IEvalReportRepository` (`EvalRuns` table), full JSON reports stored for historical comparison.
+- REST endpoints: `POST /api/evaluation/run` (trigger), `GET /api/evaluation/reports` (list), `GET /api/evaluation/reports/{id}` (detail).
 
-3. Integration testing strategy
-- RAG pipeline end-to-end integration tests (NUnit).
-- Deterministic boundary tests for AI output (verifying hallucination protection works).
-- Use mock LLM for fast, low-cost unit tests.
+3. Frontend evaluation page ✅ (`/evaluation` route)
+- Golden Dataset CRUD: add/delete standard Q&A pairs with optional tags.
+- Evaluation reports: run evaluation, view historical reports with summary stats (Faithfulness / Relevancy / Recall / Overall averages).
+- Per-question drill-down: expand to see actual vs expected answer, three-dimensional scores, and hallucination flags.
+
+4. Unit tests ✅ (`tests/Veda.Evaluation.Tests/`)
+- `FaithfulnessScorerTests`, `AnswerRelevancyScorerTests`, `ContextRecallScorerTests`, `EvaluationRunnerTests`.
+- Uses Mock LLM and Mock Embedding — fast, zero-cost, covers happy paths, edge cases, and failure scenarios.

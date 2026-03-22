@@ -11,6 +11,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVectorStore, SqliteVectorStore>();
         services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
         services.AddScoped<ISyncStateStore, SyncStateStore>();
+        services.AddScoped<IEvalDatasetRepository, EvalDatasetRepository>();
+        services.AddScoped<IEvalReportRepository, EvalReportRepository>();
         return services;
     }
 }

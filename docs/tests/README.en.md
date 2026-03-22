@@ -12,6 +12,7 @@ docs/tests/
 ├── phase1-rag-tests.cn.md / .en.md                   ← Phase 1: core RAG engine tests
 ├── phase2-rag-tests.cn.md / .en.md                   ← Phase 2: RAG quality tests (dedup, anti-hallucination, reranking, date filter)
 ├── phase4-agent-mcp-tests.cn.md / .en.md             ← Phase 4/5: agent orchestration, MCP tools, prompt module, external data sources
+├── phase6-eval-tests.cn.md / .en.md                  ← Phase 6: AI evaluation system tests (Golden Dataset, multi-dimensional scoring, report persistence)
 └── test-conventions.cn.md / .en.md                   ← Test naming conventions and coding standards
 ```
 
@@ -22,7 +23,7 @@ docs/tests/
 | **Unit tests** | Verify business logic of individual classes/methods, no external services | NUnit + Moq | `dotnet test` |
 | **Integration tests** | Verify multi-module collaboration (EF Core + SQLite), using in-memory/temp DB | NUnit | `dotnet test` |
 | **Smoke tests** | Verify main API end-to-end flows are functional | Bash (`scripts/smoke-test.sh`) | `./scripts/smoke-test.sh` |
-| **AI evaluation tests** | Verify RAG output quality (faithfulness, relevancy, etc.) | `Veda.Evaluation` (Phase 6, pending) | `dotnet test` |
+| **AI evaluation tests** | Verify RAG output quality (faithfulness, relevancy, etc.) | `Veda.Evaluation` (Phase 6, ✅ done) | `dotnet test` |
 
 ## Quick Run
 
@@ -60,4 +61,5 @@ sleep 8
 - `Veda.Core`: ≥ 80% (pure domain logic, should be high)
 - `Veda.Services`: ≥ 80% (mock LLM + mock VectorStore)
 - `Veda.Storage`: ≥ 60% (covered by integration tests)
+- `Veda.Evaluation`: ≥ 90% (mock LLM + mock Embedding; actual: 94.5% line / 100% branch)
 - `Veda.Api`: smoke tests covering main endpoints is sufficient

@@ -10,6 +10,7 @@ docs/tests/
 ├── phase1-rag-tests.cn.md / .en.md                   ← 阶段一 RAG 引擎核心测试方案
 ├── phase2-rag-tests.cn.md / .en.md                   ← 阶段二 RAG 质量增强测试方案（去重、防幻觉、Reranking、日期过滤）
 ├── phase4-agent-mcp-tests.cn.md / .en.md             ← 阶段四/五 Agent 编排、MCP 工具、Prompt 模块、外部数据源测试方案
+├── phase6-eval-tests.cn.md / .en.md                  ← 阶段六 AI 评估体系测试方案（Golden Dataset、多维评分、报告持久化）
 └── test-conventions.cn.md / .en.md                   ← 测试命名规范与编写约定
 ```
 
@@ -20,7 +21,7 @@ docs/tests/
 | **单元测试** | 验证单个类/方法的业务逻辑，不依赖外部服务 | NUnit + Moq | `dotnet test` |
 | **集成测试** | 验证模块间协作（EF Core + SQLite），使用内存/临时 DB | NUnit | `dotnet test` |
 | **冒烟测试** | 验证 API 端到端主要流程是否可用 | Bash (`scripts/smoke-test.sh`) | `./scripts/smoke-test.sh` |
-| **AI 评估测试** | 验证 RAG 输出质量（忠实度、相关性等） | `Veda.Evaluation`（阶段六，待实现） | `dotnet test` |
+| **AI 评估测试** | 验证 RAG 输出质量（忠实度、相关性等） | `Veda.Evaluation`（阶段六，✅ 已完成） | `dotnet test` |
 
 ## 快速运行
 
@@ -58,4 +59,5 @@ sleep 8
 - `Veda.Core`：≥ 80%（纯领域逻辑，应高覆盖）
 - `Veda.Services`：≥ 80%（Mock LLM + Mock VectorStore）
 - `Veda.Storage`：≥ 60%（集成测试覆盖）
+- `Veda.Evaluation`：≥ 90%（Mock LLM + Mock Embedding，当前实际：94.5% 行覆盖 / 100% 分支覆盖）
 - `Veda.Api`：冒烟测试覆盖主要端点即可

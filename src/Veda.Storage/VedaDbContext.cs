@@ -7,6 +7,8 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
     public DbSet<VectorChunkEntity> VectorChunks => Set<VectorChunkEntity>();
     public DbSet<PromptTemplateEntity> PromptTemplates => Set<PromptTemplateEntity>();
     public DbSet<SyncedFileEntity> SyncedFiles => Set<SyncedFileEntity>();
+    public DbSet<EvalQuestionEntity> EvalQuestions => Set<EvalQuestionEntity>();
+    public DbSet<EvalRunEntity> EvalRuns => Set<EvalRunEntity>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -37,6 +39,21 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
             e.Property(x => x.FilePath).IsRequired().HasMaxLength(2000);
             e.Property(x => x.ContentHash).IsRequired().HasMaxLength(64);
             e.Property(x => x.DocumentId).IsRequired().HasMaxLength(200);
+        });
+
+        mb.Entity<EvalQuestionEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Question).IsRequired();
+            e.Property(x => x.ExpectedAnswer).IsRequired();
+            e.Property(x => x.TagsJson).IsRequired().HasDefaultValue("[]");
+        });
+
+        mb.Entity<EvalRunEntity>(e =>
+        {
+            e.HasKey(x => x.RunId);
+            e.Property(x => x.ModelName).IsRequired().HasMaxLength(200);
+            e.Property(x => x.ReportJson).IsRequired();
         });
     }
 }

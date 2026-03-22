@@ -179,23 +179,27 @@
 - REST 端点：`GET /api/prompts`（列表）、`POST /api/prompts`（保存）、`DELETE /api/prompts/{id}`（删除）。
 
 
-📊 阶段六：AI 评估体系 (Evaluation & Test Harness) ⏳ **规划中，尚未实现**
+📊 阶段六：AI 评估体系 (Evaluation & Test Harness) ✅ **已完成**
 
 这是 JD 中特别强调的能力，也是区分高级工程师的关键。
 
-1. 评估指标体系
-- 忠实度 (Faithfulness)：回答是否仅依赖检索到的上下文。
-- 答案相关性 (Answer Relevancy)：回答是否切题。
-- 上下文召回率 (Context Recall)：相关文档块是否被检索到。
-- BLEU / ROUGE：与参考答案的文本相似度（可选）。
-2. 自动化 Test Harness
-- 维护 Golden Dataset：标准问题集 + 预期答案。
-- 每次模型/Prompt 变更后自动运行评估，输出对比报告。
-- 支持 A/B 测试：同一问题对比不同模型或 Prompt 版本的得分。
-3. 集成测试策略
-- RAG Pipeline 端到端集成测试（NUnit）。
-- AI 输出的确定性边界测试（验证幻觉防护是否生效）。
-- 使用 Mock LLM 实现快速、低成本的单元测试。
+1. 评估指标体系 ✅ 已完成
+- **忠实度 (Faithfulness)**：`FaithfulnessScorer` — LLM 审核回答是否仅基于检索到的上下文，返回 [0,1] 浮点分数。
+- **答案相关性 (Answer Relevancy)**：`AnswerRelevancyScorer` — 问题与回答 Embedding 余弦相似度，衡量切题程度。
+- **上下文召回率 (Context Recall)**：`ContextRecallScorer` — 期望答案与检索到的文档块 Embedding 相似度，衡量检索覆盖率。
+2. 自动化 Test Harness ✅ 已完成
+- **Golden Dataset**：`IEvalDatasetRepository`（EF Core + `EvalQuestions` 表），通过 REST API（`GET/POST/DELETE /api/evaluation/questions`）维护标准问答对。
+- **批量评估运行**：`EvaluationRunner.RunAsync(EvalRunOptions)` — 遍历 Golden Dataset，串行调用 RAG Pipeline，为每个问题计算三维指标。
+- **A/B 测试**：`EvalRunOptions.ChatModelOverride` 支持指定不同模型名称对同一数据集评估，输出对比报告。
+- **报告持久化**：`IEvalReportRepository`（`EvalRuns` 表），报告以 JSON 存储，完整的历史记录查询。
+- REST 端点：`POST /api/evaluation/run`（触发评估）、`GET /api/evaluation/reports`（历史报告列表）、`GET /api/evaluation/reports/{id}`（报告详情）。
+3. 前端评估页面 ✅ 已完成（`/evaluation` 路由）
+- **Golden Dataset 管理**：添加/删除标准问答对（含 Tags 支持）。
+- **评估结果展示**：运行评估、查看历史报告汇总（Faithfulness/Relevancy/Recall/Overall 四维均值）。
+- **逐题详情**：可展开查看每道题的实际回答、期望答案、三维分数和幻觉标记。
+4. 单元测试 ✅ 已完成（`tests/Veda.Evaluation.Tests/`）
+- `FaithfulnessScorerTests`、`AnswerRelevancyScorerTests`、`ContextRecallScorerTests`、`EvaluationRunnerTests`。
+- 使用 Mock LLM 和 Mock Embedding，快速、零成本，覆盖正常路径、边界值和异常情况。
  
  
  
@@ -264,15 +268,14 @@ public class RagQueryRequest
 - 支持按 DocumentType 和场景选择不同提示策略。
 
 
-📊  Veda.Evaluation  - AI 评估层 ⏳ 规划中，尚未实现
+📊  Veda.Evaluation  - AI 评估层 ✅ **已完成**
 
-> **注意**：`Veda.Evaluation` 项目当前尚未创建，下列组件为阶段六规划内容，非现有代码。
-
--  EvaluationRunner ：加载 Golden Dataset，批量运行评估。
--  FaithfulnessScorer ：检查回答是否有文档依据（基于向量相似度 + LLM 判断）。
--  AnswerRelevancyScorer ：判断回答与问题的相关性。
--  ModelComparisonReport ：对比不同模型/Prompt 版本的评估得分，输出 Markdown 报告。
-- 集成 NUnit 测试，CI/CD 中自动触发评估流程。
+- `FaithfulnessScorer`（`Scorers/`）：调用 LLM 评分，衡量回答忠实度（[0,1]）。
+- `AnswerRelevancyScorer`（`Scorers/`）：问题↔答案 Embedding 余弦相似度，衡量切题度。
+- `ContextRecallScorer`（`Scorers/`）：期望答案↔检索块 Embedding 相似度，衡量上下文覆盖率。
+- `EvaluationRunner`：加载 Golden Dataset，批量运行评估，汇总为 `EvaluationReport`。
+- `IEvalDatasetRepository` / `IEvalReportRepository`（接口在 `Veda.Core`，实现在 `Veda.Storage`）：Golden Dataset 和评估报告的持久化。
+- `ServiceCollectionExtensions.AddVedaEvaluation()`：DI 注册入口。
 
 
 🌐  Veda.Web  - 前端层 (Angular)
@@ -327,17 +330,19 @@ public class RagQueryRequest
 ```
 VedaAide.NET/
 ├── src/
-│   ├── Veda.Core/            # 契约、模型、枚举、接口
+│   ├── Veda.Core/            # 契约、模型、枚举、接口（含评估接口 IEvalDatasetRepository、IEvalReportRepository、IEvaluationRunner）
 │   ├── Veda.Services/        # AI 服务：Embedding、LLM、防幻觉、外部数据源连接器
 │   ├── Veda.Prompts/         # Prompt 模板管理、上下文窗口构建
 │   ├── Veda.Agents/          # Semantic Kernel Agent 编排（OrchestrationService + LlmOrchestrationService）
-│   ├── Veda.Storage/         # SqliteVectorStore + VedaDbContext (EF Core)
+│   ├── Veda.Storage/         # SqliteVectorStore + VedaDbContext (EF Core)；含 EvalDatasetRepository、EvalReportRepository
+│   ├── Veda.Evaluation/      # 评估引擎：FaithfulnessScorer / AnswerRelevancyScorer / ContextRecallScorer / EvaluationRunner
 │   ├── Veda.MCP/             # MCP Server：knowledge base 工具暴露
-│   ├── Veda.Api/             # ASP.NET Core Web API + GraphQL (HotChocolate)
-│   └── Veda.Web/             # Angular + TypeScript 前端
+│   ├── Veda.Api/             # ASP.NET Core Web API + GraphQL (HotChocolate)；含 EvaluationController
+│   └── Veda.Web/             # Angular + TypeScript 前端（含 /evaluation 路由）
 ├── tests/
 │   ├── Veda.Core.Tests/
-│   └── Veda.Services.Tests/
+│   ├── Veda.Services.Tests/
+│   └── Veda.Evaluation.Tests/   # FaithfulnessScorer / AnswerRelevancyScorer / ContextRecallScorer / EvaluationRunner 单元测试
 └── docs/
     └── designs/
         └── system-design.cn.md
@@ -438,7 +443,7 @@ VedaAide.NET/
 | Microsoft Agent Framework | 多 Agent 编排 | Veda.Agents |
 | LLM + RAG | 核心问答流程 | Veda.Services |
 | Prompt/Context Engineering | 版本化模板 + Token 优化 | Veda.Prompts |
-| AI Model Evaluation / Test Harness | 规划中（`Veda.Evaluation` 项目尚未实现，为阶段六交付物） | — |
+| AI Model Evaluation / Test Harness | `Veda.Evaluation`：三维评分（Faithfulness/AnswerRelevancy/ContextRecall）+ Golden Dataset + A/B 测试报告（Phase 6 ✅ 已完成） | Veda.Evaluation, Veda.Api, Veda.Web |
 | Azure (Blob, OpenAI, Container Apps) | 云端存储、LLM、部署 | Veda.Storage, Veda.Api |
 | Angular + TypeScript (前端) | Web UI | Veda.Web |
 | GraphQL / HotChocolate | API 层 | Veda.Api |

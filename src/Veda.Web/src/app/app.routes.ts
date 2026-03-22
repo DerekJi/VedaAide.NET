@@ -17,5 +17,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/prompts/prompts.component').then(m => m.PromptsComponent),
     title: 'VedaAide – Prompts'
   },
+  {
+    path: 'evaluation',
+    loadComponent: () => import('./pages/evaluation/evaluation.component').then(m => m.EvaluationComponent),
+    title: 'VedaAide – Evaluation'
+  },
   { path: '**', redirectTo: 'chat' }
 ];
