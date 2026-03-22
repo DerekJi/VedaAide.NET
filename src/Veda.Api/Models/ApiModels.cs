@@ -21,3 +21,9 @@ public record QueryRequest(
     [Range(0.0, 1.0)] float MinSimilarity = 0.6f,
     DateTimeOffset? DateFrom = null,
     DateTimeOffset? DateTo = null);
+
+public record SavePromptRequest(
+    [Required, MinLength(1), MaxLength(200)] string Name,
+    [Required, MinLength(1), MaxLength(50)]  string Version,
+    [Required, MinLength(1)]                 string Content,
+    int? DocumentType = null);

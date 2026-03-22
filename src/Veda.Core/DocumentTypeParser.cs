@@ -19,4 +19,17 @@ public static class DocumentTypeParser
         result = default;
         return !string.IsNullOrWhiteSpace(value) && Enum.TryParse(value, ignoreCase: true, out result);
     }
+
+    /// <summary>从文件名推断 DocumentType（规则与 OrchestrationService 一致，集中至此处）。</summary>
+    public static DocumentType InferFromName(string documentName)
+    {
+        var name = documentName.ToLowerInvariant();
+        if (name.Contains("invoice") || name.Contains("bill") || name.Contains("receipt"))
+            return DocumentType.BillInvoice;
+        if (name.Contains("spec") || name.Contains("pds") || name.Contains("requirement"))
+            return DocumentType.Specification;
+        if (name.Contains("report") || name.Contains("summary"))
+            return DocumentType.Report;
+        return DocumentType.Other;
+    }
 }

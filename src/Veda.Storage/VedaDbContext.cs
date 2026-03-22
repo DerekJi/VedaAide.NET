@@ -6,6 +6,7 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
 {
     public DbSet<VectorChunkEntity> VectorChunks => Set<VectorChunkEntity>();
     public DbSet<PromptTemplateEntity> PromptTemplates => Set<PromptTemplateEntity>();
+    public DbSet<SyncedFileEntity> SyncedFiles => Set<SyncedFileEntity>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -25,6 +26,17 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
             e.Property(x => x.Name).IsRequired().HasMaxLength(200);
             e.Property(x => x.Version).IsRequired().HasMaxLength(50);
             e.Property(x => x.Content).IsRequired();
+        });
+
+        mb.Entity<SyncedFileEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // (ConnectorName, FilePath) is unique — one record per file per connector
+            e.HasIndex(x => new { x.ConnectorName, x.FilePath }).IsUnique();
+            e.Property(x => x.ConnectorName).IsRequired().HasMaxLength(100);
+            e.Property(x => x.FilePath).IsRequired().HasMaxLength(2000);
+            e.Property(x => x.ContentHash).IsRequired().HasMaxLength(64);
+            e.Property(x => x.DocumentId).IsRequired().HasMaxLength(200);
         });
     }
 }

@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
             opt.UseSqlite($"Data Source={dbPath}"));
         services.AddScoped<IVectorStore, SqliteVectorStore>();
         services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
+        services.AddScoped<ISyncStateStore, SyncStateStore>();
         return services;
     }
 }

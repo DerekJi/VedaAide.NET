@@ -8,4 +8,5 @@ public interface IPromptTemplateRepository
     Task<PromptTemplate?> GetLatestAsync(string name, CancellationToken ct = default);
     Task<IReadOnlyList<PromptTemplate>> ListAsync(CancellationToken ct = default);
     Task SaveAsync(PromptTemplate template, CancellationToken ct = default);
+    Task DeleteAsync(int id, CancellationToken ct = default);
 }
