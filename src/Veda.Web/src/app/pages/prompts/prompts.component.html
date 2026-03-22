@@ -1,18 +1,105 @@
-<div class="prompts-page">
-  <h2 class="page-title">Prompt Templates</h2>
+<div class="page">
+  <!-- Header -->
+  <div class="page-header">
+    <h1 class="page-title">Prompt Templates</h1>
+    @if (!showForm()) {
+      <button class="btn btn-primary" (click)="openCreate()">+ New Template</button>
+    }
+  </div>
 
-  <div class="info-card">
-    <div class="info-icon">📝</div>
-    <h3>Coming in Phase 4</h3>
-    <p>
-      Manage reusable system-prompt templates that can be applied to RAG queries.
-      Templates allow you to tune the assistant's tone, format, and domain focus
-      without editing backend configuration.
-    </p>
-    <ul>
-      <li>Create and name custom prompt templates</li>
-      <li>Select a template per chat session</li>
-      <li>Preview token usage before saving</li>
-    </ul>
+  <!-- Create / Edit form -->
+  @if (showForm()) {
+    <div class="card form-card">
+      <h2 class="form-title">{{ isEditing() ? 'Edit Template' : 'New Template' }}</h2>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input class="form-input"
+                 type="text"
+                 [value]="formName()"
+                 (input)="formName.set($any($event.target).value)"
+                 placeholder="e.g. rag-system"
+                 [attr.disabled]="isEditing() ? '' : null" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Version</label>
+          <input class="form-input"
+                 type="text"
+                 [value]="formVersion()"
+                 (input)="formVersion.set($any($event.target).value)"
+                 placeholder="e.g. 1.0"
+                 [attr.disabled]="isEditing() ? '' : null" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Document Type</label>
+          <select class="form-input"
+                  [value]="formDocType()"
+                  (change)="formDocType.set($any($event.target).value)">
+            @for (opt of docTypeOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Content</label>
+        <textarea class="form-input content-area"
+                  [value]="formContent()"
+                  (input)="formContent.set($any($event.target).value)"
+                  placeholder="Enter prompt template content..."></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" (click)="save()" [attr.disabled]="saving() ? '' : null">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+        <button class="btn" (click)="cancel()">Cancel</button>
+      </div>
+    </div>
+  }
+
+  <!-- Templates table -->
+  <div class="card">
+    @if (loading()) {
+      <p class="empty-msg">Loading…</p>
+    } @else if (templates().length === 0) {
+      <p class="empty-msg">No templates yet. Click "New Template" to add one.</p>
+    } @else {
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Version</th>
+            <th>Doc Type</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of templates(); track t.id) {
+            <tr>
+              <td class="mono">{{ t.name }}</td>
+              <td>{{ t.version }}</td>
+              <td>
+                <span class="badge"
+                      [class.badge-universal]="t.documentType == null"
+                      [class.badge-typed]="t.documentType != null">
+                  {{ docTypeLabel(t.documentType) }}
+                </span>
+              </td>
+              <td class="muted">{{ t.createdAt | date:'yyyy-MM-dd HH:mm' }}</td>
+              <td class="row-actions">
+                <button class="btn btn-sm" (click)="openEdit(t)">Edit</button>
+                <button class="btn btn-sm btn-danger" (click)="delete(t.id)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
   </div>
 </div>

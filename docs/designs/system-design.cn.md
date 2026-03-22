@@ -1,6 +1,6 @@
 # 📁 项目设计草案：VedaAide .NET
 
-> 💡 开发过程中积累的非显而易见设计决策，见 [docs/insights/](../insights/README.md)
+> 💡 开发过程中积累的非显而易见设计决策，见 [docs/insights/](../insights/README.cn.md)
 
 ## 1. 项目基本信息
  
@@ -58,10 +58,10 @@
 
 1. 创建 .NET Solution 及所有项目工程：
    - `Veda.Core`、`Veda.Services`、`Veda.Storage`、`Veda.Prompts`
-   - `Veda.Agents`、`Veda.Evaluation`、`Veda.Api`、`Veda.Web`
-   - 测试项目：`Veda.*.Tests`
+   - `Veda.Agents`、`Veda.MCP`、`Veda.Api`、`Veda.Web`
+   - 测试项目：`Veda.Core.Tests`、`Veda.Services.Tests`
 2. 配置 EF Core + `VedaDbContext`（Code-First，SQLite）：
-   - 初始迁移：ChatSession、DocumentMeta、PromptTemplate 表。
+   - 初始迁移：`VectorChunks`、`PromptTemplates` 表（`SyncedFiles` 表于阶段五新增）。
 3. 配置基础 DI 容器、配置文件（appsettings.json）、日志框架。
 4. 搭建 `Veda.Api`（ASP.NET Core Web API）最小骨架，验证启动。
 
@@ -108,7 +108,7 @@
      - 注意：此层会额外消耗 1 次 LLM 调用，通过配置 `Veda:EnableSelfCheckGuard: true/false` 控制是否开启。
 
 3. RAG 检索优化
-   - **Reranking（重排序）**：初始检索 `2 × TopK` 个候选块，通过 `IRerankService` 接口对候选列表重新打分排序，取分数最高的 `TopK` 个作为最终上下文。Phase 2 使用基于关键词覆盖率的轻量重排策略（无额外 API 调用）；Phase 4 可替换为 cross-encoder 模型。
+   - **Reranking（重排序）**：初始检索 `2 × TopK` 个候选块，通过 `QueryService` 内部私有方法 `Rerank()` 对候选列表重新打分排序（70% 向量相似度 + 30% 关键词覆盖率），取分数最高的 `TopK` 个作为最终上下文。无额外接口和外部 API 调用，权重以类级常量定义，后续可重构为独立接口。
    - **时间范围元数据过滤**：`RagQueryRequest` 新增可选字段 `DateFrom`/`DateTo`；`IVectorStore.SearchAsync` 新增对应参数；`SqliteVectorStore` 在 `WHERE` 子句中过滤 `CreatedAtTicks` 范围。
 
 
@@ -134,47 +134,52 @@
    - 方案 B（预留）：Azure Container Apps，自动扩缩容。
 
 
-🤖 阶段四：Agentic Workflow + Prompt Engineering ✅ **部分完成**
+🤖 阶段四：Agentic Workflow + Prompt Engineering ✅ **已完成**
 
 1. Agent 编排基础（确定性调用链）✅ 已完成
-- 定义专职 Agent：`DocumentIngestAgent`（文档摄取处理）、`QueryAgent`（问答）、`EvalAgent`（质量校验）。
-- 当前实现：`OrchestrationService` 串行确定性调用链（代码固定执行顺序，非 LLM 驱动）。
-  - `RunIngestFlowAsync`：文件名推断 DocumentType → `DocumentIngestService.IngestAsync()`
-  - `RunQueryFlowAsync`：`QueryService.QueryAsync()` → `HallucinationGuardService.VerifyAsync()` → 返回 `agentTrace`
+- `OrchestrationService`（`Veda.Agents/Orchestration/`）：串行确定性调用链，三个内嵌角色：
+  - DocumentAgent 角色：文件名推断 DocumentType → `DocumentIngestService.IngestAsync()`
+  - QueryAgent 角色：`QueryService.QueryAsync()` → 返回 `agentTrace`
+  - EvalAgent 角色：`HallucinationGuardService.VerifyAsync()` → 上下文一致性验证
 - REST 端点：`POST /api/orchestrate/query`、`POST /api/orchestrate/ingest`
-- ⏳ 升级为真正的 LLM 驱动 Agent Loop，见阶段四·五。
-2. MCP (Model Context Protocol) 双向集成
+2. Agent 编排升级（LLM 驱动）✅ 已完成（`LlmOrchestrationService`）
+- `LlmOrchestrationService`：使用 `ChatCompletionAgent` + `VedaKernelPlugin`（`search_knowledge_base` KernelFunction）。
+- LLM 自主决定调用哪个工具、调用几次（Reason-Act-Observe 循环），实现 IRCoT。
+- `AgentServiceExtensions.AddVedaAgents()` 注册 `LlmOrchestrationService` 为默认实现。
+3. MCP (Model Context Protocol) 双向集成
 - **VedaAide 作为 MCP Server** ✅ 已完成（`Veda.MCP` 项目）：
   - 暴露 `search_knowledge_base`、`list_documents`、`ingest_document` 三个工具
-  - 外部 AI 客户端（VS Code Copilot 等）通过 HTTP/SSE 连接 `/mcp` 端点按需调用
-- **VedaAide 作为 MCP Client** ⏳ 阶段四·五：
-  - 消费外部 MCP Server（文件系统、Azure Blob）作为 Ingest 数据源
-  - `IDataSourceConnector` 抽象 → `FileSystemConnector` / `BlobStorageConnector`
-3. Prompt / Context Engineering 模块 ✅ 已完成
+  - 外部 AI 客户端（VS Code Copilot 等）通过 HTTP 连接 `/mcp` 端点按需调用
+- **VedaAide 作为 MCP Client** ✅ 已完成（`FileSystemConnector`）/ ⏳ 部分待完成：
+  - `IDataSourceConnector` 接口（`Veda.Core.Interfaces`）
+  - `FileSystemConnector`（`Veda.Services/DataSources/`）：本地目录批量摄取 ✅
+- `BlobStorageConnector`（`Veda.Services/DataSources/`）：Azure Blob Storage 摄取 ✅
+- 触发方式：`POST /api/datasources/sync` 手动触发 ✅；Background Service `DataSourceSyncBackgroundService` 定时轮询 ✅
+4. Prompt / Context Engineering 模块 ✅ 已完成
 - ✅ 版本化 Prompt 模板库：`PromptTemplateRepository`（EF Core + SQLite），支持按名称检索最新版本
 - ✅ 上下文窗口动态裁剪：`ContextWindowBuilder.Build()`，Token 预算（3 chars/token，默认 3000 tokens）贪心选取，已接入 `QueryService`
 - ✅ 系统 Prompt 从数据库加载（`"rag-system"` 模板，fallback 到硬编码默认值）
 - ✅ Chain-of-Thought 提示策略：`ChainOfThoughtStrategy.Enhance()`，注入推理步骤引导，已接入 `QueryService`
 
 
-🔗 阶段五：完整 Agentic Loop + MCP Client + 外部数据源
+🔗 阶段五：完整 Agentic Loop + MCP Client + 外部数据源 ✅ **已完成**
 
-1. 真正的 LLM 驱动 Agent（`ChatCompletionAgent` + Plugin Loop）
-- 将 `search_knowledge_base`、`list_documents` 注册为 Semantic Kernel Plugin。
-- 使用 `Microsoft.SemanticKernel.Agents.Core.ChatCompletionAgent` 替代确定性调用链。
-- LLM 自主决定调用哪个工具、调用几次（Reason-Act-Observe 循环），不再由代码硬编码。
-- 实现 IRCoT（Interleaved Retrieval CoT）：LLM 推理过程中可多次触发向量检索。
-2. MCP Client：外部数据源接入
-- 定义 `IDataSourceConnector` 接口，统一外部数据源接入方式。
-- `FileSystemConnector`：读取本地文件系统目录，批量摄入到 VedaAide 知识库。
-- `BlobStorageConnector`：读取 Azure Blob Storage，摄入到知识库。
-- 触发方式：手动（UI 一键同步）或自动（Background Service 定时轮询）。
-3. Prompts 管理 UI（`Veda.Web`）
-- Prompt 模板 CRUD 页面：查看版本列表、编辑模板内容、发布新版本。
-- 通过 REST 端点操作 `PromptTemplateRepository`（`GET/POST /api/prompts`）。
+1. 真正的 LLM 驱动 Agent（`ChatCompletionAgent` + Plugin Loop）✅ 已完成
+- `VedaKernelPlugin`（KernelFunction）将 `search_knowledge_base` 注册为 Semantic Kernel Plugin。
+- `LlmOrchestrationService` 使用 `ChatCompletionAgent`，`FunctionChoiceBehavior.Auto()` 驱动工具自主调用。
+- LLM 推理过程中可多次触发向量检索（IRCoT）。
+2. MCP Client：外部数据源接入 ✅ 部分完成
+- `IDataSourceConnector` 接口（`Veda.Core.Interfaces/IDataSourceConnector.cs`）✅
+- `FileSystemConnector`（`Veda.Services/DataSources/`）：读取本地目录，批量摄取到知识库 ✅
+- `POST /api/datasources/sync`：手动触发所有已启用数据源同步 ✅
+- `BlobStorageConnector`：Azure Blob Storage 数据源 ✅ 已完成
+- Background Service 定时自动同步 ✅ 已完成（`DataSourceSyncBackgroundService`）
+3. Prompts 管理 UI（`Veda.Web`）✅ 已完成
+- `PromptsComponent`（Angular，`/prompts` 路由）：完整 CRUD — 查看版本列表、新建、编辑、删除模板。
+- REST 端点：`GET /api/prompts`（列表）、`POST /api/prompts`（保存）、`DELETE /api/prompts/{id}`（删除）。
 
 
-📊 阶段六：AI 评估体系 (Evaluation & Test Harness)
+📊 阶段六：AI 评估体系 (Evaluation & Test Harness) ⏳ **规划中，尚未实现**
 
 这是 JD 中特别强调的能力，也是区分高级工程师的关键。
 
@@ -243,14 +248,12 @@ public class RagQueryRequest
 
 🤖  Veda.Agents  - Agent 编排层
 
-- 当前（Phase 4 基础版）：`OrchestrationService` 确定性串行调用链，包装现有 Service。
-  - `DocumentIngestAgent`：负责文档摄取、分块、去重、入库（含 DocumentType 自动推断）。
-  - `QueryAgent`：负责接收用户问题、检索、生成、防幻觉校验。
-  - `EvalAgent`：负责对 QueryAgent 输出做质量评估（当前为幻觉校验包装层）。
-- 目标（Phase 4.5）：替换为 `ChatCompletionAgent` + Plugin 循环，实现 LLM 自主工具调用与 IRCoT。
+- `OrchestrationService`（`Orchestration/OrchestrationService.cs`）：确定性串行调用链，三个内嵌角色（DocumentAgent、QueryAgent、EvalAgent）。
+- `LlmOrchestrationService`（`LlmOrchestrationService.cs`）：LLM 驱动版本，`ChatCompletionAgent` + `VedaKernelPlugin`，实现 IRCoT；为默认注册实现。
+- `VedaKernelPlugin`（`VedaKernelPlugin.cs`）：将 `search_knowledge_base` 封装为 KernelFunction，供 Agent 在推理过程中自主调用。
 - MCP 双向（`Veda.MCP`）：
   - **Server 侧**（已完成）：`search_knowledge_base`、`list_documents`、`ingest_document`
-  - **Client 侧**（Phase 4.5）：`IDataSourceConnector` → `FileSystemConnector` / `BlobStorageConnector`
+  - **Client 侧**（已完成）：`IDataSourceConnector` → `FileSystemConnector` ✅ / `BlobStorageConnector` ✅
 
 
 📝  Veda.Prompts  - Prompt 工程层
@@ -261,7 +264,9 @@ public class RagQueryRequest
 - 支持按 DocumentType 和场景选择不同提示策略。
 
 
-📊  Veda.Evaluation  - AI 评估层
+📊  Veda.Evaluation  - AI 评估层 ⏳ 规划中，尚未实现
+
+> **注意**：`Veda.Evaluation` 项目当前尚未创建，下列组件为阶段六规划内容，非现有代码。
 
 -  EvaluationRunner ：加载 Golden Dataset，批量运行评估。
 -  FaithfulnessScorer ：检查回答是否有文档依据（基于向量相似度 + LLM 判断）。
@@ -323,21 +328,19 @@ public class RagQueryRequest
 VedaAide.NET/
 ├── src/
 │   ├── Veda.Core/            # 契约、模型、枚举、接口
-│   ├── Veda.Services/        # AI 服务：Embedding、LLM、防幻觉
+│   ├── Veda.Services/        # AI 服务：Embedding、LLM、防幻觉、外部数据源连接器
 │   ├── Veda.Prompts/         # Prompt 模板管理、上下文窗口构建
-│   ├── Veda.Agents/          # Microsoft Agent Framework + MCP 工具
-│   ├── Veda.Storage/         # VectorDbProvider (SQLite-VSS) + VedaDbContext (EF Core)
-│   ├── Veda.Evaluation/      # AI Test Harness、评估指标、报告
+│   ├── Veda.Agents/          # Semantic Kernel Agent 编排（OrchestrationService + LlmOrchestrationService）
+│   ├── Veda.Storage/         # SqliteVectorStore + VedaDbContext (EF Core)
+│   ├── Veda.MCP/             # MCP Server：knowledge base 工具暴露
 │   ├── Veda.Api/             # ASP.NET Core Web API + GraphQL (HotChocolate)
 │   └── Veda.Web/             # Angular + TypeScript 前端
 ├── tests/
 │   ├── Veda.Core.Tests/
-│   ├── Veda.Services.Tests/
-│   ├── Veda.Agents.Tests/
-│   └── Veda.Evaluation.Tests/
+│   └── Veda.Services.Tests/
 └── docs/
     └── designs/
-        └── init.md
+        └── system-design.cn.md
 ```
 
 
@@ -435,7 +438,7 @@ VedaAide.NET/
 | Microsoft Agent Framework | 多 Agent 编排 | Veda.Agents |
 | LLM + RAG | 核心问答流程 | Veda.Services |
 | Prompt/Context Engineering | 版本化模板 + Token 优化 | Veda.Prompts |
-| AI Model Evaluation / Test Harness | 自动化评估体系 | Veda.Evaluation |
+| AI Model Evaluation / Test Harness | 规划中（`Veda.Evaluation` 项目尚未实现，为阶段六交付物） | — |
 | Azure (Blob, OpenAI, Container Apps) | 云端存储、LLM、部署 | Veda.Storage, Veda.Api |
 | Angular + TypeScript (前端) | Web UI | Veda.Web |
 | GraphQL / HotChocolate | API 层 | Veda.Api |

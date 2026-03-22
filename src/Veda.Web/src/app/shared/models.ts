@@ -41,3 +41,19 @@ export interface RagStreamChunk {
   answerConfidence?: number;
   isHallucination?: boolean;
 }
+
+export interface PromptTemplate {
+  id: number;
+  name: string;
+  version: string;
+  content: string;
+  documentType?: number;
+  createdAt: string;
+}
+
+export interface SavePromptRequest {
+  name: string;
+  version: string;
+  content: string;
+  documentType?: number;
+}

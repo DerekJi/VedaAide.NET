@@ -45,6 +45,16 @@ public sealed class PromptTemplateRepository(VedaDbContext db) : IPromptTemplate
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var entity = await db.PromptTemplates.FindAsync([id], ct);
+        if (entity is not null)
+        {
+            db.PromptTemplates.Remove(entity);
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
     private static PromptTemplate ToModel(PromptTemplateEntity e) => new()
     {
         Id = e.Id,

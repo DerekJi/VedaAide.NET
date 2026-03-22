@@ -7,7 +7,7 @@ public static class AgentServiceExtensions
 {
     public static IServiceCollection AddVedaAgents(this IServiceCollection services)
     {
-        services.AddScoped<IOrchestrationService, OrchestrationService>();
+        services.AddScoped<IOrchestrationService, LlmOrchestrationService>();
         return services;
     }
 }

@@ -4,9 +4,16 @@ using Veda.Api.GraphQL;
 using Veda.MCP;
 using Veda.Prompts;
 using Veda.Services;
+using Veda.Services.DataSources;
 using Veda.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Re-add User Secrets AFTER environment variables so that secrets take priority over env vars.
+// (ASP.NET Core default order: appsettings → env vars → user secrets in Dev;
+//  by re-adding here we push secrets to the top of the stack in all environments.)
+builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: false);
+
 var cfg = builder.Configuration;
 
 // ── AI Services (Ollama via Semantic Kernel) ──────────────────────────────────
@@ -27,7 +34,14 @@ builder.Services.AddVedaPrompts();
 
 // ── Agents (Orchestration) ────────────────────────────────────────────────────
 builder.Services.AddVedaAgents();
-
+// ── Data Sources (MCP Client: file system + blob storage connectors) ────────
+builder.Services.Configure<FileSystemConnectorOptions>(cfg.GetSection("Veda:DataSources:FileSystem"));
+builder.Services.AddScoped<IDataSourceConnector, FileSystemConnector>();
+builder.Services.Configure<BlobStorageConnectorOptions>(cfg.GetSection("Veda:DataSources:BlobStorage"));
+builder.Services.AddScoped<IDataSourceConnector, BlobStorageConnector>();
+// Background auto-sync
+builder.Services.Configure<DataSourceSyncOptions>(cfg.GetSection("Veda:DataSources:AutoSync"));
+builder.Services.AddHostedService<Veda.Api.DataSourceSyncBackgroundService>();
 // ── MCP Server (Knowledge Base Tools over HTTP/SSE) ──────────────────────────
 builder.Services.AddVedaMcp();
 

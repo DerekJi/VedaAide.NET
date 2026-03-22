@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Veda.Core\Veda.Core.csproj" />
+    <ProjectReference Include="..\..\src\Veda.Prompts\Veda.Prompts.csproj" />
   </ItemGroup>
 
 </Project>

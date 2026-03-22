@@ -81,13 +81,16 @@ public sealed class KnowledgeBaseTools(IEmbeddingService embedding, IVectorStore
 
 使用 **Semantic Kernel Agents**（`Microsoft.SemanticKernel.Agents.Core`，SK 1.73 内置），无需引入额外的 Agent Framework。
 
-### 3.2 定义的 Agent
+### 3.2 定义的 Agent 角色
 
-| Agent | 指令职责 | 使用的 Plugin/Tool |
-|-------|---------|------------------|
-| `DocumentAgent` | 理解并处理用户提供的文档，决定摄取策略 | `IngestTools`（MCP Tool 复用） |
-| `QueryAgent` | 接收用户问题，调用知识库检索，组织回答 | `KnowledgeBaseTools`（MCP Tool 复用） |
-| `EvalAgent` | 对 QueryAgent 的回答进行质量评估 | `IHallucinationGuardService` |
+> ⚠️ **实际实现说明**：三个 Agent 角色未创建独立的类文件，而是直接内嵌在编排服务中：
+- `OrchestrationService`（确定性调用链）和 `LlmOrchestrationService`（LLM 驱动）均承担 DocumentAgent / QueryAgent / EvalAgent 三个角色的职责。
+
+| Agent 角色 | 职责 | 实现位置 |
+|------------|------|----------|
+| DocumentAgent | 文档类型推断 + 摄取 | `OrchestrationService.RunIngestFlowAsync()` / `LlmOrchestrationService.RunIngestFlowAsync()` |
+| QueryAgent | RAG 检索 + LLM 生成 | `OrchestrationService.RunQueryFlowAsync()` / `LlmOrchestrationService`（Agent Loop） |
+| EvalAgent | 上下文一致性校验 | 两个 OrchestrationService 末尾的 `HallucinationGuardService.VerifyAsync()` 调用 |
 
 ### 3.3 编排模式
 
@@ -99,20 +102,21 @@ public sealed class KnowledgeBaseTools(IEmbeddingService embedding, IVectorStore
 
 使用 `AgentGroupChat`（顺序模式）或手动调用链（更可控）。阶段四以手动调用链为优先，确保可测试性。
 
-### 3.4 项目结构
+### 3.4 项目结构（实际）
 
 ```
 src/Veda.Agents/
   Veda.Agents.csproj
   GlobalUsings.cs
-  AgentServiceExtensions.cs         # AddVedaAgents() 扩展方法
-  Agents/
-    DocumentAgent.cs
-    QueryAgent.cs
-    EvalAgent.cs
+  AgentServiceExtensions.cs         # AddVedaAgents()，注册 LlmOrchestrationService
+  VedaKernelPlugin.cs               # search_knowledge_base KernelFunction（供 ChatCompletionAgent 调用）
+  LlmOrchestrationService.cs        # LLM 驱动 Agent Loop（ChatCompletionAgent + IRCoT）— 默认实现
   Orchestration/
-    OrchestrationService.cs         # IOrchestrationService 接口 + 实现
+    IOrchestrationService.cs        # 接口定义
+    OrchestrationService.cs         # 确定性调用链实现（备用，便于测试）
 ```
+
+> `AgentServiceExtensions.AddVedaAgents()` 注册 `LlmOrchestrationService` 为 `IOrchestrationService` 的默认实现。
 
 ---
 
@@ -138,21 +142,23 @@ src/Veda.Agents/
 
 ### 5.1 `.vscode/mcp.json` 配置
 
-**方式一：HTTP/SSE（推荐，Veda.Api 已运行时）**
+**方式一：HTTP（推荐，Veda.Api 已运行时）**
 
 ```json
 {
   "servers": {
     "vedaaide": {
-      "type": "sse",
-      "url": "http://localhost:5126/mcp/sse"
+      "type": "http",
+      "url": "http://localhost:5126/mcp"
     }
   }
 }
 ```
 
+> 当前 `ModelContextProtocol.AspNetCore` 使用 Streamable HTTP 协议，挂载路径为 `/mcp`。
+
 **方式二：stdio（独立进程，无需 API 先启动）**  
-需要将 `Veda.MCP` 编译为独立可执行程序（`OutputType=Exe`）。
+需要将 `Veda.MCP` 编译为独立可执行程序（`OutputType=Exe`）。当前未实现此模式。
 
 ### 5.2 验证步骤
 
@@ -190,12 +196,13 @@ dotnet ef migrations add Phase4_PromptTemplates --project src/Veda.Storage --sta
 
 ## 7. 测试策略
 
-| 测试类型 | 位置 | 覆盖范围 |
-|---------|------|---------|
-| MCP Tool 单元测试 | `tests/Veda.Services.Tests/` | Mock `IVectorStore`，验证 Tool 入参/出参格式 |
-| Agent 编排单元测试 | `tests/Veda.Services.Tests/` | Mock 所有依赖，验证 Agent 调用链 |
-| Prompt 模板单元测试 | `tests/Veda.Core.Tests/` | 验证 `ContextWindowBuilder` Token 预算逻辑 |
-| MCP 集成测试 | `tests/Veda.Services.Tests/` | 启动内存 WebApp，调用 `/mcp/sse` 验证工具响应 |
+| 测试类型 | 位置 | 覆盖范围 | 状态 |
+|---------|------|---------|------|
+| MCP Tool 单元测试 | `tests/Veda.Services.Tests/` | Mock `IVectorStore`，验证 `KnowledgeBaseTools` / `IngestTools` 入参/出参格式 | ✅ 已完成 |
+| Agent 编排单元测试 | `tests/Veda.Services.Tests/` | Mock 所有依赖，验证 `OrchestrationService` 调用链 | ✅ 已完成 |
+| Prompt 模块单元测试 | `tests/Veda.Core.Tests/` | `ContextWindowBuilder` Token 预算逻辑、`ChainOfThoughtStrategy` 输出格式 | ✅ 已完成 |
+| 外部数据源单元测试 | `tests/Veda.Services.Tests/` | `FileSystemConnector` 正常/目录不存在/disabled 场景 | ✅ 已完成 |
+| MCP 集成测试 | `tests/Veda.Services.Tests/` | 启动内存 WebApp，调用 `/mcp` 验证工具响应 | ⏳ 待实现 |
 
 ---
 
