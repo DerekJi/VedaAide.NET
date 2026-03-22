@@ -16,6 +16,9 @@ public class QueryServiceTests
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<IChatService> _chatService = null!;
     private Mock<IHallucinationGuardService> _hallucinationGuard = null!;
+    private Mock<IContextWindowBuilder> _contextWindowBuilder = null!;
+    private Mock<IPromptTemplateRepository> _promptTemplateRepository = null!;
+    private Mock<IChainOfThoughtStrategy> _chainOfThought = null!;
     private Mock<ILogger<QueryService>> _logger = null!;
     private QueryService _sut = null!;
 
@@ -27,6 +30,23 @@ public class QueryServiceTests
         _chatService = new Mock<IChatService>();
         _hallucinationGuard = new Mock<IHallucinationGuardService>();
         _logger = new Mock<ILogger<QueryService>>();
+
+        _contextWindowBuilder = new Mock<IContextWindowBuilder>();
+        _contextWindowBuilder
+            .Setup(b => b.Build(It.IsAny<IReadOnlyList<(DocumentChunk, float)>>(), It.IsAny<int>()))
+            .Returns((IReadOnlyList<(DocumentChunk Chunk, float Similarity)> c, int _) =>
+                c.Select(x => x.Chunk).ToList().AsReadOnly());
+
+        _promptTemplateRepository = new Mock<IPromptTemplateRepository>();
+        _promptTemplateRepository
+            .Setup(r => r.GetLatestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PromptTemplate?)null);
+
+        _chainOfThought = new Mock<IChainOfThoughtStrategy>();
+        _chainOfThought
+            .Setup(c => c.Enhance(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((string q, string ctx) => $"Context:\n{ctx}\n\nQuestion: {q}");
+
         // Default: hallucination self-check disabled; threshold low enough not to flag in happy-path tests
         var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0f });
         _sut = new QueryService(
@@ -34,6 +54,9 @@ public class QueryServiceTests
             _vectorStore.Object,
             _chatService.Object,
             _hallucinationGuard.Object,
+            _contextWindowBuilder.Object,
+            _promptTemplateRepository.Object,
+            _chainOfThought.Object,
             ragOptions,
             _logger.Object);
     }
@@ -311,7 +334,9 @@ public class QueryServiceTests
     // Helper: build a new QueryService with different options but same mocks
     private QueryService BuildSut(IOptions<RagOptions> ragOptions) =>
         new(_embedding.Object, _vectorStore.Object, _chatService.Object,
-            _hallucinationGuard.Object, ragOptions, _logger.Object);
+            _hallucinationGuard.Object, _contextWindowBuilder.Object,
+            _promptTemplateRepository.Object, _chainOfThought.Object,
+            ragOptions, _logger.Object);
 
     private static DocumentChunk MakeChunk(string docName, string content) => new()
     {

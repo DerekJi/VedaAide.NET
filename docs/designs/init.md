@@ -121,10 +121,10 @@
    - `IChatService` 新增 `CompleteStreamAsync`；`IQueryService` 新增 `QueryStreamAsync`。
    - `OllamaChatService` 通过 Semantic Kernel `GetStreamingChatMessageContentsAsync` 实现 token 级流式输出。
 2. `Veda.Web`（Angular 19 Standalone，独立组件 + Signals API）
-   - **Shell**：侧边栏导航，懒加载路由（`/documents`、`/chat`、`/prompts`）。
-   - **Documents 页**：文件上传 + 文本直接摄取，摄取历史表格，状态徽章。
-   - **Chat 页**：流式问答，消息气泡，引用来源折叠面板，幻觉警告徽章，置信度显示，实时打字光标动画。
-   - **Prompts 页**：Phase 4 占位页。
+   - **Shell**：侧边栏导航，懒加载路由（`/chat`、`/ingest`、`/prompts`）。
+   - **Ingest 页**（`/ingest`）：分 Notes / Documents 两个 Tab；Notes Tab 直接输入文本摄取，Documents Tab 文件上传摄取；共享摄取历史表格与状态徽章。
+   - **Chat 页**（`/chat`，默认路由）：流式问答，消息气泡，引用来源折叠面板，幻觉警告徽章，置信度显示，实时打字光标动画。
+   - **Prompts 页**（`/prompts`）：Phase 4 占位页，Phase 4.5 完善为完整 CRUD。
    - 开发代理：`/api` 和 `/graphql` 通过 `proxy.conf.json` 转发到 `localhost:5126`。
 3. 部署
    - `src/Veda.Api/Dockerfile`：多阶段构建（SDK→runtime），SQLite 数据目录挂载为 Volume。
@@ -134,23 +134,47 @@
    - 方案 B（预留）：Azure Container Apps，自动扩缩容。
 
 
-🤖 阶段四：Agentic Workflow + MCP 集成
+🤖 阶段四：Agentic Workflow + Prompt Engineering ✅ **部分完成**
 
-1. Microsoft Agent Framework 多 Agent 编排
-- 定义专职 Agent：DocumentAgent（文档处理）、QueryAgent（问答）、EvalAgent（评估）。
-- Agent 之间通过消息总线协调，支持并行/串行任务流。
-- 场景示例：用户上传合同 -> DocumentAgent 解析 -> QueryAgent 就绪 -> EvalAgent 自动评分。
-2. MCP (Model Context Protocol) 工具集成
-- 将外部数据源（文件系统、数据库、Azure Blob）封装为 MCP Tool。
-- LLM 通过 MCP 按需调用工具，实现动态上下文注入。
-- 便于后续扩展：接入日历、Web 搜索、ERP 系统等外部工具。
-3. Prompt / Context Engineering 模块
-- 维护版本化 Prompt 模板库（存入 EF Core 数据库）。
-- 上下文窗口动态裁剪：根据 Token 预算选择最相关文档块。
-- Chain-of-Thought 提示策略，提升复杂推理质量。
+1. Agent 编排基础（确定性调用链）✅ 已完成
+- 定义专职 Agent：`DocumentIngestAgent`（文档摄取处理）、`QueryAgent`（问答）、`EvalAgent`（质量校验）。
+- 当前实现：`OrchestrationService` 串行确定性调用链（代码固定执行顺序，非 LLM 驱动）。
+  - `RunIngestFlowAsync`：文件名推断 DocumentType → `DocumentIngestService.IngestAsync()`
+  - `RunQueryFlowAsync`：`QueryService.QueryAsync()` → `HallucinationGuardService.VerifyAsync()` → 返回 `agentTrace`
+- REST 端点：`POST /api/orchestrate/query`、`POST /api/orchestrate/ingest`
+- ⏳ 升级为真正的 LLM 驱动 Agent Loop，见阶段四·五。
+2. MCP (Model Context Protocol) 双向集成
+- **VedaAide 作为 MCP Server** ✅ 已完成（`Veda.MCP` 项目）：
+  - 暴露 `search_knowledge_base`、`list_documents`、`ingest_document` 三个工具
+  - 外部 AI 客户端（VS Code Copilot 等）通过 HTTP/SSE 连接 `/mcp` 端点按需调用
+- **VedaAide 作为 MCP Client** ⏳ 阶段四·五：
+  - 消费外部 MCP Server（文件系统、Azure Blob）作为 Ingest 数据源
+  - `IDataSourceConnector` 抽象 → `FileSystemConnector` / `BlobStorageConnector`
+3. Prompt / Context Engineering 模块 ✅ 已完成
+- ✅ 版本化 Prompt 模板库：`PromptTemplateRepository`（EF Core + SQLite），支持按名称检索最新版本
+- ✅ 上下文窗口动态裁剪：`ContextWindowBuilder.Build()`，Token 预算（3 chars/token，默认 3000 tokens）贪心选取，已接入 `QueryService`
+- ✅ 系统 Prompt 从数据库加载（`"rag-system"` 模板，fallback 到硬编码默认值）
+- ✅ Chain-of-Thought 提示策略：`ChainOfThoughtStrategy.Enhance()`，注入推理步骤引导，已接入 `QueryService`
 
 
-📊 阶段五：AI 评估体系 (Evaluation & Test Harness)
+🔗 阶段五：完整 Agentic Loop + MCP Client + 外部数据源
+
+1. 真正的 LLM 驱动 Agent（`ChatCompletionAgent` + Plugin Loop）
+- 将 `search_knowledge_base`、`list_documents` 注册为 Semantic Kernel Plugin。
+- 使用 `Microsoft.SemanticKernel.Agents.Core.ChatCompletionAgent` 替代确定性调用链。
+- LLM 自主决定调用哪个工具、调用几次（Reason-Act-Observe 循环），不再由代码硬编码。
+- 实现 IRCoT（Interleaved Retrieval CoT）：LLM 推理过程中可多次触发向量检索。
+2. MCP Client：外部数据源接入
+- 定义 `IDataSourceConnector` 接口，统一外部数据源接入方式。
+- `FileSystemConnector`：读取本地文件系统目录，批量摄入到 VedaAide 知识库。
+- `BlobStorageConnector`：读取 Azure Blob Storage，摄入到知识库。
+- 触发方式：手动（UI 一键同步）或自动（Background Service 定时轮询）。
+3. Prompts 管理 UI（`Veda.Web`）
+- Prompt 模板 CRUD 页面：查看版本列表、编辑模板内容、发布新版本。
+- 通过 REST 端点操作 `PromptTemplateRepository`（`GET/POST /api/prompts`）。
+
+
+📊 阶段六：AI 评估体系 (Evaluation & Test Harness)
 
 这是 JD 中特别强调的能力，也是区分高级工程师的关键。
 
@@ -219,15 +243,14 @@ public class RagQueryRequest
 
 🤖  Veda.Agents  - Agent 编排层
 
-- 基于 Microsoft Agent Framework 定义多个专职 Agent：
-  -  DocumentAgent ：负责文档摄取、分块、去重、入库。
-  -  QueryAgent ：负责接收用户问题、检索、生成、防幻觉校验。
-  -  EvalAgent ：负责对 QueryAgent 的输出进行质量评估、打分。
-- Agent 注册为 Semantic Kernel Plugin，统一编排。
-- MCP 工具注册（ Veda.MCP ）：
-  - `FileSystemTool`：读取本地文档目录。
-  - `BlobStorageTool`：读写 Azure Blob。
-  - `VectorSearchTool`：封装向量检索为 MCP 标准接口。
+- 当前（Phase 4 基础版）：`OrchestrationService` 确定性串行调用链，包装现有 Service。
+  - `DocumentIngestAgent`：负责文档摄取、分块、去重、入库（含 DocumentType 自动推断）。
+  - `QueryAgent`：负责接收用户问题、检索、生成、防幻觉校验。
+  - `EvalAgent`：负责对 QueryAgent 输出做质量评估（当前为幻觉校验包装层）。
+- 目标（Phase 4.5）：替换为 `ChatCompletionAgent` + Plugin 循环，实现 LLM 自主工具调用与 IRCoT。
+- MCP 双向（`Veda.MCP`）：
+  - **Server 侧**（已完成）：`search_knowledge_base`、`list_documents`、`ingest_document`
+  - **Client 侧**（Phase 4.5）：`IDataSourceConnector` → `FileSystemConnector` / `BlobStorageConnector`
 
 
 📝  Veda.Prompts  - Prompt 工程层

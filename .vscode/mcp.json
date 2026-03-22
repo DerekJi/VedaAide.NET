@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "vedaaide": {
+      "type": "sse",
+      "url": "http://localhost:5126/mcp/sse",
+      "metadata": {
+        "description": "VedaAide 知识库 MCP Server — 提供向量检索、文档摄取、列表三个工具"
+      }
+    }
+  }
+}

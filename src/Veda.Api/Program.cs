@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Veda.Agents;
 using Veda.Api.GraphQL;
+using Veda.MCP;
+using Veda.Prompts;
 using Veda.Services;
 using Veda.Storage;
 
@@ -18,6 +21,15 @@ builder.Services.Configure<VedaOptions>(cfg.GetSection("Veda"));
 
 // ── Storage (SQLite + EF Core) ────────────────────────────────────────────────
 builder.Services.AddVedaStorage(cfg["Veda:DbPath"] ?? "veda.db");
+
+// ── Prompts (Context Window Builder) ─────────────────────────────────────────
+builder.Services.AddVedaPrompts();
+
+// ── Agents (Orchestration) ────────────────────────────────────────────────────
+builder.Services.AddVedaAgents();
+
+// ── MCP Server (Knowledge Base Tools over HTTP/SSE) ──────────────────────────
+builder.Services.AddVedaMcp();
 
 // ── API ───────────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -52,5 +64,6 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 app.MapControllers();
 app.MapGraphQL();   // GraphQL endpoint: /graphql (Banana Cake Pop UI in dev)
+app.MapVedaMcp();   // MCP endpoint: /mcp (SSE transport for Copilot Chat)
 
 app.Run();
