@@ -9,6 +9,7 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<VedaDbContext>(opt =>
             opt.UseSqlite($"Data Source={dbPath}"));
         services.AddScoped<IVectorStore, SqliteVectorStore>();
+        services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
         return services;
     }
 }

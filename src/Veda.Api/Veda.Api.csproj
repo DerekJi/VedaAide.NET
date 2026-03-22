@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <ProjectReference Include="..\Veda.Agents\Veda.Agents.csproj" />
     <ProjectReference Include="..\Veda.Core\Veda.Core.csproj" />
+    <ProjectReference Include="..\Veda.MCP\Veda.MCP.csproj" />
+    <ProjectReference Include="..\Veda.Prompts\Veda.Prompts.csproj" />
     <ProjectReference Include="..\Veda.Services\Veda.Services.csproj" />
     <ProjectReference Include="..\Veda.Storage\Veda.Storage.csproj" />
-    <ProjectReference Include="..\Veda.Prompts\Veda.Prompts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

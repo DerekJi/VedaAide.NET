@@ -9,6 +9,9 @@ public sealed class QueryService(
     IVectorStore vectorStore,
     IChatService chatService,
     IHallucinationGuardService hallucinationGuard,
+    IContextWindowBuilder contextWindowBuilder,
+    IPromptTemplateRepository promptTemplateRepository,
+    IChainOfThoughtStrategy chainOfThought,
     IOptions<RagOptions> options,
     ILogger<QueryService> logger) : IQueryService
 {
@@ -19,11 +22,16 @@ public sealed class QueryService(
     private const float RerankKeywordWeight = 0.3f;
 
     /// <summary>
-    /// 动态生成 System Prompt，注入当前日期，使 LLM 能正确推断"今天/昨天/明天"等相对时间。
+    /// 动态生成 System Prompt：优先从数据库加载 "rag-system" 模板，fallback 到硬编码默认内容。
+    /// 模板内容支持 {today} 占位符。
     /// </summary>
-    private static string BuildSystemPrompt()
+    private async Task<string> BuildSystemPromptAsync(CancellationToken ct)
     {
         var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
+        var template = await promptTemplateRepository.GetLatestAsync("rag-system", ct);
+        if (template is not null)
+            return template.Content.Replace("{today}", today, StringComparison.Ordinal);
+
         return $"""
             你是一个贴心的个人助理，善于根据用户记录的笔记回答问题。
             今天的日期是：{today}。
@@ -66,9 +74,11 @@ public sealed class QueryService(
         // 轻量重排：70% 向量相似度 + 30% 關鍵词覆盖率，取前 TopK 个。
         var results = Rerank(candidates, request.Question, request.TopK);
 
-        var context = BuildContext(results);
-        var userMessage = $"Context:\n{context}\n\nQuestion: {request.Question}";
-        var answer = await chatService.CompleteAsync(BuildSystemPrompt(), userMessage, ct);
+        var contextChunks = contextWindowBuilder.Build(results);
+        var context = BuildContext(contextChunks);
+        var systemPrompt = await BuildSystemPromptAsync(ct);
+        var userMessage = chainOfThought.Enhance(request.Question, context);
+        var answer = await chatService.CompleteAsync(systemPrompt, userMessage, ct);
 
         // 防幻觉第一层：回答 Embedding 与向量库相似度校验。
         var answerEmbedding = await embeddingService.GenerateEmbeddingAsync(answer, ct);
@@ -148,6 +158,21 @@ public sealed class QueryService(
     }
 
     /// <summary>
+    /// 从 Token 预算裁剪后的先纯块列表构建上下文字符串（ContextWindowBuilder 输出使用）。
+    /// </summary>
+    private static string BuildContext(IReadOnlyList<DocumentChunk> chunks)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < chunks.Count; i++)
+        {
+            sb.AppendLine($"[{i + 1}] Source: {chunks[i].DocumentName}");
+            sb.AppendLine(chunks[i].Content);
+            sb.AppendLine();
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// 流式问答：先 yield sources，再逐 token yield LLM 输出，最后 yield done（含幻觉标志）。
     /// </summary>
     public async IAsyncEnumerable<RagStreamChunk> QueryStreamAsync(
@@ -194,12 +219,14 @@ public sealed class QueryService(
             }).ToList()
         };
 
-        var context = BuildContext(results);
-        var userMessage = $"Context:\n{context}\n\nQuestion: {request.Question}";
+        var contextChunks = contextWindowBuilder.Build(results);
+        var context = BuildContext(contextChunks);
+        var systemPrompt = await BuildSystemPromptAsync(ct);
+        var userMessage = chainOfThought.Enhance(request.Question, context);
 
         // 逐 token 流式输出
         var fullAnswer = new System.Text.StringBuilder();
-        await foreach (var token in chatService.CompleteStreamAsync(BuildSystemPrompt(), userMessage, ct))
+        await foreach (var token in chatService.CompleteStreamAsync(systemPrompt, userMessage, ct))
         {
             fullAnswer.Append(token);
             yield return new RagStreamChunk { Type = "token", Token = token };
