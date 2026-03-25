@@ -21,7 +21,8 @@ public class QueryController(IQueryService queryService) : ControllerBase
             TopK = request.TopK,
             MinSimilarity = request.MinSimilarity,
             DateFrom = request.DateFrom,
-            DateTo = request.DateTo
+            DateTo = request.DateTo,
+            Mode = request.Mode
         };
 
         var response = await queryService.QueryAsync(ragRequest, ct);

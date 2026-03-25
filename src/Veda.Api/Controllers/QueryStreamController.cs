@@ -27,6 +27,7 @@ public class QueryStreamController(IQueryService queryService) : ControllerBase
         [FromQuery] float minSimilarity = 0.6f,
         [FromQuery] DateTimeOffset? dateFrom = null,
         [FromQuery] DateTimeOffset? dateTo = null,
+        [FromQuery] QueryMode mode = QueryMode.Simple,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(question))
@@ -46,7 +47,8 @@ public class QueryStreamController(IQueryService queryService) : ControllerBase
             TopK = topK,
             MinSimilarity = minSimilarity,
             DateFrom = dateFrom,
-            DateTo = dateTo
+            DateTo = dateTo,
+            Mode = mode
         };
 
         await foreach (var chunk in queryService.QueryStreamAsync(request, ct))

@@ -15,6 +15,7 @@ public class QueryServiceTests
     private Mock<IEmbeddingService> _embedding = null!;
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<IChatService> _chatService = null!;
+    private Mock<ILlmRouter> _llmRouter = null!;
     private Mock<IHallucinationGuardService> _hallucinationGuard = null!;
     private Mock<IContextWindowBuilder> _contextWindowBuilder = null!;
     private Mock<IPromptTemplateRepository> _promptTemplateRepository = null!;
@@ -28,6 +29,8 @@ public class QueryServiceTests
         _embedding = new Mock<IEmbeddingService>();
         _vectorStore = new Mock<IVectorStore>();
         _chatService = new Mock<IChatService>();
+        _llmRouter = new Mock<ILlmRouter>();
+        _llmRouter.Setup(r => r.Resolve(It.IsAny<QueryMode>())).Returns(_chatService.Object);
         _hallucinationGuard = new Mock<IHallucinationGuardService>();
         _logger = new Mock<ILogger<QueryService>>();
 
@@ -52,7 +55,7 @@ public class QueryServiceTests
         _sut = new QueryService(
             _embedding.Object,
             _vectorStore.Object,
-            _chatService.Object,
+            _llmRouter.Object,
             _hallucinationGuard.Object,
             _contextWindowBuilder.Object,
             _promptTemplateRepository.Object,
@@ -333,7 +336,7 @@ public class QueryServiceTests
 
     // Helper: build a new QueryService with different options but same mocks
     private QueryService BuildSut(IOptions<RagOptions> ragOptions) =>
-        new(_embedding.Object, _vectorStore.Object, _chatService.Object,
+        new(_embedding.Object, _vectorStore.Object, _llmRouter.Object,
             _hallucinationGuard.Object, _contextWindowBuilder.Object,
             _promptTemplateRepository.Object, _chainOfThought.Object,
             ragOptions, _logger.Object);

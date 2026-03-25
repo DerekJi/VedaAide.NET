@@ -66,6 +66,9 @@ public static class ServiceCollectionExtensions
         // DIP 适配器：将 SK 的 IChatCompletionService 包装为领域接口 IChatService
         services.AddScoped<IChatService, OllamaChatService>();
 
+        // LLM Router: 根据 QueryMode 分发到 simple / advanced 服务
+        services.AddScoped<ILlmRouter, LlmRouterService>();
+
         // Phase 2: 防幻觉服务
         services.AddScoped<IHallucinationGuardService, HallucinationGuardService>();
 
