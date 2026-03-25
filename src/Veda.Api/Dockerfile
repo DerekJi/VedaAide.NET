@@ -10,11 +10,14 @@ WORKDIR /repo
 COPY Directory.Build.props ./
 
 # Copy all csproj files first to leverage layer caching for restore
-COPY src/Veda.Core/Veda.Core.csproj             src/Veda.Core/
-COPY src/Veda.Prompts/Veda.Prompts.csproj       src/Veda.Prompts/
-COPY src/Veda.Services/Veda.Services.csproj     src/Veda.Services/
-COPY src/Veda.Storage/Veda.Storage.csproj       src/Veda.Storage/
-COPY src/Veda.Api/Veda.Api.csproj               src/Veda.Api/
+COPY src/Veda.Core/Veda.Core.csproj               src/Veda.Core/
+COPY src/Veda.Prompts/Veda.Prompts.csproj         src/Veda.Prompts/
+COPY src/Veda.Services/Veda.Services.csproj       src/Veda.Services/
+COPY src/Veda.Storage/Veda.Storage.csproj         src/Veda.Storage/
+COPY src/Veda.Agents/Veda.Agents.csproj           src/Veda.Agents/
+COPY src/Veda.Evaluation/Veda.Evaluation.csproj   src/Veda.Evaluation/
+COPY src/Veda.MCP/Veda.MCP.csproj                 src/Veda.MCP/
+COPY src/Veda.Api/Veda.Api.csproj                 src/Veda.Api/
 
 RUN dotnet restore src/Veda.Api/Veda.Api.csproj
 
