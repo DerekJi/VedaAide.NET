@@ -1,3 +1,7 @@
+using Azure;
+using Azure.AI.OpenAI;
+using Azure.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 
@@ -5,18 +9,56 @@ namespace Veda.Services;
 
 public static class ServiceCollectionExtensions
 {
-    /// <param name="ollamaEndpoint">Ollama base URL，例如 http://localhost:11434</param>
-    /// <param name="embeddingModel">Embedding 模型名，例如 nomic-embed-text</param>
-    /// <param name="chatModel">Chat 模型名，例如 qwen3:8b</param>
+    /// <summary>
+    /// 注册 AI 服务（Embedding + Chat LLM）。
+    /// 通过 Veda:EmbeddingProvider / Veda:LlmProvider 配置项选择提供商：
+    /// "Ollama"（默认，本地）或 "AzureOpenAI"（云端）。
+    /// </summary>
     public static IServiceCollection AddVedaAiServices(
-        this IServiceCollection services,
-        string ollamaEndpoint,
-        string embeddingModel,
-        string chatModel)
+        this IServiceCollection services, IConfiguration cfg)
     {
-        var kernelBuilder = services.AddKernel();
-        kernelBuilder.AddOllamaEmbeddingGenerator(embeddingModel, new Uri(ollamaEndpoint));
-        kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+        var embeddingProvider = cfg["Veda:EmbeddingProvider"] ?? "Ollama";
+        var llmProvider       = cfg["Veda:LlmProvider"]       ?? "Ollama";
+        var kernelBuilder     = services.AddKernel();
+
+        // ── Embedding ────────────────────────────────────────────────────────
+        if (embeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
+        {
+            var endpoint   = cfg["Veda:AzureOpenAI:Endpoint"]   ?? throw new InvalidOperationException("Veda:AzureOpenAI:Endpoint is required");
+            var apiKey     = cfg["Veda:AzureOpenAI:ApiKey"];
+            var deployment = cfg["Veda:AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-3-small";
+
+            // Build AzureOpenAIClient: separate constructors for apiKey vs Managed Identity
+            var azureEmbedClient = string.IsNullOrWhiteSpace(apiKey)
+                ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
+                : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+            kernelBuilder.Services.AddAzureOpenAIEmbeddingGenerator(deployment, azureEmbedClient);
+        }
+        else
+        {
+            var ollamaEndpoint = cfg["Veda:OllamaEndpoint"] ?? "http://localhost:11434";
+            var embeddingModel = cfg["Veda:EmbeddingModel"] ?? "bge-m3";
+            kernelBuilder.AddOllamaEmbeddingGenerator(embeddingModel, new Uri(ollamaEndpoint));
+        }
+
+        // ── Chat LLM ─────────────────────────────────────────────────────────
+        if (llmProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
+        {
+            var endpoint   = cfg["Veda:AzureOpenAI:Endpoint"]    ?? throw new InvalidOperationException("Veda:AzureOpenAI:Endpoint is required");
+            var apiKey     = cfg["Veda:AzureOpenAI:ApiKey"];
+            var deployment = cfg["Veda:AzureOpenAI:ChatDeployment"] ?? "gpt-4o-mini";
+
+            var azureChatClient = string.IsNullOrWhiteSpace(apiKey)
+                ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
+                : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+            kernelBuilder.AddAzureOpenAIChatCompletion(deployment, azureChatClient);
+        }
+        else
+        {
+            var ollamaEndpoint = cfg["Veda:OllamaEndpoint"] ?? "http://localhost:11434";
+            var chatModel      = cfg["Veda:ChatModel"]      ?? "qwen3:8b";
+            kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+        }
 
         services.AddScoped<IEmbeddingService, EmbeddingService>();
         services.AddScoped<IDocumentProcessor, TextDocumentProcessor>();

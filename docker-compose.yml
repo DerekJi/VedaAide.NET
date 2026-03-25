@@ -19,6 +19,27 @@ services:
     #         - capabilities: [gpu]
 
   # ─────────────────────────────────────────────
+  # CosmosDB Emulator – local vector DB development
+  # NoSQL-only emulator (vnext) supports DiskANN vector search
+  # Access data explorer: https://localhost:1234/_explorer/index.html
+  # Endpoint: https://localhost:8081  Key: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+  # ─────────────────────────────────────────────
+  cosmosdb-emulator:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+    container_name: veda-cosmosdb-emulator
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+      - "1234:1234"
+    environment:
+      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: "10"
+      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "true"
+    volumes:
+      - cosmosdb-data:/data/db
+    profiles:
+      - cloud-dev
+
+  # ─────────────────────────────────────────────
   # Veda.Api – ASP.NET Core backend
   # ─────────────────────────────────────────────
   veda-api:
@@ -74,3 +95,4 @@ services:
 volumes:
   ollama-models:
   veda-db:
+  cosmosdb-data:

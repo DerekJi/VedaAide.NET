@@ -1,0 +1,88 @@
+using System.Text.Json.Serialization;
+
+namespace Veda.Storage.Entities;
+
+/// <summary>
+/// CosmosDB for NoSQL 中存储的向量块文档模型。
+/// 属性名称使用小驼峰以匹配 CosmosDB JSON 惯例。
+/// </summary>
+internal sealed class CosmosChunkDocument
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentId")]
+    public string DocumentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentName")]
+    public string DocumentName { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentType")]
+    public int DocumentType { get; set; }
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    [JsonPropertyName("chunkIndex")]
+    public int ChunkIndex { get; set; }
+
+    [JsonPropertyName("contentHash")]
+    public string ContentHash { get; set; } = string.Empty;
+
+    [JsonPropertyName("embedding")]
+    public float[] Embedding { get; set; } = [];
+
+    [JsonPropertyName("embeddingModel")]
+    public string EmbeddingModel { get; set; } = string.Empty;
+
+    [JsonPropertyName("metadata")]
+    public Dictionary<string, string> Metadata { get; set; } = new();
+
+    [JsonPropertyName("createdAtTicks")]
+    public long CreatedAtTicks { get; set; }
+}
+
+/// <summary>仅包含 id 字段，用于删除查询结果反序列化。</summary>
+internal sealed class CosmosIdOnly
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+}
+
+/// <summary>向量检索查询结果，包含文档字段和向量距离分数。</summary>
+internal sealed class CosmosSearchResult
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentId")]
+    public string DocumentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentName")]
+    public string DocumentName { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentType")]
+    public int DocumentType { get; set; }
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    [JsonPropertyName("chunkIndex")]
+    public int ChunkIndex { get; set; }
+
+    [JsonPropertyName("contentHash")]
+    public string ContentHash { get; set; } = string.Empty;
+
+    [JsonPropertyName("embeddingModel")]
+    public string EmbeddingModel { get; set; } = string.Empty;
+
+    [JsonPropertyName("metadata")]
+    public Dictionary<string, string> Metadata { get; set; } = new();
+
+    [JsonPropertyName("createdAtTicks")]
+    public long CreatedAtTicks { get; set; }
+
+    /// <summary>VectorDistance 返回的余弦距离（越小越相似，0 = 完全相同）</summary>
+    [JsonPropertyName("distance")]
+    public double Distance { get; set; }
+}

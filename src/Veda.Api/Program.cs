@@ -17,18 +17,15 @@ builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: fa
 
 var cfg = builder.Configuration;
 
-// ── AI Services (Ollama via Semantic Kernel) ──────────────────────────────────
-builder.Services.AddVedaAiServices(
-    ollamaEndpoint: cfg["Veda:OllamaEndpoint"] ?? "http://localhost:11434",
-    embeddingModel: cfg["Veda:EmbeddingModel"] ?? "nomic-embed-text",
-    chatModel: cfg["Veda:ChatModel"] ?? "qwen3:8b");
+// ── AI Services (Embedding + LLM, provider decided by config) ───────────────
+builder.Services.AddVedaAiServices(cfg);
 
 // ── RAG Options (thresholds / feature flags) ──────────────────────────────────
 builder.Services.Configure<RagOptions>(cfg.GetSection("Veda:Rag"));
 builder.Services.Configure<VedaOptions>(cfg.GetSection("Veda"));
 
-// ── Storage (SQLite + EF Core) ────────────────────────────────────────────────
-builder.Services.AddVedaStorage(cfg["Veda:DbPath"] ?? "veda.db");
+// ── Storage (SQLite or CosmosDB, decided by Veda:StorageProvider) ───────────
+builder.Services.AddVedaStorage(cfg);
 
 // ── Prompts (Context Window Builder) ─────────────────────────────────────────
 builder.Services.AddVedaPrompts();
@@ -70,6 +67,11 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<VedaDbContext>();
     await db.Database.MigrateAsync();
 }
+
+// ── CosmosDB container initialisation (only when StorageProvider=CosmosDb) ───
+var cosmosInitializer = app.Services.GetService<Veda.Storage.CosmosDbInitializer>();
+if (cosmosInitializer is not null)
+    await cosmosInitializer.EnsureReadyAsync();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
