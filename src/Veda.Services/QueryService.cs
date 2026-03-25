@@ -7,7 +7,7 @@ namespace Veda.Services;
 public sealed class QueryService(
     IEmbeddingService embeddingService,
     IVectorStore vectorStore,
-    IChatService chatService,
+    ILlmRouter llmRouter,
     IHallucinationGuardService hallucinationGuard,
     IContextWindowBuilder contextWindowBuilder,
     IPromptTemplateRepository promptTemplateRepository,
@@ -78,6 +78,7 @@ public sealed class QueryService(
         var context = BuildContext(contextChunks);
         var systemPrompt = await BuildSystemPromptAsync(ct);
         var userMessage = chainOfThought.Enhance(request.Question, context);
+        var chatService = llmRouter.Resolve(request.Mode);
         var answer = await chatService.CompleteAsync(systemPrompt, userMessage, ct);
 
         // 防幻觉第一层：回答 Embedding 与向量库相似度校验。
@@ -225,6 +226,7 @@ public sealed class QueryService(
         var userMessage = chainOfThought.Enhance(request.Question, context);
 
         // 逐 token 流式输出
+        var chatService = llmRouter.Resolve(request.Mode);
         var fullAnswer = new System.Text.StringBuilder();
         await foreach (var token in chatService.CompleteStreamAsync(systemPrompt, userMessage, ct))
         {

@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
 using Veda.Agents;
 using Veda.Api.GraphQL;
+using Veda.Api.Middleware;
 using Veda.Evaluation;
 using Veda.MCP;
 using Veda.Prompts;
@@ -52,7 +55,28 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "VedaAide API", Version = "v1" });
 });
+// ── CORS ───────────────────────────────────────────────────────────────
+var allowedOrigins = (cfg["Veda:Security:AllowedOrigins"] ?? "*").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(options =>
+    options.AddPolicy("VedaCorsPolicy", policy =>
+    {
+        if (allowedOrigins.Contains("*"))
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        else
+            policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
+    }));
 
+// ── Rate Limiting (固定窗口，60 次/分钟/全局) ────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("global", policy =>
+    {
+        policy.PermitLimit = 60;
+        policy.Window      = TimeSpan.FromMinutes(1);
+        policy.QueueLimit  = 0;
+    });
+    options.RejectionStatusCode = 429;
+});
 // ── GraphQL (HotChocolate) ────────────────────────────────────────────────────
 builder.Services
     .AddGraphQLServer()
@@ -79,8 +103,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseAuthorization();
+app.UseCors("VedaCorsPolicy");
+app.UseRateLimiter();
+app.UseMiddleware<ApiKeyMiddleware>();app.UseAuthorization();
 app.MapControllers();
 app.MapGraphQL();   // GraphQL endpoint: /graphql (Banana Cake Pop UI in dev)
 app.MapVedaMcp();   // MCP endpoint: /mcp (SSE transport for Copilot Chat)

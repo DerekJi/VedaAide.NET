@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Veda.Core;
 
 namespace Veda.Api.Models;
 
@@ -20,7 +21,8 @@ public record QueryRequest(
     [Range(ApiConstraints.TopKMin, ApiConstraints.TopKMax)] int TopK = 5,
     [Range(0.0, 1.0)] float MinSimilarity = 0.6f,
     DateTimeOffset? DateFrom = null,
-    DateTimeOffset? DateTo = null);
+    DateTimeOffset? DateTo = null,
+    QueryMode Mode = QueryMode.Simple);
 
 public record SavePromptRequest(
     [Required, MinLength(1), MaxLength(200)] string Name,
