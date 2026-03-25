@@ -11,9 +11,14 @@
 3. [数据源：文件系统](#3-数据源文件系统)
 4. [数据源：Azure Blob Storage](#4-数据源azure-blob-storage)
 5. [数据源：自动同步](#5-数据源自动同步)
-6. [User Secrets（开发环境敏感参数）](#6-user-secrets开发环境敏感参数)
-7. [环境变量覆盖](#7-环境变量覆盖)
-8. [配置优先级](#8-配置优先级)
+6. [存储后端切换（二期新增）](#6-存储后端切换二期新增)
+7. [AI 提供商切换（二期新增）](#7-ai-提供商切换二期新增)
+8. [DeepSeek 高级推理（二期新增）](#8-deepseek-高级推理二期新增)
+9. [API 安全（二期新增）](#9-api-安全二期新增)
+10. [语义缓存（二期新增）](#10-语义缓存二期新增)
+11. [User Secrets（开发环境敏感参数）](#11-user-secrets开发环境敏感参数)
+12. [环境变量覆盖](#12-环境变量覆盖)
+13. [配置优先级](#13-配置优先级)
 
 ---
 
@@ -176,7 +181,153 @@
 
 ---
 
-## 6. User Secrets（开发环境敏感参数）
+## 6. 存储后端切换（二期新增）
+
+配置节：`Veda:StorageProvider` / `Veda:CosmosDb`
+
+```json
+{
+  "Veda": {
+    "StorageProvider": "Sqlite",
+    "CosmosDb": {
+      "Endpoint": "https://YOUR_ACCOUNT.documents.azure.com:443/",
+      "AccountKey": "",
+      "DatabaseName": "VedaAide",
+      "ChunksContainerName": "VectorChunks",
+      "CacheContainerName": "SemanticCache",
+      "EmbeddingDimensions": 1024
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `StorageProvider` | string | `Sqlite` | 向量存储后端。`Sqlite`（本地开发）或 `CosmosDb`（云端部署） |
+| `CosmosDb:Endpoint` | string | `""` | CosmosDB 账户端点（`StorageProvider=CosmosDb` 时必填） |
+| `CosmosDb:AccountKey` | string | `""` | 账户主键，**留空则使用 Managed Identity**（推荐云端使用） |
+| `CosmosDb:DatabaseName` | string | `VedaAide` | CosmosDB 数据库名 |
+| `CosmosDb:ChunksContainerName` | string | `VectorChunks` | 向量块容器名（含 DiskANN 索引） |
+| `CosmosDb:CacheContainerName` | string | `SemanticCache` | 语义缓存容器名 |
+| `CosmosDb:EmbeddingDimensions` | int | `1024` | Embedding 向量维度，须与模型一致（bge-m3=1024，text-embedding-3-small=1536） |
+
+> SQLite 元数据库（PromptTemplate / SyncState / Eval）始终使用 SQLite，不受此配置影响。
+
+---
+
+## 7. AI 提供商切换（二期新增）
+
+配置节：`Veda:EmbeddingProvider` / `Veda:LlmProvider` / `Veda:AzureOpenAI`
+
+```json
+{
+  "Veda": {
+    "EmbeddingProvider": "Ollama",
+    "LlmProvider": "Ollama",
+    "AzureOpenAI": {
+      "Endpoint": "https://YOUR_ACCOUNT.openai.azure.com/",
+      "ApiKey": "",
+      "EmbeddingDeployment": "text-embedding-3-small",
+      "ChatDeployment": "gpt-4o-mini"
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `EmbeddingProvider` | string | `Ollama` | `Ollama` 或 `AzureOpenAI` |
+| `LlmProvider` | string | `Ollama` | `Ollama` 或 `AzureOpenAI` |
+| `AzureOpenAI:Endpoint` | string | `""` | Azure OpenAI 资源端点 |
+| `AzureOpenAI:ApiKey` | string | `""` | API Key，**留空则使用 Managed Identity** |
+| `AzureOpenAI:EmbeddingDeployment` | string | `text-embedding-3-small` | Embedding 部署名称 |
+| `AzureOpenAI:ChatDeployment` | string | `gpt-4o-mini` | Chat 完成部署名称 |
+
+> Managed Identity 认证：在 Azure Container Apps 中为 App 分配 User Assigned Identity，并授予 `Cognitive Services OpenAI User` 角色，然后将 `AzureOpenAI:ApiKey` 留空即可。
+
+---
+
+## 8. DeepSeek 高级推理（二期新增）
+
+配置节：`Veda:DeepSeek`
+
+```json
+{
+  "Veda": {
+    "DeepSeek": {
+      "BaseUrl": "https://api.deepseek.com/v1",
+      "ApiKey": "",
+      "ChatModel": "deepseek-chat"
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `DeepSeek:BaseUrl` | string | `https://api.deepseek.com/v1` | DeepSeek API 端点（支持 OpenAI 兼容格式） |
+| `DeepSeek:ApiKey` | string | `""` | DeepSeek API Key。**留空则 `mode=advanced` 自动降级回默认 LLM** |
+| `DeepSeek:ChatModel` | string | `deepseek-chat` | 模型名称（如 `deepseek-reasoner`） |
+
+查询时通过 `mode` 参数路由：
+- `"mode": "Simple"` → 使用 LlmProvider（默认 Ollama/AzureOpenAI）
+- `"mode": "Advanced"` → 使用 DeepSeek（ApiKey 未配置时降级到 Simple）
+
+---
+
+## 9. API 安全（二期新增）
+
+配置节：`Veda:Security`
+
+```json
+{
+  "Veda": {
+    "Security": {
+      "ApiKey": "",
+      "AdminApiKey": "",
+      "AllowedOrigins": "*"
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `Security:ApiKey` | string | `""` | 接口通用 API Key。请求须携带 `X-Api-Key: xxx` 请求头。**留空则关闭认证（仅限开发）** |
+| `Security:AdminApiKey` | string | `""` | 管理接口专用 Key（`/api/admin/*`）。**留空则关闭管理接口认证** |
+| `Security:AllowedOrigins` | string | `*` | CORS 允许来源，可填逗号分隔的 URL 列表（如 `https://your-site.com`）。`*` 表示允许所有来源 |
+
+豁免路径（无需 API Key）：`/swagger`、`/graphql`、`/mcp`、`/health`。
+
+---
+
+## 10. 语义缓存（二期新增）
+
+配置节：`Veda:SemanticCache`
+
+```json
+{
+  "Veda": {
+    "SemanticCache": {
+      "Enabled": false,
+      "SimilarityThreshold": 0.95,
+      "TtlSeconds": 3600
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `SemanticCache:Enabled` | bool | `false` | 是否启用语义缓存。启用后对语义相似的重复问题直接返回缓存答案，跳过向量检索和 LLM 调用 |
+| `SemanticCache:SimilarityThreshold` | float | `0.95` | 问题 Embedding 余弦相似度阈值。高于此值视为"相同语义"命中缓存 |
+| `SemanticCache:TtlSeconds` | int | `3600` | 缓存条目存活时间（秒）。超时后自动失效，下次查询重新走 RAG 管道 |
+
+清空缓存：`DELETE /api/admin/cache`（需 Admin API Key）。
+
+---
+
+## 11. User Secrets（开发环境敏感参数）
 
 `UserSecretsId`：`78511e53-5061-4af3-a532-980931a060a8`（`Veda.Api.csproj` 中配置）
 
@@ -212,7 +363,7 @@ dotnet user-secrets remove "Veda:DataSources:BlobStorage:ConnectionString"
 
 ---
 
-## 7. 环境变量覆盖
+## 12. 环境变量覆盖
 
 所有 `appsettings.json` 配置项均可通过环境变量覆盖（ASP.NET Core 标准行为）。
 嵌套配置使用 `__`（双下划线）分隔层级：
@@ -233,7 +384,7 @@ environment:
 
 ---
 
-## 8. 配置优先级
+## 13. 配置优先级
 
 从低到高（高优先级覆盖低优先级）：
 

@@ -111,6 +111,8 @@ VedaAide.NET/
 | 文档 | 说明 |
 |------|------|
 | [docs/configuration/configuration.cn.md](docs/configuration/configuration.cn.md) | 完整配置项说明（appsettings、环境变量、User Secrets） |
+| [infra/README.md](infra/README.md) | Azure Bicep IaC 快速部署指南 |
+| [.github/workflows/deploy.yml](.github/workflows/deploy.yml) | GitHub Actions CI/CD 流程 |
 | [docs/designs/system-design.cn.md](docs/designs/system-design.cn.md) | 架构概览与各阶段技术路线图 |
 | [docs/designs/phase4-mcp-agents.cn.md](docs/designs/phase4-mcp-agents.cn.md) | 阶段四/五设计：MCP、Agent 编排、Prompt 工程 |
 | [docs/tests/README.cn.md](docs/tests/README.cn.md) | 测试体系总览 |
@@ -132,6 +134,11 @@ VedaAide.NET/
 | `POST` | `/api/orchestrate/query` | Agent 编排问答 |
 | `POST` | `/api/orchestrate/ingest` | Agent 编排摄取 |
 | `POST` | `/api/datasources/sync` | 手动触发所有已启用数据源同步 |
+| `GET` | `/api/admin/stats` | 查看向量库统计信息（Admin Key 必填） |
+| `GET` | `/api/admin/chunks` | 分页浏览向量块（Admin Key 必填） |
+| `DELETE` | `/api/admin/data` | 清空所有向量数据（需 `X-Confirm: yes`） |
+| `DELETE` | `/api/admin/cache` | 清空语义缓存 |
+| `DELETE` | `/api/admin/documents/{id}` | 删除指定文档 |
 | `GET` | `/api/prompts` | 获取 Prompt 模板列表 |
 | `POST` | `/api/prompts` | 创建/更新 Prompt 模板 |
 | `POST` | `/mcp` | MCP 端点（供 VS Code Copilot 等 MCP 客户端连接） |
@@ -177,11 +184,105 @@ dotnet test --collect:"XPlat Code Coverage"
 ./scripts/smoke-test.sh
 ```
 
-当前测试数量：**117 个测试**，全部通过。
+当前测试数量：**134 个测试**，全部通过。
 
 ---
 
-## MCP 集成（VS Code Copilot）
+## 云端部署（Azure Container Apps）
+
+### 前置要求
+
+- Azure 订阅
+- Azure CLI (`az`) 或 Azure Developer CLI (`azd`)
+- GitHub Actions Secrets 已配置（见下文）
+- Azure OpenAI 资源（Embedding + Chat 部署）
+- Azure CosmosDB for NoSQL 账户（启用向量搜索功能）
+
+### 基础设施部署（Bicep）
+
+```bash
+# 登录 Azure
+az login
+
+# 部署所有资源（Container Apps Environment + Container App + Managed Identity）
+az deployment sub create \
+  --location eastasia \
+  --template-file infra/main.bicep \
+  --parameters @infra/main.parameters.json \
+  --parameters containerImage=ghcr.io/YOUR_ORG/vedaaide-api:latest
+```
+
+> 部署完成后复制输出的 `identityPrincipalId` 用于后续授权。
+
+### Managed Identity 授权
+
+```bash
+# 获取 Managed Identity 的 Principal ID（Bicep 输出中可得）
+PRINCIPAL_ID="<identityPrincipalId>"
+
+# 授权访问 Azure OpenAI
+az role assignment create \
+  --assignee "$PRINCIPAL_ID" \
+  --role "Cognitive Services OpenAI User" \
+  --scope "/subscriptions/<SUB>/resourceGroups/rg-vedaaide/providers/Microsoft.CognitiveServices/accounts/<AOAI_NAME>"
+
+# 授权访问 CosmosDB（内置 Data Contributor 角色）
+az cosmosdb sql role assignment create \
+  --account-name <COSMOS_ACCOUNT> \
+  --resource-group rg-vedaaide \
+  --principal-id "$PRINCIPAL_ID" \
+  --role-definition-id 00000000-0000-0000-0000-000000000002 \
+  --scope "/"
+```
+
+授权后，`appsettings.json` 中 `AzureOpenAI:ApiKey` 和 `CosmosDb:AccountKey` 保持为空，系统自动使用 Managed Identity 认证。
+
+### GitHub Actions CI/CD
+
+在 GitHub 仓库中配置以下 Secrets / Variables：
+
+| 类型 | 名称 | 说明 |
+|------|------|------|
+| Secret | `AZURE_CLIENT_ID` | 用于 GitHub Actions Federated Identity 的应用注册客户端 ID |
+| Secret | `AZURE_TENANT_ID` | Azure AD 租户 ID |
+| Secret | `AZURE_SUBSCRIPTION_ID` | Azure 订阅 ID |
+| Variable | `AZURE_RESOURCE_GROUP` | 资源组名（如 `rg-vedaaide`） |
+| Variable | `CONTAINER_APP_NAME` | Container App 名（如 `vedaaide-dev-api`） |
+
+配置 Federated Identity（允许 GitHub Actions 免密登录 Azure）：
+
+```bash
+az ad app federated-credential create \
+  --id <APP_OBJECT_ID> \
+  --parameters '{
+    "name": "github-deploy",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:YOUR_ORG/VedaAide.NET:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
+推送到 `main` 分支后，CI/CD 自动完成：构建 → 测试 → 推送镜像 → 部署到 Container Apps，全程约 5-8 分钟。
+
+### 云端配置（通过环境变量）
+
+Container Apps 中无需修改代码，通过环境变量切换后端：
+
+```bash
+# 切换到 CosmosDB + AzureOpenAI
+az containerapp update --name vedaaide-dev-api --resource-group rg-vedaaide \
+  --set-env-vars \
+    "Veda__StorageProvider=CosmosDb" \
+    "Veda__CosmosDb__Endpoint=https://YOUR_COSMOS.documents.azure.com:443/" \
+    "Veda__EmbeddingProvider=AzureOpenAI" \
+    "Veda__LlmProvider=AzureOpenAI" \
+    "Veda__AzureOpenAI__Endpoint=https://YOUR_AOAI.openai.azure.com/" \
+    "Veda__SemanticCache__Enabled=true"
+```
+
+---
+
+## 运行测试
 
 API 运行时，在 `.vscode/mcp.json` 中添加：
 
@@ -210,4 +311,8 @@ API 运行时，在 `.vscode/mcp.json` 中添加：
 | 阶段三 | 全栈（GraphQL + SSE 流式 + Angular 前端 + Docker） | ✅ 已完成 |
 | 阶段四 | Agentic 工作流 + MCP Server + Prompt 工程 | ✅ 已完成 |
 | 阶段五 | 外部数据源（FileSystem + Blob）、后台同步、同步状态追踪 | ✅ 已完成 |
+| 二期 Sprint 1 | CosmosDB 向量存储 + AzureOpenAI Embedding/Chat 提供商切换 | ✅ 已完成 |
+| 二期 Sprint 2 | LLM 双模式路由（DeepSeek Advanced）+ API 安全 + Admin 管理端点 | ✅ 已完成 |
+| 二期 Sprint 3 | 语义缓存（ISemanticCache，SQLite + CosmosDB 双后端） | ✅ 已完成 |
+| 二期 Sprint 4 | CI/CD（GitHub Actions）+ Bicep IaC + Managed Identity | ✅ 已完成 |
 | 阶段六 | AI 评估体系（忠实度、相关性、A/B 测试） | ⏳ 规划中 |
