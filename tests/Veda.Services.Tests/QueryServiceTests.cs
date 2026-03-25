@@ -16,6 +16,7 @@ public class QueryServiceTests
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<IChatService> _chatService = null!;
     private Mock<ILlmRouter> _llmRouter = null!;
+    private Mock<ISemanticCache> _semanticCache = null!;
     private Mock<IHallucinationGuardService> _hallucinationGuard = null!;
     private Mock<IContextWindowBuilder> _contextWindowBuilder = null!;
     private Mock<IPromptTemplateRepository> _promptTemplateRepository = null!;
@@ -31,6 +32,9 @@ public class QueryServiceTests
         _chatService = new Mock<IChatService>();
         _llmRouter = new Mock<ILlmRouter>();
         _llmRouter.Setup(r => r.Resolve(It.IsAny<QueryMode>())).Returns(_chatService.Object);
+        _semanticCache = new Mock<ISemanticCache>();
+        _semanticCache.Setup(c => c.GetAsync(It.IsAny<float[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string?)null);
         _hallucinationGuard = new Mock<IHallucinationGuardService>();
         _logger = new Mock<ILogger<QueryService>>();
 
@@ -60,6 +64,7 @@ public class QueryServiceTests
             _contextWindowBuilder.Object,
             _promptTemplateRepository.Object,
             _chainOfThought.Object,
+            _semanticCache.Object,
             ragOptions,
             _logger.Object);
     }
@@ -339,7 +344,7 @@ public class QueryServiceTests
         new(_embedding.Object, _vectorStore.Object, _llmRouter.Object,
             _hallucinationGuard.Object, _contextWindowBuilder.Object,
             _promptTemplateRepository.Object, _chainOfThought.Object,
-            ragOptions, _logger.Object);
+            _semanticCache.Object, ragOptions, _logger.Object);
 
     private static DocumentChunk MakeChunk(string docName, string content) => new()
     {

@@ -9,6 +9,7 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
     public DbSet<SyncedFileEntity> SyncedFiles => Set<SyncedFileEntity>();
     public DbSet<EvalQuestionEntity> EvalQuestions => Set<EvalQuestionEntity>();
     public DbSet<EvalRunEntity> EvalRuns => Set<EvalRunEntity>();
+    public DbSet<SemanticCacheEntity> SemanticCacheEntries => Set<SemanticCacheEntity>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -54,6 +55,13 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
             e.HasKey(x => x.RunId);
             e.Property(x => x.ModelName).IsRequired().HasMaxLength(200);
             e.Property(x => x.ReportJson).IsRequired();
+        });
+
+        mb.Entity<SemanticCacheEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.EmbeddingBlob).IsRequired();
+            e.Property(x => x.Answer).IsRequired();
         });
     }
 }
