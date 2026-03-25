@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Veda.Core.Interfaces;
 using Veda.Storage;
 
 namespace Veda.Api.Controllers;
@@ -12,6 +13,7 @@ namespace Veda.Api.Controllers;
 [Route("api/admin")]
 public sealed class AdminController(
     IVectorStore vectorStore,
+    ISemanticCache semanticCache,
     VedaDbContext db,
     ILogger<AdminController> logger) : ControllerBase
 {
@@ -102,11 +104,15 @@ public sealed class AdminController(
         });
     }
 
-    /// <summary>清空语义缓存占位（Sprint 3 实现后填充）。</summary>
+    /// <summary>清空语义缓存。</summary>
     [HttpDelete("cache")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult ClearCache()
-        => Ok(new { message = "Semantic cache not yet implemented (Sprint 3)." });
+    public async Task<IActionResult> ClearCache(CancellationToken ct)
+    {
+        await semanticCache.ClearAsync(ct);
+        logger.LogInformation("Admin: semantic cache cleared");
+        return Ok(new { message = "Semantic cache cleared." });
+    }
 
     /// <summary>删除指定文档的所有 chunks。</summary>
     [HttpDelete("documents/{documentId}")]

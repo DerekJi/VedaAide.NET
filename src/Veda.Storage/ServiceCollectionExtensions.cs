@@ -2,6 +2,8 @@ using Azure.Identity;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Veda.Core;
+using Veda.Core.Interfaces;
 
 namespace Veda.Storage;
 
@@ -43,19 +45,37 @@ public static class ServiceCollectionExtensions
                 AccountKey            = accountKey,
                 DatabaseName          = cfg["Veda:CosmosDb:DatabaseName"]          ?? "VedaAide",
                 ChunksContainerName   = cfg["Veda:CosmosDb:ChunksContainerName"]   ?? "VectorChunks",
+                CacheContainerName    = cfg["Veda:CosmosDb:CacheContainerName"]    ?? "SemanticCache",
                 EmbeddingDimensions   = int.TryParse(cfg["Veda:CosmosDb:EmbeddingDimensions"], out var dims) ? dims : 1024
             };
 
+            var cacheOpts = BuildCacheOptions(cfg);
+
             services.AddSingleton(cosmosClient);
             services.AddSingleton(cosmosOpts);
+            services.AddSingleton(cacheOpts);
             services.AddScoped<IVectorStore, CosmosDbVectorStore>();
+            services.AddScoped<ISemanticCache, CosmosDbSemanticCache>();
             services.AddSingleton<CosmosDbInitializer>();
         }
         else
         {
+            var cacheOpts = BuildCacheOptions(cfg);
+            services.AddSingleton(cacheOpts);
             services.AddScoped<IVectorStore, SqliteVectorStore>();
+            services.AddScoped<ISemanticCache, SqliteSemanticCache>();
         }
 
         return services;
     }
+
+    private static SemanticCacheOptions BuildCacheOptions(IConfiguration cfg) => new()
+    {
+        Enabled             = bool.TryParse(cfg["Veda:SemanticCache:Enabled"], out var en) && en,
+        SimilarityThreshold = float.TryParse(cfg["Veda:SemanticCache:SimilarityThreshold"],
+                                  System.Globalization.NumberStyles.Float,
+                                  System.Globalization.CultureInfo.InvariantCulture,
+                                  out var thr) ? thr : 0.95f,
+        TtlSeconds          = int.TryParse(cfg["Veda:SemanticCache:TtlSeconds"], out var ttl) ? ttl : 3600
+    };
 }

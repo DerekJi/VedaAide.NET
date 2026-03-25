@@ -12,6 +12,7 @@ public sealed class QueryService(
     IContextWindowBuilder contextWindowBuilder,
     IPromptTemplateRepository promptTemplateRepository,
     IChainOfThoughtStrategy chainOfThought,
+    ISemanticCache semanticCache,
     IOptions<RagOptions> options,
     ILogger<QueryService> logger) : IQueryService
 {
@@ -52,6 +53,14 @@ public sealed class QueryService(
         logger.LogInformation("RAG query: {Question}", request.Question);
 
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(request.Question, ct);
+
+        // 先查语义缓存（命中则跳过向量检索和 LLM 调用）
+        var cachedAnswer = await semanticCache.GetAsync(queryEmbedding, ct);
+        if (cachedAnswer is not null)
+        {
+            logger.LogInformation("Semantic cache hit for: {Question}", request.Question);
+            return new RagQueryResponse { Answer = cachedAnswer, AnswerConfidence = 1f, IsHallucination = false };
+        }
 
         // 获取 TopK × RerankCandidatesMultiplier 个候选块，为 Reranking 提供更大选择空间。
         var candidateTopK = request.TopK * RagDefaults.RerankCandidatesMultiplier;
@@ -97,6 +106,10 @@ public sealed class QueryService(
 
         if (isHallucination)
             logger.LogWarning("Potential hallucination detected for question: {Question}", request.Question);
+
+        // 非幻觉答案写入语义缓存
+        if (!isHallucination)
+            await semanticCache.SetAsync(queryEmbedding, answer, ct);
 
         return new RagQueryResponse
         {
@@ -186,6 +199,17 @@ public sealed class QueryService(
 
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(request.Question, ct);
 
+        // 先查语义缓存（命中则直接流式返回缓存答案）
+        var cachedAnswer = await semanticCache.GetAsync(queryEmbedding, ct);
+        if (cachedAnswer is not null)
+        {
+            logger.LogInformation("Semantic cache hit (stream) for: {Question}", request.Question);
+            yield return new RagStreamChunk { Type = "sources", Sources = [] };
+            yield return new RagStreamChunk { Type = "token", Token = cachedAnswer };
+            yield return new RagStreamChunk { Type = "done", AnswerConfidence = 1f, IsHallucination = false };
+            yield break;
+        }
+
         var candidateTopK = request.TopK * RagDefaults.RerankCandidatesMultiplier;
         var candidates = await vectorStore.SearchAsync(
             queryEmbedding,
@@ -249,6 +273,10 @@ public sealed class QueryService(
 
         if (isHallucination)
             logger.LogWarning("Potential hallucination (stream) for: {Question}", request.Question);
+
+        // 非幻觉答案写入语义缓存
+        if (!isHallucination)
+            await semanticCache.SetAsync(queryEmbedding, answer, ct);
 
         yield return new RagStreamChunk
         {
