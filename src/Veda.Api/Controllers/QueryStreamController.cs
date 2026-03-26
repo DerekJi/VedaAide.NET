@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Veda.Api.Models;
+using Veda.Services;
 
 namespace Veda.Api.Controllers;
 
@@ -9,7 +11,7 @@ namespace Veda.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/querystream")]
-public class QueryStreamController(IQueryService queryService) : ControllerBase
+public class QueryStreamController(IQueryService queryService, IOptions<RagOptions> ragOptions) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
@@ -24,7 +26,7 @@ public class QueryStreamController(IQueryService queryService) : ControllerBase
         [FromQuery] string question,
         [FromQuery] string? documentType = null,
         [FromQuery] int topK = 5,
-        [FromQuery] float minSimilarity = 0.6f,
+        [FromQuery] float? minSimilarity = null,
         [FromQuery] DateTimeOffset? dateFrom = null,
         [FromQuery] DateTimeOffset? dateTo = null,
         [FromQuery] QueryMode mode = QueryMode.Simple,
@@ -45,7 +47,7 @@ public class QueryStreamController(IQueryService queryService) : ControllerBase
             Question = question,
             FilterDocumentType = DocumentTypeParser.ParseOrNull(documentType),
             TopK = topK,
-            MinSimilarity = minSimilarity,
+            MinSimilarity = minSimilarity ?? ragOptions.Value.DefaultMinSimilarity,
             DateFrom = dateFrom,
             DateTo = dateTo,
             Mode = mode
