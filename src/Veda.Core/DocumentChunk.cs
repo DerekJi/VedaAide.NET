@@ -16,4 +16,6 @@ public class DocumentChunk
     public string EmbeddingModel { get; set; } = string.Empty;
     public Dictionary<string, string> Metadata { get; init; } = new();
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    /// <summary>知识作用域元数据，用于多维度过滤；null 表示无限制范围。</summary>
+    public KnowledgeScope? Scope { get; init; }
 }

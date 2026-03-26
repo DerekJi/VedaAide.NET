@@ -87,6 +87,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         DocumentType? filterType = null,
         DateTimeOffset? dateFrom = null,
         DateTimeOffset? dateTo = null,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
         var candidateCount = Math.Max(topK * CandidateMultiplier, 20);
@@ -97,6 +98,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
         if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
         if (dateTo.HasValue)     conditions.Add("c.createdAtTicks <= @dateTo");
+        AppendScopeConditions(conditions, scope);
 
         var whereClause = conditions.Count > 0
             ? " WHERE " + string.Join(" AND ", conditions)
@@ -117,6 +119,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (filterType.HasValue) queryDef = queryDef.WithParameter("@filterType", (int)filterType.Value);
         if (dateFrom.HasValue)   queryDef = queryDef.WithParameter("@dateFrom", dateFrom.Value.UtcTicks);
         if (dateTo.HasValue)     queryDef = queryDef.WithParameter("@dateTo", dateTo.Value.UtcTicks);
+        BindScopeParameters(ref queryDef, scope);
 
         var results = new List<(DocumentChunk, float)>();
         var feed = _container.GetItemQueryIterator<CosmosSearchResult>(queryDef);
@@ -136,6 +139,81 @@ public sealed class CosmosDbVectorStore : IVectorStore
         }
 
         return results.AsReadOnly();
+    }
+
+    public async Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> SearchByKeywordsAsync(
+        string query,
+        int topK = 5,
+        DocumentType? filterType = null,
+        DateTimeOffset? dateFrom = null,
+        DateTimeOffset? dateTo = null,
+        KnowledgeScope? scope = null,
+        CancellationToken ct = default)
+    {
+        var keywords = ExtractKeywords(query);
+        if (keywords.Count == 0)
+            return Array.Empty<(DocumentChunk, float)>();
+
+        var candidateCount = Math.Max(topK * CandidateMultiplier, 20);
+        var conditions = new List<string>();
+        if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
+        if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
+        if (dateTo.HasValue)     conditions.Add("c.createdAtTicks <= @dateTo");
+        AppendScopeConditions(conditions, scope);
+
+        // CONTAINS-based keyword match (BM25 平替)
+        var keywordExpr = string.Join(" OR ", keywords.Select((_, i) => $"CONTAINS(LOWER(c.content), @kw{i})"));
+        conditions.Add($"({keywordExpr})");
+
+        var whereClause = " WHERE " + string.Join(" AND ", conditions);
+        var sql = $"""
+            SELECT TOP {candidateCount}
+                c.id, c.documentId, c.documentName, c.documentType,
+                c.content, c.chunkIndex, c.contentHash, c.embeddingModel, c.metadata, c.createdAtTicks
+            FROM c{whereClause}
+            """;
+
+        var queryDef = new QueryDefinition(sql);
+        if (filterType.HasValue) queryDef = queryDef.WithParameter("@filterType", (int)filterType.Value);
+        if (dateFrom.HasValue)   queryDef = queryDef.WithParameter("@dateFrom", dateFrom.Value.UtcTicks);
+        if (dateTo.HasValue)     queryDef = queryDef.WithParameter("@dateTo", dateTo.Value.UtcTicks);
+        BindScopeParameters(ref queryDef, scope);
+        for (var i = 0; i < keywords.Count; i++)
+            queryDef = queryDef.WithParameter($"@kw{i}", keywords[i].ToLowerInvariant());
+
+        var results = new List<(DocumentChunk, float)>();
+        var feed = _container.GetItemQueryIterator<CosmosChunkDocument>(queryDef);
+
+        while (feed.HasMoreResults && results.Count < topK)
+        {
+            var page = await feed.ReadNextAsync(ct);
+            foreach (var item in page)
+            {
+                var chunk = new DocumentChunk
+                {
+                    Id             = item.Id,
+                    DocumentId     = item.DocumentId,
+                    DocumentName   = item.DocumentName,
+                    DocumentType   = (DocumentType)item.DocumentType,
+                    Content        = item.Content,
+                    ChunkIndex     = item.ChunkIndex,
+                    EmbeddingModel = item.EmbeddingModel,
+                    Metadata       = item.Metadata,
+                    CreatedAt      = new DateTimeOffset(item.CreatedAtTicks, TimeSpan.Zero)
+                };
+                // Score = keyword coverage ratio (matched keywords / total keywords)
+                var matchCount = keywords.Count(kw =>
+                    item.Content.Contains(kw, StringComparison.OrdinalIgnoreCase));
+                var score = (float)matchCount / keywords.Count;
+                results.Add((chunk, score));
+                if (results.Count >= topK) break;
+            }
+        }
+
+        return results
+            .OrderByDescending(x => x.Item2)
+            .ToList()
+            .AsReadOnly();
     }
 
     public async Task<bool> ExistsAsync(string contentHash, CancellationToken ct = default)
@@ -224,4 +302,33 @@ public sealed class CosmosDbVectorStore : IVectorStore
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
+    /// <summary>
+    /// 将 KnowledgeScope 字段追加为 WHERE 子句条件。
+    /// 作用域元数据作为带 "_scope_" 前缀的 key 存储在 metadata 字典中。
+    /// </summary>
+    private static void AppendScopeConditions(List<string> conditions, KnowledgeScope? scope)
+    {
+        if (scope is null) return;
+        if (scope.Domain     is not null) conditions.Add("c.metadata[\"_scope_domain\"] = @scopeDomain");
+        if (scope.OwnerId    is not null) conditions.Add("c.metadata[\"_scope_ownerId\"] = @scopeOwnerId");
+        if (scope.SourceType is not null) conditions.Add("c.metadata[\"_scope_sourceType\"] = @scopeSourceType");
+    }
+
+    private static void BindScopeParameters(ref QueryDefinition queryDef, KnowledgeScope? scope)
+    {
+        if (scope is null) return;
+        if (scope.Domain     is not null) queryDef = queryDef.WithParameter("@scopeDomain",     scope.Domain);
+        if (scope.OwnerId    is not null) queryDef = queryDef.WithParameter("@scopeOwnerId",    scope.OwnerId);
+        if (scope.SourceType is not null) queryDef = queryDef.WithParameter("@scopeSourceType", scope.SourceType);
+    }
+
+    /// <summary>从查询字符串提取有意义的关键词（过滤停用词和短词）。</summary>
+    private static List<string> ExtractKeywords(string query)
+        => query
+            .Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length >= 2)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10) // 限制关键词数量，避免 SQL 过长
+            .ToList();
 }
