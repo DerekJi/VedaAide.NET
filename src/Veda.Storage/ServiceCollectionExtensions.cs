@@ -74,6 +74,10 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ISemanticCache, SqliteSemanticCache>();
         }
 
+        // Sprint 4: 反馈学习 + 知识治理（始终 SQLite，无 CosmosDB 变体）
+        services.AddScoped<IUserMemoryStore, UserMemoryStore>();
+        services.AddScoped<IKnowledgeGovernanceService, KnowledgeGovernanceService>();
+
         return services;
     }
 

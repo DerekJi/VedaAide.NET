@@ -96,6 +96,9 @@ public static class ServiceCollectionExtensions
         // 文档版本对比服务
         services.AddScoped<IDocumentDiffService, DocumentDiffService>();
 
+        // Sprint 4: 反馈 boost service（不依赖 DB，仅包装 IUserMemoryStore）
+        services.AddScoped<IFeedbackBoostService, FeedbackBoostService>();
+
         return services;
     }
 }

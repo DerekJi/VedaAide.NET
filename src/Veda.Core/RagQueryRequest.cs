@@ -16,4 +16,6 @@ public record RagQueryRequest
     public KnowledgeScope? Scope        { get; init; }
     /// <summary>是否启用结构化推理输出（含 Evidence[] 和 Confidence）。</summary>
     public bool StructuredOutput        { get; init; } = false;
+    /// <summary>当前用户 ID（可选）；提供后启用个性化反馈 boost。</summary>
+    public string? UserId               { get; init; }
 }

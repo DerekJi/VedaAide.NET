@@ -10,6 +10,10 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
     public DbSet<EvalQuestionEntity> EvalQuestions => Set<EvalQuestionEntity>();
     public DbSet<EvalRunEntity> EvalRuns => Set<EvalRunEntity>();
     public DbSet<SemanticCacheEntity> SemanticCacheEntries => Set<SemanticCacheEntity>();
+    public DbSet<UserBehaviorEntity> UserBehaviors => Set<UserBehaviorEntity>();
+    public DbSet<SharingGroupEntity> SharingGroups => Set<SharingGroupEntity>();
+    public DbSet<DocumentPermissionEntity> DocumentPermissions => Set<DocumentPermissionEntity>();
+    public DbSet<ConsensusCandidateEntity> ConsensusCandidates => Set<ConsensusCandidateEntity>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -63,6 +67,31 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
             e.HasKey(x => x.Id);
             e.Property(x => x.EmbeddingBlob).IsRequired();
             e.Property(x => x.Answer).IsRequired();
+        });
+
+        mb.Entity<UserBehaviorEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => new { x.UserId, x.RelatedChunkId });
+        });
+
+        mb.Entity<SharingGroupEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.OwnerId);
+        });
+
+        mb.Entity<DocumentPermissionEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.DocumentId, x.GroupId }).IsUnique();
+        });
+
+        mb.Entity<ConsensusCandidateEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.IsApproved);
         });
     }
 }

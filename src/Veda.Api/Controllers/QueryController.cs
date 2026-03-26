@@ -26,7 +26,8 @@ public class QueryController(IQueryService queryService) : ControllerBase
             StructuredOutput = request.StructuredOutput,
             Scope = (request.ScopeDomain is not null || request.ScopeOwnerId is not null)
                 ? new KnowledgeScope(Domain: request.ScopeDomain, OwnerId: request.ScopeOwnerId)
-                : null
+                : null,
+            UserId = request.UserId
         };
 
         var response = await queryService.QueryAsync(ragRequest, ct);
