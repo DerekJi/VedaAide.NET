@@ -47,3 +47,4 @@ module infra 'modules/container-apps.bicep' = {
 
 output apiUrl string = infra.outputs.apiUrl
 output containerAppName string = infra.outputs.containerAppName
+output docIntelligenceEndpoint string = infra.outputs.docIntelligenceEndpoint

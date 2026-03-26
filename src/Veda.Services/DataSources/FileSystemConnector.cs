@@ -7,6 +7,8 @@ namespace Veda.Services.DataSources;
 /// MCP Client 实现之一：从本地文件系统目录批量摄取文档到 VedaAide 知识库。
 /// 配置节：<c>Veda:DataSources:FileSystem</c>
 /// 通过 <see cref="ISyncStateStore"/> 跟踪内容哈希，跳过内容未变更的文件。
+/// 支持文本文件（.txt / .md）和二进制文件（PDF / 图片），分别路由至
+/// <see cref="IDocumentIngestor.IngestAsync"/> 和 <see cref="IDocumentIngestor.IngestFileAsync"/>。
 /// </summary>
 public sealed class FileSystemConnector(
     IDocumentIngestor                       documentIngestor,
@@ -55,32 +57,58 @@ public sealed class FileSystemConnector(
 
             try
             {
-                var content     = await File.ReadAllTextAsync(filePath, ct);
-                var contentHash = ComputeHash(content);
-
-                // Skip if file content hasn't changed since last sync
-                var knownHash = await syncStateStore.GetContentHashAsync(Name, filePath, ct);
-                if (knownHash == contentHash)
-                {
-                    filesSkipped++;
-                    logger.LogDebug("FileSystemConnector: skipping unchanged file '{File}'", filePath);
-                    continue;
-                }
-
-                var documentName = Path.GetFileName(filePath);
+                var ext          = System.IO.Path.GetExtension(filePath);
+                var documentName = System.IO.Path.GetFileName(filePath);
                 var docType      = DocumentTypeParser.InferFromName(documentName);
+                var isBinary     = FileTypeHelper.IsBinary(ext);
 
-                logger.LogDebug("FileSystemConnector: ingesting '{File}' as {Type}", documentName, docType);
+                if (isBinary)
+                {
+                    var bytes       = await File.ReadAllBytesAsync(filePath, ct);
+                    var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
-                var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
-                await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
+                    var knownHash = await syncStateStore.GetContentHashAsync(Name, filePath, ct);
+                    if (knownHash == contentHash)
+                    {
+                        filesSkipped++;
+                        logger.LogDebug("FileSystemConnector: skipping unchanged file '{File}'", filePath);
+                        continue;
+                    }
 
-                filesProcessed++;
-                chunksStored += result.ChunksStored;
+                    logger.LogDebug("FileSystemConnector: ingesting binary '{File}' as {Type}", documentName, docType);
+
+                    using var stream = new MemoryStream(bytes);
+                    var result = await documentIngestor.IngestFileAsync(
+                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct);
+
+                    await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
+                    filesProcessed++;
+                    chunksStored += result.ChunksStored;
+                }
+                else
+                {
+                    var content     = await File.ReadAllTextAsync(filePath, ct);
+                    var contentHash = ComputeTextHash(content);
+
+                    var knownHash = await syncStateStore.GetContentHashAsync(Name, filePath, ct);
+                    if (knownHash == contentHash)
+                    {
+                        filesSkipped++;
+                        logger.LogDebug("FileSystemConnector: skipping unchanged file '{File}'", filePath);
+                        continue;
+                    }
+
+                    logger.LogDebug("FileSystemConnector: ingesting '{File}' as {Type}", documentName, docType);
+
+                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
+                    await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
+                    filesProcessed++;
+                    chunksStored += result.ChunksStored;
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                var msg = $"Failed to ingest '{Path.GetFileName(filePath)}': {ex.Message}";
+                var msg = $"Failed to ingest '{System.IO.Path.GetFileName(filePath)}': {ex.Message}";
                 errors.Add(msg);
                 logger.LogError(ex, "FileSystemConnector: {Error}", msg);
             }
@@ -93,7 +121,7 @@ public sealed class FileSystemConnector(
         return MakeResult(filesProcessed, chunksStored, errors);
     }
 
-    private static string ComputeHash(string content)
+    private static string ComputeTextHash(string content)
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

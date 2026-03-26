@@ -76,6 +76,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDocumentIngestor, DocumentIngestService>();
         services.AddScoped<IQueryService, QueryService>();
 
+        // 多模态文件提取器（文件上传管线）
+        services.AddScoped<DocumentIntelligenceFileExtractor>();
+        services.AddScoped<VisionModelFileExtractor>();
+
         return services;
     }
 }

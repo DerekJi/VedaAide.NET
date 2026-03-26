@@ -179,6 +179,86 @@
 | `true` | `false` | 后台服务运行，但 FileSystem 不参与同步 |
 | `true` | `true` | 后台服务运行，FileSystem 参与每次同步 |
 
+### 在 Azure Container Apps 上开启 Blob 同步
+
+ASP.NET Core 支持通过环境变量覆盖任意 `appsettings.json` 配置项，嵌套层级使用 `__`（双下划线）分隔。
+
+**方式一：Azure Portal**
+
+进入 **Container Apps → `vedaaide-dev-api` → Settings → Environment variables**，添加以下环境变量：
+
+| 名称 | 值 |
+|------|----|
+| `Veda__DataSources__BlobStorage__Enabled` | `true` |
+| `Veda__DataSources__BlobStorage__AccountUrl` | `https://<存储账户名>.blob.core.windows.net` |
+| `Veda__DataSources__BlobStorage__ContainerName` | `my-docs` |
+| `Veda__DataSources__AutoSync__Enabled` | `true` |
+| `Veda__DataSources__AutoSync__IntervalMinutes` | `60` |
+
+**方式二：Azure CLI**
+
+```bash
+az containerapp update \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --set-env-vars \
+    "Veda__DataSources__BlobStorage__Enabled=true" \
+    "Veda__DataSources__BlobStorage__AccountUrl=https://<存储账户名>.blob.core.windows.net" \
+    "Veda__DataSources__BlobStorage__ContainerName=my-docs" \
+    "Veda__DataSources__AutoSync__Enabled=true" \
+    "Veda__DataSources__AutoSync__IntervalMinutes=60"
+```
+
+**云端认证方式（推荐：Managed Identity 无密钥）**
+
+填写 `AccountUrl`，`ConnectionString` 留空，然后为应用的 Managed Identity 授予存储账户访问权限：
+
+```bash
+# 获取存储账户资源 ID
+STORAGE_ID=$(az storage account show \
+  --name <存储账户名> \
+  --resource-group <resource-group> \
+  --query id -o tsv)
+
+# 为 Managed Identity 授予 Storage Blob Data Reader 角色
+az role assignment create \
+  --assignee <managed-identity-principal-id> \
+  --role "Storage Blob Data Reader" \
+  --scope "$STORAGE_ID"
+```
+
+如需使用连接字符串，建议存为 Container App Secret，避免明文暴露：
+
+```bash
+# 先将连接字符串存为 Secret
+az containerapp secret set \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --secrets "blobconn=<连接字符串>"
+
+# 在环境变量中引用 Secret
+az containerapp update \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --set-env-vars "Veda__DataSources__BlobStorage__ConnectionString=secretref:blobconn"
+```
+
+**验证同步是否正常运行**
+
+```bash
+az containerapp logs show \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --follow
+```
+
+启动后预期看到以下日志：
+```
+DataSourceSyncBackgroundService: starting, interval = 60 min
+DataSourceSyncBackgroundService: running scheduled sync
+BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 errors
+```
+
 ---
 
 ## 6. 存储后端切换（二期新增）

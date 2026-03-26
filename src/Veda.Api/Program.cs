@@ -27,6 +27,10 @@ builder.Services.AddVedaAiServices(cfg);
 builder.Services.Configure<RagOptions>(cfg.GetSection("Veda:Rag"));
 builder.Services.Configure<VedaOptions>(cfg.GetSection("Veda"));
 
+// ── Multimodal file extraction options ────────────────────────────────────────
+builder.Services.Configure<DocumentIntelligenceOptions>(cfg.GetSection("Veda:DocumentIntelligence"));
+builder.Services.Configure<VisionOptions>(cfg.GetSection("Veda:Vision"));
+
 // ── Storage (SQLite or CosmosDB, decided by Veda:StorageProvider) ───────────
 builder.Services.AddVedaStorage(cfg);
 

@@ -67,78 +67,87 @@ VedaAide 二期（Stage 2）已完成：
 
 ## 3. 功能模块详细设计
 
-### 3.1 富格式文档摄取（`Veda.Ingest.Layout`）
+### 3.1 富格式文档摄取（多模态文件上传）✅ 已实现
 
-**痛点**：现有摄取管线以纯文本为主，复杂版式文档（表格、多列、手写注释、扫描件）切片后语义边界破碎。
+**痛点**：现有摄取管线接受纯文本字符串，无法处理图片形式的账单/发票、图文 PDF、含几何图形
+或手写批注的扫描件。
 
-#### 摄取配置档案（Ingestion Profile）
+#### DocumentType 扩展：RichMedia
 
-为不同文档类型定义摄取策略：
+新增 `DocumentType.RichMedia`，专用于需要 Vision 模型理解的复杂图文内容：
+
+| DocumentType | 提取策略 | 适用场景 |
+|---|---|---|
+| `BillInvoice` | Document Intelligence `prebuilt-invoice` | 图片/PDF 水费单、商场小票、发票 |
+| `Specification`、`Report`等 | Document Intelligence `prebuilt-read` | 图片/PDF 规范文档、通用 OCR |
+| **`RichMedia`** | **Vision 模型（GPT-4o-mini）** | 几何图形、手写批注、符号标注（✓/✗）等复杂图文 |
+
+#### 文件提取接口
 
 ```csharp
-public enum IngestProfile
+// Veda.Core.Interfaces.IFileExtractor
+public interface IFileExtractor
 {
-    PlainText,        // 默认：段落切分
-    LayoutAware,      // 版式感知：标题层级 + 列区 + 注释区识别
-    TableExtraction,  // 表格结构化：行列关系保留为 JSON/Markdown 表格
-    OcrFallback       // OCR 回退：扫描件 PDF / 手写内容
-}
-
-public class DocumentIngestOptions
-{
-    public IngestProfile Profile { get; set; } = IngestProfile.PlainText;
-    public bool EnableTableExtraction { get; set; } = false;
-    public bool EnableOcrFallback { get; set; } = false;
-    public int MaxChunkTokens { get; set; } = 512;
+    Task<string> ExtractAsync(
+        Stream fileStream, string fileName, string mimeType,
+        DocumentType documentType, CancellationToken ct = default);
 }
 ```
 
-#### 关键接口
+两个实现：
+- **`DocumentIntelligenceFileExtractor`**：调用 Azure AI Document Intelligence API，
+  BillInvoice → `prebuilt-invoice`，其余 → `prebuilt-read`；
+  输出 `AnalyzeResult.Content`（Markdown 全文），直接进入现有文本分块管线。
+- **`VisionModelFileExtractor`**：调用 SK `IChatCompletionService`（gpt-4o-mini），
+  送入图片 + 提取指令，输出结构化文本描述；仅对 `RichMedia` 类型启用。
 
-```csharp
-// 新增于 Veda.Core.Interfaces
-public interface ILayoutParser
-{
-    // 从原始文档字节流中提取结构化内容（标题树、正文块、表格、注释）
-    Task<ParsedDocument> ParseAsync(
-        byte[] content, string mimeType, DocumentIngestOptions options,
-        CancellationToken ct = default);
-}
+#### 路由策略（DocumentIngestService）
 
-public record ParsedDocument(
-    IReadOnlyList<ContentBlock> Blocks,
-    IReadOnlyList<ExtractedTable> Tables,
-    IReadOnlyList<string> CrossReferences);
-
-public record ContentBlock(string Text, BlockType Type, int PageNumber, int HeadingLevel);
-public record ExtractedTable(string MarkdownTable, string Caption, int PageNumber);
-public enum BlockType { Heading, Paragraph, ListItem, Caption, Annotation }
+```
+文件上传 (multipart/form-data)
+    ↓
+documentType == RichMedia?
+    是 → VisionModelFileExtractor（GPT-4o-mini Vision）
+    否 → DocumentIntelligenceFileExtractor
+         └─ BillInvoice → prebuilt-invoice（结构化发票提取）
+         └─ 其余        → prebuilt-read（通用 OCR）
+    ↓
+提取文本 → 现有 TextDocumentProcessor（分块）→ EmbeddingService → VectorStore
 ```
 
-#### 集成点
+> **Embedding 无需变动**：两条路径均输出纯文本，复用现有文本 Embedding 管线。
 
-- `DocumentIngestService.IngestAsync` →  根据文件扩展名/MIME 类型自动选择 `IngestProfile`，或由调用方显式传入
-- 表格提取结果序列化为 Markdown 表格格式后作为独立 chunk，保留行列上下文
-- OCR 回退通道通过可选依赖（`Tesseract` 或 Azure AI Document Intelligence）注入，不强依赖
+#### API 端点
+
+```
+POST /api/documents/upload   (multipart/form-data)
+  file           binary      图片（JPEG/PNG/WebP/TIFF/BMP）或 PDF，最大 20 MB
+  documentType   string?     可选，默认由文件名推断
+  documentName   string?     可选，默认使用原始文件名
+→ 201 Created  { documentId, documentName, chunksStored }
+```
 
 #### 新增配置项
 
 ```json
 {
   "Veda": {
-    "Ingest": {
-      "DefaultProfile": "PlainText",
-      "EnableTableExtraction": false,
-      "EnableOcrFallback": false,
-      "OcrProvider": "AzureDocumentIntelligence",
-      "AzureDocumentIntelligence": {
-        "Endpoint": "",
-        "ApiKey": ""
-      }
+    "DocumentIntelligence": {
+      "Endpoint": "",   // Azure AI Document Intelligence 端点（Bicep 自动注入）
+      "ApiKey": ""      // 留空 → Managed Identity（生产）；本地开发可填 key
+    },
+    "Vision": {
+      "Enabled": false  // AzureOpenAI 环境自动设为 true（Bicep 注入）；Ollama 本地保持 false
     }
   }
 }
 ```
+
+#### Bicep 基础设施
+
+Bicep 自动创建 Azure AI Document Intelligence 资源（F0 免费层，500 页/月）并为
+Managed Identity 分配 **Cognitive Services User** 角色，Container App 自动注入
+`Veda__DocumentIntelligence__Endpoint` 和 `Veda__Vision__Enabled=true` 环境变量。
 
 ---
 
@@ -544,10 +553,11 @@ public interface IKnowledgeGovernanceService
 
 | 模块 / 文件 | 说明 |
 |-------------|------|
-| `Veda.Ingest.Layout/LayoutParser.cs` | 实现 `ILayoutParser`，版式感知分段 |
-| `Veda.Ingest.Layout/TableExtractor.cs` | 表格结构化提取，输出 Markdown 表格格式 |
-| `Veda.Ingest.Layout/OcrFallbackParser.cs` | OCR 回退通道（可选依赖） |
-| `Veda.Ingest.Layout/IngestProfileSelector.cs` | 根据 MIME 类型自动选择摄取配置档案 |
+| `Veda.Core/Interfaces/IFileExtractor.cs` | 文件提取接口，路由到 Document Intelligence 或 Vision |
+| `Veda.Services/DocumentIntelligenceFileExtractor.cs` | Azure AI Document Intelligence 实现（OCR + 发票结构化）|
+| `Veda.Services/VisionModelFileExtractor.cs` | GPT-4o-mini Vision 实现（RichMedia 复杂图文）|
+| `Veda.Services/DocumentIntelligenceOptions.cs` | Document Intelligence 配置选项 |
+| `Veda.Services/VisionOptions.cs` | Vision 模型启用开关配置 |
 | `Veda.Semantics/PersonalVocabularyEnhancer.cs` | 配置文件驱动的个人词库语义增强 |
 | `Veda.Semantics/NoOpSemanticEnhancer.cs` | 默认透传实现 |
 | `Veda.Knowledge.Scope/KnowledgeScopeFilter.cs` | KnowledgeScope 过滤条件构建与应用 |
@@ -568,16 +578,25 @@ public interface IKnowledgeGovernanceService
 
 | 文件 | 变更内容 |
 |------|----------|
+| `Veda.Core/DocumentType.cs` | ✅ 新增 `RichMedia` 枚举值 |
+| `Veda.Core/ChunkingOptions.cs` | ✅ 新增 `RichMedia → (512, 64)` 分块策略 |
+| `Veda.Core/Interfaces/IDocumentIngestor.cs` | ✅ 新增 `IngestFileAsync` 文件流摄取方法 |
+| `Veda.Services/DocumentIngestService.cs` | ✅ 实现 `IngestFileAsync`，注入两个文件提取器 |
+| `Veda.Services/ServiceCollectionExtensions.cs` | ✅ 注册 `DocumentIntelligenceFileExtractor`、`VisionModelFileExtractor` |
+| `Veda.Services/Veda.Services.csproj` | ✅ 新增 `Azure.AI.FormRecognizer 4.1.0` 包 |
+| `Veda.Api/Controllers/DocumentsController.cs` | ✅ 新增 `POST /api/documents/upload` 端点 |
+| `Veda.Api/appsettings.json` | ✅ 新增 `DocumentIntelligence`、`Vision` 配置节 |
+| `Veda.Api/Program.cs` | ✅ 注册两个新 Options |
+| `infra/modules/container-apps.bicep` | ✅ 新增 Document Intelligence 资源 + 角色分配 + 环境变量 |
+| `infra/main.bicep` | ✅ 新增 `docIntelligenceEndpoint` output |
 | `Veda.Core/Interfaces/IVectorStore.cs` | 新增 `SearchByKeywordsAsync`；`SearchAsync` 增加 `KnowledgeScope?` 参数 |
 | `Veda.Core/DocumentChunk.cs` | 新增 `version`、`validFrom`、`supersededBy`、`scope` 字段 |
 | `Veda.Core/RagQueryRequest.cs` | 新增 `Scope`、`StructuredOutput` 参数 |
 | `Veda.Core/RagQueryResponse.cs` | 新增 `StructuredOutput` 字段（可选） |
 | `Veda.Services/QueryService.cs` | 集成 `IHybridRetriever`、`ISemanticEnhancer`、`IUserMemoryStore` boost |
-| `Veda.Services/DocumentIngestService.cs` | 集成 `ILayoutParser`、`ISemanticEnhancer`、`IDocumentDiffService` |
 | `Veda.Storage/CosmosDbVectorStore.cs` | 实现关键词检索通道；`SearchAsync` 支持 `KnowledgeScope` 过滤 |
 | `Veda.Api/Controllers/AdminController.cs` | 新增文档版本历史端点、反馈统计端点 |
 | `Veda.Api/Program.cs` | 注册三期新服务 |
-| `src/Veda.Api/appsettings.json` | 新增 `Ingest`、`Semantics`、`Rag.HybridRetrieval` 配置节 |
 | `Veda.Evaluation/EvaluationMetrics.cs` | 新增摄取完整性、Citation 准确率、结构化输出可解释度指标 |
 | `docs/configuration/configuration.cn.md` | 补充三期新增配置项说明 |
 
@@ -609,14 +628,16 @@ public interface IKnowledgeGovernanceService
 
 **目标**：复杂文档摄取后语义完整性明显改善。
 
-- [ ] `ILayoutParser` 接口定义
-- [ ] `LayoutParser` 实现（标题层级、段落、注释区识别）
-- [ ] `TableExtractor` 实现（表格 → Markdown 格式 chunk）
-- [ ] `IngestProfileSelector` 实现（按 MIME 类型自动选择）
-- [ ] `DocumentIngestService` 集成 `ILayoutParser`
-- [ ] `OcrFallbackParser` 实现（Azure Document Intelligence，可选依赖，通过 DI 注入）
-- [ ] 新增摄取完整性评估指标（`Veda.Evaluation`）
-- [ ] 新增摄取配置项（`Veda:Ingest:DefaultProfile` / `EnableTableExtraction`）
+- [x] `DocumentType.RichMedia` 新增，ChunkingOptions 扩展 ✅
+- [x] `IFileExtractor` 接口定义 ✅
+- [x] `DocumentIntelligenceFileExtractor` 实现（Azure AI Document Intelligence SDK），
+  BillInvoice → `prebuilt-invoice`，通用 → `prebuilt-read` ✅
+- [x] `VisionModelFileExtractor` 实现（GPT-4o-mini Vision，SK IChatCompletionService）✅
+- [x] `DocumentIngestService.IngestFileAsync` 实现，按 DocumentType 路由提取器 ✅
+- [x] `POST /api/documents/upload` 端点，支持 JPEG/PNG/WebP/TIFF/BMP/PDF，最大 20 MB ✅
+- [x] `DocumentIntelligence` + `Vision` 配置节及 Options 类 ✅
+- [x] Bicep：Document Intelligence F0 资源 + Managed Identity Cognitive Services User 角色 ✅
+- [ ] 摄取完整性评估指标（`Veda.Evaluation` 集成）
 
 **验收**：
 - 含表格的 PDF 摄取后，表格中每个单元格的行列关系可在 chunk 中正确还原
@@ -695,7 +716,7 @@ public interface IKnowledgeGovernanceService
 
 | 风险 | 应对策略 |
 |------|----------|
-| OCR 依赖成本 | Azure Document Intelligence 按页计费；默认关闭，仅对扫描件文档启用 |
+| OCR 依赖成本 | Azure AI Document Intelligence F0 免费层（500 页/月）满足开发阶段；生产超量按页计费（约 $10/1000 页）。Vision 通道（RichMedia）按 GPT-4o-mini token 计费，成本受控 |
 | BM25 倒排与 CosmosDB 全文检索能力差距 | 先用 CosmosDB 全文索引实现关键词通道；如效果不足，引入 Azure AI Search（作为可选依赖，不强依赖） |
 | 结构化输出 LLM 不稳定遵从 | Prompt 加强约束 + 响应解析校验；解析失败时降级为自由文本输出，不阻塞响应 |
 | 版本化迁移对已有数据的影响 | 新版本字段设默认值，存量数据视为 `version=1`；迁移脚本幂等可重入 |
