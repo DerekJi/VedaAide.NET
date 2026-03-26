@@ -15,6 +15,7 @@ public sealed class QueryService(
     ISemanticCache semanticCache,
     IHybridRetriever hybridRetriever,
     ISemanticEnhancer semanticEnhancer,
+    IFeedbackBoostService feedbackBoost,
     IOptions<RagOptions> options,
     ILogger<QueryService> logger) : IQueryService
 {
@@ -108,8 +109,20 @@ public sealed class QueryService(
                 AnswerConfidence = 0f
             };
 
-        // 轻量重排：70% 向量相似度 + 30% 關鍵词覆盖率，取前 TopK 个。
-        var results = Rerank(candidates, request.Question, request.TopK);
+        // 轻量重排：70% 向量相似度 + 30% 关键词覆盖率，取前 TopK 个。
+        var reranked = Rerank(candidates, request.Question, request.TopK);
+
+        // 反馈 boost：对有正向历史反馈的 chunk 提升排名（无 userId 时跳过）
+        IReadOnlyList<(DocumentChunk Chunk, float Similarity)> results;
+        if (!string.IsNullOrWhiteSpace(request.UserId))
+        {
+            var boosted = await feedbackBoost.ApplyBoostAsync(request.UserId, reranked, ct);
+            results = boosted;
+        }
+        else
+        {
+            results = reranked;
+        }
 
         var contextChunks = contextWindowBuilder.Build(results);
         var context = BuildContext(contextChunks);

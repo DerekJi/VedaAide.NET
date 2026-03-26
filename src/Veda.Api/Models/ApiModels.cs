@@ -25,7 +25,8 @@ public record QueryRequest(
     QueryMode Mode = QueryMode.Simple,
     bool StructuredOutput = false,
     string? ScopeDomain = null,
-    string? ScopeOwnerId = null);
+    string? ScopeOwnerId = null,
+    string? UserId = null);
 
 public record SavePromptRequest(
     [Required, MinLength(1), MaxLength(200)] string Name,

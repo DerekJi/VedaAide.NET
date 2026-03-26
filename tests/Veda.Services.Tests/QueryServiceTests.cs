@@ -23,6 +23,7 @@ public class QueryServiceTests
     private Mock<IChainOfThoughtStrategy> _chainOfThought = null!;
     private Mock<IHybridRetriever> _hybridRetriever = null!;
     private Mock<ISemanticEnhancer> _semanticEnhancer = null!;
+    private Mock<IFeedbackBoostService> _feedbackBoost = null!;
     private Mock<ILogger<QueryService>> _logger = null!;
     private QueryService _sut = null!;
 
@@ -61,6 +62,10 @@ public class QueryServiceTests
         _semanticEnhancer
             .Setup(e => e.ExpandQueryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string q, CancellationToken _) => q);
+        _feedbackBoost = new Mock<IFeedbackBoostService>();
+        _feedbackBoost
+            .Setup(f => f.ApplyBoostAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<(DocumentChunk, float)>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, IReadOnlyList<(DocumentChunk, float)> r, CancellationToken _) => r);
 
         // Default: hallucination self-check disabled; threshold low enough not to flag in happy-path tests
         var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0f });
@@ -75,6 +80,7 @@ public class QueryServiceTests
             _semanticCache.Object,
             _hybridRetriever.Object,
             _semanticEnhancer.Object,
+            _feedbackBoost.Object,
             ragOptions,
             _logger.Object);
     }
@@ -355,7 +361,7 @@ public class QueryServiceTests
             _hallucinationGuard.Object, _contextWindowBuilder.Object,
             _promptTemplateRepository.Object, _chainOfThought.Object,
             _semanticCache.Object, _hybridRetriever.Object, _semanticEnhancer.Object,
-            ragOptions, _logger.Object);
+            _feedbackBoost.Object, ragOptions, _logger.Object);
 
     private static DocumentChunk MakeChunk(string docName, string content) => new()
     {
