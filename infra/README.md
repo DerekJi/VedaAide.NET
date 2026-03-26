@@ -54,8 +54,8 @@ cp infra/main.parameters.json infra/main.parameters.local.json
 ### 2. 部署基础设施
 
 ```bash
-az deployment sub create \
-  --location eastasia \
+az deployment group create \
+  --resource-group dev-dj-sbi-customer_group \
   --template-file infra/main.bicep \
   --parameters @infra/main.parameters.local.json
 ```
@@ -70,7 +70,7 @@ az deployment sub create \
 ```bash
 PRINCIPAL_ID="<identityPrincipalId from step 2 output>"
 SUBSCRIPTION="<YOUR_SUBSCRIPTION_ID>"
-RG="rg-vedaaide"
+RG="dev-dj-sbi-customer_group"
 
 # 授权访问 Azure OpenAI
 az role assignment create \
@@ -92,7 +92,7 @@ az cosmosdb sql role assignment create \
 ```bash
 az containerapp update \
   --name vedaaide-dev-api \
-  --resource-group rg-vedaaide \
+  --resource-group dev-dj-sbi-customer_group \
   --image ghcr.io/YOUR_ORG/vedaaide-api:latest
 ```
 
@@ -111,7 +111,7 @@ az containerapp update \
 | Secret | `AZURE_CLIENT_ID` | Federated Identity 应用注册的 App ID |
 | Secret | `AZURE_TENANT_ID` | Azure AD Tenant ID |
 | Secret | `AZURE_SUBSCRIPTION_ID` | Azure 订阅 ID |
-| Variable | `AZURE_RESOURCE_GROUP` | `rg-vedaaide` |
+| Variable | `AZURE_RESOURCE_GROUP` | `dev-dj-sbi-customer_group` |
 | Variable | `CONTAINER_APP_NAME` | `vedaaide-dev-api` |
 
 Federated Identity 配置（允许 GitHub Actions 免密登录 Azure）：

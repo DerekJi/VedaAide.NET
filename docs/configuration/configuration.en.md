@@ -11,9 +11,14 @@ This document covers all configurable fields in `appsettings.json`, environment 
 3. [Data Source: File System](#3-data-source-file-system)
 4. [Data Source: Azure Blob Storage](#4-data-source-azure-blob-storage)
 5. [Data Source: Auto Sync](#5-data-source-auto-sync)
-6. [User Secrets (Development Sensitive Config)](#6-user-secrets-development-sensitive-config)
-7. [Environment Variable Overrides](#7-environment-variable-overrides)
-8. [Configuration Priority](#8-configuration-priority)
+6. [Storage Backend](#6-storage-backend)
+7. [AI Provider](#7-ai-provider)
+8. [DeepSeek Advanced Reasoning](#8-deepseek-advanced-reasoning)
+9. [API Security](#9-api-security)
+10. [Semantic Cache](#10-semantic-cache)
+11. [User Secrets (Development Sensitive Config)](#11-user-secrets-development-sensitive-config)
+12. [Environment Variable Overrides](#12-environment-variable-overrides)
+13. [Configuration Priority](#13-configuration-priority)
 
 ---
 
@@ -176,7 +181,161 @@ Section: `Veda:DataSources:AutoSync`
 
 ---
 
-## 6. User Secrets (Development Sensitive Config)
+## 6. Storage Backend
+
+Section: `Veda:StorageProvider` / `Veda:CosmosDb`
+
+```json
+{
+  "Veda": {
+    "StorageProvider": "Sqlite",
+    "CosmosDb": {
+      "Endpoint": "https://YOUR_ACCOUNT.documents.azure.com:443/",
+      "AccountKey": "",
+      "DatabaseName": "VedaAide",
+      "ChunksContainerName": "VectorChunks",
+      "CacheContainerName": "SemanticCache",
+      "EmbeddingDimensions": 1536
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `StorageProvider` | string | `Sqlite` | Vector store backend: `Sqlite` (local dev) or `CosmosDb` (cloud) |
+| `CosmosDb:Endpoint` | string | `""` | CosmosDB account endpoint. Required when `StorageProvider=CosmosDb` |
+| `CosmosDb:AccountKey` | string | `""` | Account primary key. **Leave empty to use Managed Identity** (recommended for cloud) |
+| `CosmosDb:DatabaseName` | string | `VedaAide` | CosmosDB database name |
+| `CosmosDb:ChunksContainerName` | string | `VectorChunks` | Container for vector chunks (with DiskANN index) |
+| `CosmosDb:CacheContainerName` | string | `SemanticCache` | Container for semantic cache entries |
+| `CosmosDb:EmbeddingDimensions` | int | `1024` | Embedding vector dimensions — must match the model (bge-m3=1024, text-embedding-3-small=1536) |
+
+> SQLite metadata stores (PromptTemplate / SyncState / Eval) always use SQLite regardless of this setting.
+
+**CosmosDB container requirements:**
+- `VectorChunks`: partition key `/documentId`, DiskANN vector index on `/embedding` (Float32, Cosine, dimensions as configured), `/embedding/*` excluded from regular index
+- `SemanticCache`: partition key `/id`, TTL enabled (`DefaultTimeToLive = -1`)
+
+On startup, `CosmosDbInitializer` automatically creates the containers if they do not exist (requires `Cosmos DB Built-in Data Contributor` role on the account).
+
+---
+
+## 7. AI Provider
+
+Section: `Veda:EmbeddingProvider` / `Veda:LlmProvider` / `Veda:AzureOpenAI`
+
+```json
+{
+  "Veda": {
+    "EmbeddingProvider": "Ollama",
+    "LlmProvider": "Ollama",
+    "AzureOpenAI": {
+      "Endpoint": "https://YOUR_ACCOUNT.openai.azure.com/",
+      "ApiKey": "",
+      "EmbeddingDeployment": "text-embedding-3-small",
+      "ChatDeployment": "gpt-4o-mini"
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `EmbeddingProvider` | string | `Ollama` | `Ollama` or `AzureOpenAI` |
+| `LlmProvider` | string | `Ollama` | `Ollama` or `AzureOpenAI` |
+| `AzureOpenAI:Endpoint` | string | `""` | Azure OpenAI resource endpoint |
+| `AzureOpenAI:ApiKey` | string | `""` | API Key. **Leave empty to use Managed Identity** |
+| `AzureOpenAI:EmbeddingDeployment` | string | `text-embedding-3-small` | Embedding model deployment name |
+| `AzureOpenAI:ChatDeployment` | string | `gpt-4o-mini` | Chat completion deployment name |
+
+> **Managed Identity**: In Azure Container Apps, assign a User Assigned Identity to the app and grant it `Cognitive Services OpenAI User` role on the Azure OpenAI resource. Leave `ApiKey` empty.
+>
+> **Local dev with `az login`**: `DefaultAzureCredential` automatically picks up `az login` credentials locally — no key needed.
+
+---
+
+## 8. DeepSeek Advanced Reasoning
+
+Section: `Veda:DeepSeek`
+
+```json
+{
+  "Veda": {
+    "DeepSeek": {
+      "BaseUrl": "https://api.deepseek.com/v1",
+      "ApiKey": "",
+      "ChatModel": "deepseek-chat"
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `DeepSeek:BaseUrl` | string | `https://api.deepseek.com/v1` | DeepSeek API endpoint (OpenAI-compatible format) |
+| `DeepSeek:ApiKey` | string | `""` | DeepSeek API key. **If empty, `mode=Advanced` falls back to the default LLM** |
+| `DeepSeek:ChatModel` | string | `deepseek-chat` | Model name (e.g. `deepseek-reasoner`) |
+
+Route via query `mode` field:
+- `"mode": "Simple"` → uses `LlmProvider` (Ollama or AzureOpenAI)
+- `"mode": "Advanced"` → uses DeepSeek (falls back to Simple if `ApiKey` not configured)
+
+---
+
+## 9. API Security
+
+Section: `Veda:Security`
+
+```json
+{
+  "Veda": {
+    "Security": {
+      "ApiKey": "",
+      "AdminApiKey": "",
+      "AllowedOrigins": "*"
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Security:ApiKey` | string | `""` | General API key. Requests must include `X-Api-Key: xxx` header. **Leave empty to disable auth (dev only)** |
+| `Security:AdminApiKey` | string | `""` | Admin-only key for `/api/admin/*`. **Leave empty to disable admin auth** |
+| `Security:AllowedOrigins` | string | `*` | CORS allowed origins — comma-separated URLs (e.g. `https://your-site.com`). `*` allows all |
+
+Exempt paths (no API key required): `/swagger`, `/graphql`, `/mcp`, `/health`.
+
+---
+
+## 10. Semantic Cache
+
+Section: `Veda:SemanticCache`
+
+```json
+{
+  "Veda": {
+    "SemanticCache": {
+      "Enabled": false,
+      "SimilarityThreshold": 0.95,
+      "TtlSeconds": 3600
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `SemanticCache:Enabled` | bool | `false` | Enable semantic caching. When enabled, semantically similar questions return cached answers, skipping vector search and LLM calls |
+| `SemanticCache:SimilarityThreshold` | float | `0.95` | Question embedding cosine similarity threshold. Above this value the question is considered a cache hit |
+| `SemanticCache:TtlSeconds` | int | `3600` | Cache entry TTL in seconds. Entries expire automatically |
+
+Clear cache: `DELETE /api/admin/cache` (requires Admin API Key).
+
+---
+
+## 11. User Secrets (Development Sensitive Config)
 
 `UserSecretsId`: `78511e53-5061-4af3-a532-980931a060a8` (set in `Veda.Api.csproj`)
 
@@ -190,14 +349,39 @@ dotnet user-secrets init
 **Store sensitive values** (not committed to Git):
 
 ```bash
-# Store Blob Storage connection string (instead of putting it in appsettings.json)
+# Blob Storage connection string
 dotnet user-secrets set "Veda:DataSources:BlobStorage:ConnectionString" "DefaultEndpointsProtocol=..."
 
-# Enable BlobStorage via User Secrets
-dotnet user-secrets set "Veda:DataSources:BlobStorage:Enabled" "true"
+# Azure OpenAI (if not using Managed Identity)
+dotnet user-secrets set "Veda:StorageProvider" "CosmosDb"
+dotnet user-secrets set "Veda:EmbeddingProvider" "AzureOpenAI"
+dotnet user-secrets set "Veda:LlmProvider" "AzureOpenAI"
+dotnet user-secrets set "Veda:AzureOpenAI:Endpoint" "https://YOUR_ACCOUNT.openai.azure.com/"
+dotnet user-secrets set "Veda:AzureOpenAI:ApiKey" "<key>"          # omit to use az login
+dotnet user-secrets set "Veda:AzureOpenAI:EmbeddingDeployment" "text-embedding-3-small"
+dotnet user-secrets set "Veda:AzureOpenAI:ChatDeployment" "gpt-4o-mini"
 
-# View all stored secrets
+# CosmosDB (if not using Managed Identity)
+dotnet user-secrets set "Veda:CosmosDb:Endpoint" "https://YOUR_ACCOUNT.documents.azure.com:443/"
+dotnet user-secrets set "Veda:CosmosDb:AccountKey" "<key>"         # omit to use az login
+dotnet user-secrets set "Veda:CosmosDb:EmbeddingDimensions" "1536"
+dotnet user-secrets set "Veda:EmbeddingModel" "text-embedding-3-small"
+
+# View / remove
 dotnet user-secrets list
+dotnet user-secrets remove "Veda:AzureOpenAI:ApiKey"
+```
+
+**Secrets file location** (managed automatically, do not edit manually):
+- Windows: `%APPDATA%\Microsoft\UserSecrets\78511e53-5061-4af3-a532-980931a060a8\secrets.json`
+- Linux/macOS: `~/.microsoft/usersecrets/78511e53-5061-4af3-a532-980931a060a8/secrets.json`
+
+> **Note:** User Secrets are automatically loaded only when `ASPNETCORE_ENVIRONMENT=Development` (standard .NET behavior).
+> This project explicitly calls `AddUserSecrets<Program>(optional: true)` in `Program.cs` to enable them in all environments. For production, prefer environment variables or Azure Key Vault.
+
+---
+
+## 12. Environment Variable Overrides
 
 # Remove a secret
 dotnet user-secrets remove "Veda:DataSources:BlobStorage:ConnectionString"
@@ -212,28 +396,28 @@ dotnet user-secrets remove "Veda:DataSources:BlobStorage:ConnectionString"
 
 ---
 
-## 7. Environment Variable Overrides
+## 12. Environment Variable Overrides
 
 All `appsettings.json` fields can be overridden via environment variables (standard ASP.NET Core behavior).
 Use `__` (double underscore) to separate nested config sections:
 
 ```bash
-# Override BlobStorage connection string
 export Veda__DataSources__BlobStorage__ConnectionString="xxxxx"
-export Veda__DataSources__BlobStorage__Enabled="true"
-
-# Override embedding model
-export Veda__EmbeddingModel="nomic-embed-text"
+export Veda__StorageProvider="CosmosDb"
+export Veda__CosmosDb__Endpoint="https://YOUR_ACCOUNT.documents.azure.com:443/"
+export Veda__EmbeddingProvider="AzureOpenAI"
+export Veda__AzureOpenAI__Endpoint="https://YOUR_ACCOUNT.openai.azure.com/"
 
 # Docker Compose / Kubernetes
 environment:
-  - Veda__DataSources__BlobStorage__ConnectionString=xxxxx
+  - Veda__StorageProvider=CosmosDb
+  - Veda__EmbeddingProvider=AzureOpenAI
   - Veda__DataSources__AutoSync__Enabled=true
 ```
 
 ---
 
-## 8. Configuration Priority
+## 13. Configuration Priority
 
 From lowest to highest precedence (higher overrides lower):
 

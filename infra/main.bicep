@@ -1,14 +1,10 @@
 // VedaAide Azure Container Apps 基础设施
-// 部署方式：az deployment sub create --location eastasia --template-file main.bicep --parameters @main.parameters.json
-// 或使用 azd: azd up
+// 部署方式：az deployment group create --resource-group dev-dj-sbi-customer_group --template-file main.bicep --parameters @main.parameters.json
 
-targetScope = 'subscription'
+targetScope = 'resourceGroup'
 
 @description('部署区域')
-param location string = 'eastasia'
-
-@description('资源组名称')
-param resourceGroupName string = 'rg-vedaaide'
+param location string = 'australiaeast'
 
 @description('应用环境标识（dev / staging / prod）')
 @allowed(['dev', 'staging', 'prod'])
@@ -34,16 +30,9 @@ param adminApiKey string = ''
 @description('允许跨域的来源，逗号分隔或 *')
 param allowedOrigins string = '*'
 
-// ── Resource Group ──────────────────────────────────────────────────────────
-resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
-  name: resourceGroupName
-  location: location
-}
-
 // ── Modules ──────────────────────────────────────────────────────────────────
 module infra 'modules/container-apps.bicep' = {
   name: 'vedaaide-infra'
-  scope: rg
   params: {
     location: location
     environment: environment

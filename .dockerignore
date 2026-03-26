@@ -1,0 +1,19 @@
+# Build outputs - must be excluded to prevent Windows obj/ paths from
+# overwriting Linux-generated project.assets.json inside the container.
+**/bin/
+**/obj/
+
+# Test projects - not needed in production image
+tests/
+
+# Local config / secrets
+infra/main.parameters.local.json
+**/.env
+**/.env.*
+
+# IDE / OS
+.git/
+.gitignore
+.vs/
+.vscode/
+**/.DS_Store

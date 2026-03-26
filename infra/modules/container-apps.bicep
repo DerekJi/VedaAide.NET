@@ -76,10 +76,10 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
         transport: 'http'
         allowInsecure: false
       }
-      secrets: [
-        { name: 'api-key',       value: apiKey       }
-        { name: 'admin-api-key', value: adminApiKey  }
-      ]
+      secrets: !empty(apiKey) || !empty(adminApiKey) ? [
+        ...(!empty(apiKey)      ? [{ name: 'api-key',       value: apiKey      }] : [])
+        ...(!empty(adminApiKey) ? [{ name: 'admin-api-key', value: adminApiKey }] : [])
+      ] : []
     }
     template: {
       scale: {
@@ -113,8 +113,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             // ApiKey 留空 → 使用 Managed Identity
 
             // ── 安全 ────────────────────────────────────────────────────────────
-            { name: 'Veda__Security__ApiKey',       secretRef: 'api-key'       }
-            { name: 'Veda__Security__AdminApiKey',  secretRef: 'admin-api-key' }
+            ...(!empty(apiKey)      ? [{ name: 'Veda__Security__ApiKey',      secretRef: 'api-key'       }] : [])
+            ...(!empty(adminApiKey) ? [{ name: 'Veda__Security__AdminApiKey', secretRef: 'admin-api-key' }] : [])
             { name: 'Veda__Security__AllowedOrigins', value: allowedOrigins    }
 
             // ── Managed Identity client ID ────────────────────────────────────

@@ -78,11 +78,14 @@ services:
       - "80:80"
 
   # ─────────────────────────────────────────────
-  # cloudflared – Cloudflare Tunnel (Plan A)
+  # cloudflared – Cloudflare Tunnel (可选，仅用于本地服务对外暴露)
+  # 云端部署（Azure Container Apps）不需要此服务
+  # 启用方式：docker compose --profile tunnel up
   # ─────────────────────────────────────────────
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: veda-cloudflared
+    profiles: [tunnel]
     restart: unless-stopped
     depends_on:
       - veda-web

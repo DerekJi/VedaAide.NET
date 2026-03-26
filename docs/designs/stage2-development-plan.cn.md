@@ -394,34 +394,34 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 
 ## 5. 实施路线
 
-### Sprint 1（1-2 周）：基础设施切换
+### Sprint 1（1-2 周）：基础设施切换 ✅ 已完成
 
 **目标**：云端能跑通一次完整的 RAG 查询。
 
-- [ ] `ServiceCollectionExtensions` 重构：Provider 配置化（Ollama ↔ Azure OpenAI）
-- [ ] `CosmosDbVectorStore` 实现 `IVectorStore`（含 DiskANN 向量索引配置）
-- [ ] `AddVedaCosmosDbStorage()` DI 扩展方法，支持 SQLite / CosmosDB 切换
-- [ ] `appsettings.json` 新增云端 Profile 配置节
-- [ ] Container Apps 手工部署验证（`az containerapp up`）
-- [ ] CosmosDB Emulator 集成到 `docker-compose.yml`（本地开发）
+- [x] `ServiceCollectionExtensions` 重构：Provider 配置化（Ollama ↔ Azure OpenAI）
+- [x] `CosmosDbVectorStore` 实现 `IVectorStore`（含 DiskANN 向量索引配置）
+- [x] `AddVedaCosmosDbStorage()` DI 扩展方法，支持 SQLite / CosmosDB 切换
+- [x] `appsettings.json` 新增云端 Profile 配置节
+- [ ] Container Apps 手工部署验证（`az containerapp up`）<!-- 操作验证步骤，需云端环境 -->
+- [x] CosmosDB Emulator 集成到 `docker-compose.yml`（本地开发）
 
 **验收**：本地（SQLite + Ollama）和云端（CosmosDB + Azure OpenAI）均可完成文档摄取 + 向量检索。
 
 ---
 
-### Sprint 2（1-2 周）：LLM 路由 + 安全 + Dev 工具
+### Sprint 2（1-2 周）：LLM 路由 + 安全 + Dev 工具 ⚠️ 基本完成，2 项待处理
 
 **目标**：双模式路由可用；API 安全可对外。
 
-- [ ] `ILlmRouter` + `LlmRouterService` + `DeepSeekChatService` 实现
-- [ ] `QueryController` / `QueryStreamController` 增加 `mode` 参数
-- [ ] `QueryService` 集成 `ILlmRouter`
-- [ ] `ApiKeyMiddleware`（普通 Key + Admin Key 分离）
-- [ ] ASP.NET Core Rate Limiting（固定窗口，按 Key 计）
-- [ ] CORS 配置化
-- [ ] MCP 端点认证 + CORS
-- [ ] `AdminController`（stats / clear / 分页查看）
-- [ ] `Veda.Api.http` 更新 Admin 操作示例
+- [x] `ILlmRouter` + `LlmRouterService` 实现（DeepSeek 逻辑内联于 `LlmRouterService`，独立 `DeepSeekChatService` 未创建）
+- [x] `QueryController` / `QueryStreamController` 增加 `mode` 参数
+- [x] `QueryService` 集成 `ILlmRouter`
+- [x] `ApiKeyMiddleware`（普通 Key + Admin Key 分离）
+- [x] ASP.NET Core Rate Limiting（固定窗口，按 Key 计）
+- [x] CORS 配置化
+- [ ] MCP 端点认证：当前 `/mcp` 路径被 `ApiKeyMiddleware` **排除**在外，未受保护 ⚠️
+- [x] `AdminController`（stats / clear / 分页查看）
+- [ ] `Veda.Api.http` 更新 Admin 操作示例（仍为默认 weatherforecast 占位内容）
 
 **验收**：
 - `mode=simple` 走 GPT-4o-mini，`mode=advanced` 走 DeepSeek，日志可见
@@ -431,17 +431,17 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 
 ---
 
-### Sprint 3（1-2 周）：语义缓存
+### Sprint 3（1-2 周）：语义缓存 ⚠️ 基本完成，3 项偏差或待处理
 
 **目标**：重复语义问题命中缓存，显著降低延迟与成本。
 
-- [ ] `ISemanticCache` 接口定义
-- [ ] `CosmosDbSemanticCache` 实现（精确 Hash 路径 + 向量相似度路径）
-- [ ] `QueryService` 集成缓存查找与写入（缓存写入异步，不阻塞响应）
-- [ ] `DocumentIngestService` 触发缓存失效
-- [ ] `AdminController` 新增 `DELETE /api/admin/cache`
-- [ ] `GET /api/admin/stats` 展示缓存命中率
-- [ ] 缓存阈值 `Veda:Rag:SemanticCacheThreshold` 可配置
+- [x] `ISemanticCache` 接口定义（实际签名为 `GetAsync` / `SetAsync` / `ClearAsync`，与设计文档描述的 `TryGetAsync` / `InvalidateByDocumentAsync` 有出入）
+- [x] `CosmosDbSemanticCache` 实现（同步实现 `SqliteSemanticCache` 可用于本地）
+- [x] `QueryService` 集成缓存查找与写入（缓存写入异步，不阻塞响应）
+- [ ] `DocumentIngestService` 触发缓存失效：当前 `DocumentIngestService` 未注入 `ISemanticCache`，ingest 后不会主动清除缓存 ⚠️
+- [x] `AdminController` 新增 `DELETE /api/admin/cache`
+- [ ] `GET /api/admin/stats` 展示缓存命中率：stats 端点目前只返回 chunkCount / documentCount / syncedFileCount，无缓存相关统计 ⚠️
+- [x] 缓存阈值可配置（`SemanticCacheOptions.SimilarityThreshold`，默认 0.95）
 
 **验收**：
 - 同义问题（相似度 ≥ 阈值）第二次请求响应 < 200ms
@@ -450,16 +450,16 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 
 ---
 
-### Sprint 4（1 周）：CI/CD + 收尾
+### Sprint 4（1 周）：CI/CD + 收尾 ✅ 代码完成，端到端验证待云端
 
 **目标**：稳定可展示，推送即部署。
 
-- [ ] Azure 基础设施 IaC（Bicep 或 `azd` 模板）
-- [ ] Managed Identity 替换所有硬编码密钥（CosmosDB / Blob / OpenAI）
-- [ ] GitHub Actions CI/CD（build → test → push image → deploy to Container Apps）
-- [ ] 更新 `README.md`：云端部署快速指南
-- [ ] 更新 `docs/configuration/configuration.cn.md`：新增配置项说明
-- [ ] 验证 MCP 外部客户端端到端接入
+- [x] Azure 基础设施 IaC（`infra/main.bicep` + `infra/modules/container-apps.bicep`）
+- [x] Managed Identity：`DefaultAzureCredential` 已应用于 CosmosDB / Blob / Azure OpenAI 三处
+- [x] GitHub Actions CI/CD（build → test → Docker push GHCR → deploy to Container Apps，使用 OIDC 联合身份）
+- [x] 更新 `README.cn.md`：云端部署快速指南 + Admin API 端点说明
+- [x] 更新 `docs/configuration/configuration.cn.md`：第 6-10 节覆盖全部二期配置项
+- [ ] 验证 MCP 外部客户端端到端接入（需云端部署后实际测试）
 
 **验收**：推送代码后 10 分钟内自动部署到 Container Apps，简历网站可通过 `/mcp` 端点完成知识检索。
 
@@ -503,8 +503,33 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 | 差距分析项 | 二期处理方式 |
 |-----------|-------------|
 | 基于任务特征的模型路由策略 | ✅ Sprint 2：`ILlmRouter` + `mode` API 参数 |
-| MCP 跨系统上下文协议与知识互联 | ✅ Sprint 2：MCP 端点对外公开 + 认证 |
+| MCP 跨系统上下文协议与知识互联 | ⚠️ Sprint 2：MCP 端点已公开，但 `/mcp` 路径当前排除在 API Key 认证之外 |
 | 外部知识源动态接入（Blob） | ✅ 已有 `BlobStorageConnector`，云端直接启用 |
 | 版本感知同步 | 部分满足：`SyncStateStore` 已有 Hash 比对；完整版本化暂缓至三期 |
 
 P0 项中的富格式摄取（`Veda.Ingest.Layout`）、语义增强层（`Veda.Semantics`）等列为三期方向，不在二期范围内。
+
+---
+
+## 9. 未完成事项汇总（截至 2026-03-25）
+
+> 基于对今日 4 个 commits（Sprint 1–4）的代码检查，以下事项尚未完成或实现与设计存在偏差。
+
+### 9.1 待补全功能
+
+| # | 归属 Sprint | 未完成项 | 影响 | 建议处理 |
+|---|------------|---------|------|---------|
+| 1 | Sprint 2 | **MCP 端点认证未启用**：`ApiKeyMiddleware.IsExcluded()` 中 `/mcp` 路径被豁免，外部调用无需 Key | 安全风险：MCP 工具（包括 `ingest_document`）无访问控制 | 从 `IsExcluded` 中移除 `/mcp`，或对 `ingest_document` 添加独立授权层 |
+| 2 | Sprint 2 | **`Veda.Api.http` 未更新**：Admin / Query mode 示例仍为 weatherforecast 占位内容 | 开发体验问题，无法直接用 .http 文件调试新端点 | 补充 Admin 操作、`mode=simple/advanced` 示例请求 |
+| 3 | Sprint 3 | **`DocumentIngestService` 不触发缓存失效**：ingest 后旧缓存可能持续返回过期答案 | 数据一致性问题 | 在 `DocumentIngestService` 注入 `ISemanticCache`，ingest 完成后调用 `ClearAsync()` 或增加按文档失效方法 |
+| 4 | Sprint 3 | **Stats 端点不含缓存统计**：`/api/admin/stats` 只返回 chunk/文档/文件数，无缓存命中率 | 验收标准未达成 | 在 `ISemanticCache` 增加 `GetStatsAsync()` 或简单计数器，Stats 端点引用 |
+| 5 | Sprint 4 | **云端端到端验收未完成**：Container Apps 手工部署验证 + MCP 外部客户端实测均依赖实际云端环境 | 最终验收标准未闭环 | 完成 Azure 资源配置和角色分配后执行 |
+
+### 9.2 实现与设计文档的偏差（已落地但与原方案不同）
+
+| 项目 | 设计文档描述 | 实际实现 | 影响评估 |
+|------|------------|--------|---------|
+| `DeepSeekChatService` | 独立文件 `Veda.Services/DeepSeekChatService.cs` | DeepSeek 逻辑内联在 `LlmRouterService` 中，复用 `OllamaChatService` 适配器 | 功能等价，代码更简洁；但若需要复用 DeepSeek 服务，需重构 |
+| `ISemanticCache` 接口签名 | `TryGetAsync(float[], string hash)` + `SetAsync(string q, float[], string hash, RagQueryResponse)` + `InvalidateByDocumentAsync(string documentId)` | `GetAsync(float[])` + `SetAsync(float[], string answer)` + `ClearAsync()` | 简化实现，去掉 questionHash 参数和按文档失效；全局清除作为替代，粒度较粗 |
+| `SemanticCache` TTL 配置键 | `Veda:Rag:SemanticCacheThreshold` | `Veda:SemanticCache:SimilarityThreshold` | 配置路径差异，文档需同步（已在 `configuration.cn.md` 中更新） |
+
