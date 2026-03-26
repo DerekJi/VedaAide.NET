@@ -3,6 +3,11 @@
 **/bin/
 **/obj/
 
+# Frontend build artifacts
+**/node_modules/
+**/dist/
+**/.angular/
+
 # Test projects - not needed in production image
 tests/
 
