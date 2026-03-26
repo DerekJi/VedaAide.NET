@@ -83,6 +83,19 @@ public static class ServiceCollectionExtensions
         // 混合检索（双通道 RRF 融合）
         services.AddScoped<IHybridRetriever, HybridRetriever>();
 
+        // 语义增强层（查询扩展 + 别名标签）
+        // 有词库文件配置时注入 PersonalVocabularyEnhancer，否则透传 NoOp
+        services.AddScoped<ISemanticEnhancer>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<SemanticsOptions>>().Value;
+            if (!string.IsNullOrWhiteSpace(opts.VocabularyFilePath) && File.Exists(opts.VocabularyFilePath))
+                return new PersonalVocabularyEnhancer(opts);
+            return new NoOpSemanticEnhancer();
+        });
+
+        // 文档版本对比服务
+        services.AddScoped<IDocumentDiffService, DocumentDiffService>();
+
         return services;
     }
 }

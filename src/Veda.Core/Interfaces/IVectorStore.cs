@@ -34,4 +34,27 @@ public interface IVectorStore
 
     Task<bool> ExistsAsync(string contentHash, CancellationToken ct = default);
     Task DeleteByDocumentAsync(string documentId, CancellationToken ct = default);
+
+    /// <summary>返回当前有效（未被取代）的、指定文档名称的所有 chunks。</summary>
+    Task<IReadOnlyList<DocumentChunk>> GetCurrentChunksByDocumentNameAsync(
+        string documentName, CancellationToken ct = default);
+
+    /// <summary>
+    /// 将指定文档名称的所有当前 chunk 标记为被取代（版本升级时调用）。
+    /// </summary>
+    Task MarkDocumentSupersededAsync(
+        string documentName, string newDocumentId, CancellationToken ct = default);
+
+    /// <summary>返回指定文档名称的所有版本历史（含已取代的 chunks）。</summary>
+    Task<IReadOnlyList<DocumentVersionInfo>> GetVersionHistoryAsync(
+        string documentName, CancellationToken ct = default);
 }
+
+/// <summary>文档版本历史摘要（用于 history 端点）。</summary>
+public record DocumentVersionInfo(
+    string DocumentId,
+    string DocumentName,
+    int Version,
+    int ChunkCount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? SupersededAt);

@@ -31,6 +31,9 @@ builder.Services.Configure<VedaOptions>(cfg.GetSection("Veda"));
 builder.Services.Configure<DocumentIntelligenceOptions>(cfg.GetSection("Veda:DocumentIntelligence"));
 builder.Services.Configure<VisionOptions>(cfg.GetSection("Veda:Vision"));
 
+// ── Sprint 3: Semantics (personal vocabulary enhancer) ───────────────────────
+builder.Services.Configure<SemanticsOptions>(cfg.GetSection("Veda:Semantics"));
+
 // ── Storage (SQLite or CosmosDB, decided by Veda:StorageProvider) ───────────
 builder.Services.AddVedaStorage(cfg);
 

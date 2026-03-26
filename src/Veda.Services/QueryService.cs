@@ -14,6 +14,7 @@ public sealed class QueryService(
     IChainOfThoughtStrategy chainOfThought,
     ISemanticCache semanticCache,
     IHybridRetriever hybridRetriever,
+    ISemanticEnhancer semanticEnhancer,
     IOptions<RagOptions> options,
     ILogger<QueryService> logger) : IQueryService
 {
@@ -53,7 +54,9 @@ public sealed class QueryService(
 
         logger.LogInformation("RAG query: {Question}", request.Question);
 
-        var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(request.Question, ct);
+        // 语义增强：查询扩展（个人词库别名透明补全）
+        var expandedQuestion = await semanticEnhancer.ExpandQueryAsync(request.Question, ct);
+        var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
 
         // 先查语义缓存（命中则跳过向量检索和 LLM 调用）
         var cachedAnswer = await semanticCache.GetAsync(queryEmbedding, ct);
@@ -111,9 +114,28 @@ public sealed class QueryService(
         var contextChunks = contextWindowBuilder.Build(results);
         var context = BuildContext(contextChunks);
         var systemPrompt = await BuildSystemPromptAsync(ct);
-        var userMessage = chainOfThought.Enhance(request.Question, context);
+
+        // 结构化输出模式：使用专用 Prompt 强制 LLM 按协议返回 JSON
+        string userMessage;
+        if (request.StructuredOutput)
+        {
+            userMessage = BuildStructuredPrompt(request.Question, context, results);
+        }
+        else
+        {
+            userMessage = chainOfThought.Enhance(request.Question, context);
+        }
+
         var chatService = llmRouter.Resolve(request.Mode);
         var answer = await chatService.CompleteAsync(systemPrompt, userMessage, ct);
+
+        // 尝试解析结构化输出
+        StructuredFinding? structuredFinding = null;
+        if (request.StructuredOutput)
+        {
+            var parser = new StructuredOutputParser();
+            structuredFinding = parser.TryParse(answer, results);
+        }
 
         // 防幻觉第一层：回答 Embedding 与向量库相似度校验。
         var answerEmbedding = await embeddingService.GenerateEmbeddingAsync(answer, ct);
@@ -148,7 +170,8 @@ public sealed class QueryService(
                     : r.Chunk.Content,
                 Similarity = r.Similarity
             }).ToList(),
-            AnswerConfidence = results.Max(r => r.Similarity)
+            AnswerConfidence = results.Max(r => r.Similarity),
+            StructuredOutput = structuredFinding
         };
     }
 
@@ -211,6 +234,30 @@ public sealed class QueryService(
         return sb.ToString();
     }
 
+    /// <summary>构建结构化输出 Prompt，强制 LLM 返回特定 JSON 格式。</summary>
+    private static string BuildStructuredPrompt(
+        string question,
+        string context,
+        IReadOnlyList<(DocumentChunk Chunk, float Similarity)> sources)
+    {
+        return $$"""
+            Context:
+            {{context}}
+
+            Question: {{question}}
+
+            请基于上述 Context 给出结构化推理，严格按照以下 JSON 格式输出（不要有其他文字）：
+            {
+              "type": "Information | Warning | Conflict | HighRisk",
+              "summary": "结论摘要（1-2句话）",
+              "evidence": ["来源文档名或关键摘要片段1", "来源2"],
+              "counterEvidence": ["若有矛盾证据则列出，否则省略此字段"],
+              "confidence": 0.85,
+              "uncertaintyNote": "若置信度低于0.7请说明原因，否则省略"
+            }
+            """;
+    }
+
     /// <summary>
     /// 流式问答：先 yield sources，再逐 token yield LLM 输出，最后 yield done（含幻觉标志）。
     /// </summary>
@@ -222,7 +269,9 @@ public sealed class QueryService(
 
         logger.LogInformation("RAG stream query: {Question}", request.Question);
 
-        var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(request.Question, ct);
+        // 语义增强：流式查询也应用查询扩展
+        var expandedQuestion = await semanticEnhancer.ExpandQueryAsync(request.Question, ct);
+        var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
 
         // 先查语义缓存（命中则直接流式返回缓存答案）
         var cachedAnswer = await semanticCache.GetAsync(queryEmbedding, ct);

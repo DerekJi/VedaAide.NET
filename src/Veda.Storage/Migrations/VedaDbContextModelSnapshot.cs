@@ -203,12 +203,30 @@ namespace Veda.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
+                    b.Property<long>("SupersededAtTicks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0L);
+
+                    b.Property<string>("SupersededByDocId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContentHash")
                         .IsUnique();
 
                     b.HasIndex("DocumentId");
+
+                    b.HasIndex("DocumentName", "SupersededAtTicks");
 
                     b.ToTable("VectorChunks");
                 });
