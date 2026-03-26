@@ -37,7 +37,8 @@ public class KnowledgeBaseToolsTests
     {
         _vectorStore
             .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([(MakeChunk("doc.txt", "Hello world"), 0.8f)]);
 
         var json = await _sut.SearchKnowledgeBase("hello");
@@ -55,7 +56,8 @@ public class KnowledgeBaseToolsTests
     {
         _vectorStore
             .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var json = await _sut.SearchKnowledgeBase("query");
@@ -76,14 +78,16 @@ public class KnowledgeBaseToolsTests
     {
         _vectorStore
             .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         await _sut.SearchKnowledgeBase("q", topK: 999);
 
         _vectorStore.Verify(v => v.SearchAsync(
             It.IsAny<float[]>(), 20, It.IsAny<float>(),
-            It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()),
+            It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -93,7 +97,8 @@ public class KnowledgeBaseToolsTests
         var longContent = new string('x', 600);
         _vectorStore
             .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([(MakeChunk("doc.txt", longContent), 0.7f)]);
 
         var json = await _sut.SearchKnowledgeBase("q");
@@ -116,7 +121,8 @@ public class KnowledgeBaseToolsTests
 
         _vectorStore
             .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([(chunk1, 0f), (chunk2, 0f), (otherChunk, 0f)]);
 
         var json = await _sut.ListDocuments();
@@ -133,7 +139,8 @@ public class KnowledgeBaseToolsTests
     {
         _vectorStore
             .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var json = await _sut.ListDocuments();

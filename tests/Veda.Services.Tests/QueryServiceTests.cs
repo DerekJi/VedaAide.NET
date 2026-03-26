@@ -21,6 +21,7 @@ public class QueryServiceTests
     private Mock<IContextWindowBuilder> _contextWindowBuilder = null!;
     private Mock<IPromptTemplateRepository> _promptTemplateRepository = null!;
     private Mock<IChainOfThoughtStrategy> _chainOfThought = null!;
+    private Mock<IHybridRetriever> _hybridRetriever = null!;
     private Mock<ILogger<QueryService>> _logger = null!;
     private QueryService _sut = null!;
 
@@ -54,6 +55,8 @@ public class QueryServiceTests
             .Setup(c => c.Enhance(It.IsAny<string>(), It.IsAny<string>()))
             .Returns((string q, string ctx) => $"Context:\n{ctx}\n\nQuestion: {q}");
 
+        _hybridRetriever = new Mock<IHybridRetriever>();
+
         // Default: hallucination self-check disabled; threshold low enough not to flag in happy-path tests
         var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0f });
         _sut = new QueryService(
@@ -65,6 +68,7 @@ public class QueryServiceTests
             _promptTemplateRepository.Object,
             _chainOfThought.Object,
             _semanticCache.Object,
+            _hybridRetriever.Object,
             ragOptions,
             _logger.Object);
     }
@@ -86,7 +90,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
 
         // Act
@@ -113,7 +117,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("X is a thing.");
@@ -142,7 +146,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Some answer.");
@@ -163,7 +167,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
 
         var request = new RagQueryRequest { Question = "Q?", FilterDocumentType = DocumentType.BillInvoice };
@@ -175,7 +179,7 @@ public class QueryServiceTests
         _vectorStore.Verify(v => v.SearchAsync(
             It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
             DocumentType.BillInvoice, It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -189,7 +193,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
 
         var request = new RagQueryRequest { Question = "Q?", DateFrom = from, DateTo = to };
@@ -201,7 +205,7 @@ public class QueryServiceTests
         _vectorStore.Verify(v => v.SearchAsync(
             It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
             It.IsAny<DocumentType?>(), from, to,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -218,7 +222,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Answer.");
@@ -244,7 +248,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Answer.");
@@ -270,7 +274,7 @@ public class QueryServiceTests
         _vectorStore.SetupSequence(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks)           // RAG retrieval
             .ReturnsAsync(new List<(DocumentChunk, float)>());  // answer check → no match → hallucination
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -300,7 +304,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Answer.");
@@ -326,7 +330,7 @@ public class QueryServiceTests
         _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(chunks);
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Answer.");
@@ -344,7 +348,7 @@ public class QueryServiceTests
         new(_embedding.Object, _vectorStore.Object, _llmRouter.Object,
             _hallucinationGuard.Object, _contextWindowBuilder.Object,
             _promptTemplateRepository.Object, _chainOfThought.Object,
-            _semanticCache.Object, ragOptions, _logger.Object);
+            _semanticCache.Object, _hybridRetriever.Object, ragOptions, _logger.Object);
 
     private static DocumentChunk MakeChunk(string docName, string content) => new()
     {

@@ -47,7 +47,7 @@ public class DocumentIngestServiceTests
             .Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
 
         _sut = new DocumentIngestService(
@@ -193,7 +193,7 @@ public class DocumentIngestServiceTests
             .SetupSequence(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>())         // chunk1: not a duplicate
             .ReturnsAsync([(existingChunk, 0.97f)]);                   // chunk2: near-duplicate detected
 
@@ -225,7 +225,7 @@ public class DocumentIngestServiceTests
             .Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([(MakeChunk("existing"), 0.98f)]);
 
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });

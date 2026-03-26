@@ -51,6 +51,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         DocumentType? filterType = null,
         DateTimeOffset? dateFrom = null,
         DateTimeOffset? dateTo = null,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
         var query = db.VectorChunks.AsNoTracking();
@@ -62,7 +63,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
             query = query.Where(x => x.CreatedAtTicks <= dateTo.Value.UtcTicks);
 
         var candidates = await query
-            .Select(x => new { x.Id, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingBlob, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks })
+            .Select(x => new { x.Id, x.DocumentId, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingBlob, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks })
             .ToListAsync(ct);
 
         return candidates
@@ -70,24 +71,91 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
             {
                 var embedding = BlobToFloats(e.EmbeddingBlob);
                 var similarity = VectorMath.CosineSimilarity(queryEmbedding, embedding);
+                var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(e.MetadataJson) ?? new();
                 return (
                     Chunk: new DocumentChunk
                     {
                         Id = e.Id,
+                        DocumentId = e.DocumentId,
                         Content = e.Content,
                         DocumentName = e.DocumentName,
                         DocumentType = (DocumentType)e.DocumentType,
                         ChunkIndex = e.ChunkIndex,
                         Embedding = embedding,
                         EmbeddingModel = e.EmbeddingModel,
-                        Metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(e.MetadataJson) ?? new(),
-                        CreatedAt = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero)
+                        Metadata = metadata,
+                        CreatedAt = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero),
+                        Scope = ReadScope(metadata)
                     },
                     Similarity: similarity
                 );
             })
             .Where(x => x.Similarity >= minSimilarity)
+            .Where(x => MatchesScope(x.Chunk.Scope, scope))
             .OrderByDescending(x => x.Similarity)
+            .Take(topK)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> SearchByKeywordsAsync(
+        string query,
+        int topK = 5,
+        DocumentType? filterType = null,
+        DateTimeOffset? dateFrom = null,
+        DateTimeOffset? dateTo = null,
+        KnowledgeScope? scope = null,
+        CancellationToken ct = default)
+    {
+        var keywords = query
+            .Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length >= 2)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToList();
+
+        if (keywords.Count == 0)
+            return Array.Empty<(DocumentChunk, float)>();
+
+        var dbQuery = db.VectorChunks.AsNoTracking();
+        if (filterType.HasValue)
+            dbQuery = dbQuery.Where(x => x.DocumentType == (int)filterType.Value);
+        if (dateFrom.HasValue)
+            dbQuery = dbQuery.Where(x => x.CreatedAtTicks >= dateFrom.Value.UtcTicks);
+        if (dateTo.HasValue)
+            dbQuery = dbQuery.Where(x => x.CreatedAtTicks <= dateTo.Value.UtcTicks);
+
+        // SQLite LIKE-based keyword search (case-insensitive via EF Core)
+        var lowerKeywords = keywords.Select(k => k.ToLowerInvariant()).ToList();
+        dbQuery = dbQuery.Where(x => lowerKeywords.Any(kw => EF.Functions.Like(x.Content.ToLower(), $"%{kw}%")));
+
+        var entities = await dbQuery
+            .Select(x => new { x.Id, x.DocumentId, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks })
+            .ToListAsync(ct);
+
+        return entities
+            .Select(e =>
+            {
+                var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(e.MetadataJson) ?? new();
+                var chunk = new DocumentChunk
+                {
+                    Id             = e.Id,
+                    DocumentId     = e.DocumentId,
+                    Content        = e.Content,
+                    DocumentName   = e.DocumentName,
+                    DocumentType   = (DocumentType)e.DocumentType,
+                    ChunkIndex     = e.ChunkIndex,
+                    EmbeddingModel = e.EmbeddingModel,
+                    Metadata       = metadata,
+                    CreatedAt      = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero),
+                    Scope          = ReadScope(metadata)
+                };
+                var matchCount = lowerKeywords.Count(kw =>
+                    e.Content.Contains(kw, StringComparison.OrdinalIgnoreCase));
+                var score = (float)matchCount / lowerKeywords.Count;
+                return (Chunk: chunk, Score: score);
+            })
+            .Where(x => MatchesScope(x.Chunk.Scope, scope))
+            .OrderByDescending(x => x.Score)
             .Take(topK)
             .ToList();
     }
@@ -138,4 +206,31 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
     }
 
     // CosineSimilarity 已迁移到 VectorMath（SRP：数学运算不属于存储层）。
+
+    /// <summary>从 metadata 字典中读取 KnowledgeScope 字段。</summary>
+    private static KnowledgeScope? ReadScope(Dictionary<string, string> metadata)
+    {
+        if (!metadata.ContainsKey("_scope_domain") &&
+            !metadata.ContainsKey("_scope_ownerId") &&
+            !metadata.ContainsKey("_scope_sourceType") &&
+            !metadata.ContainsKey("_scope_visibility"))
+            return null;
+
+        metadata.TryGetValue("_scope_domain",     out var domain);
+        metadata.TryGetValue("_scope_ownerId",    out var ownerId);
+        metadata.TryGetValue("_scope_sourceType", out var sourceType);
+        metadata.TryGetValue("_scope_visibility", out var visStr);
+        var visibility = Enum.TryParse<Visibility>(visStr, out var v) ? v : Visibility.Private;
+        return new KnowledgeScope(domain, sourceType, null, null, null, ownerId, visibility);
+    }
+
+    /// <summary>判断 chunk 的 scope 是否满足过滤条件（null scope 不过滤）。</summary>
+    private static bool MatchesScope(KnowledgeScope? chunkScope, KnowledgeScope? filterScope)
+    {
+        if (filterScope is null) return true;
+        if (filterScope.Domain     is not null && !string.Equals(chunkScope?.Domain,     filterScope.Domain,     StringComparison.OrdinalIgnoreCase)) return false;
+        if (filterScope.OwnerId    is not null && !string.Equals(chunkScope?.OwnerId,    filterScope.OwnerId,    StringComparison.OrdinalIgnoreCase)) return false;
+        if (filterScope.SourceType is not null && !string.Equals(chunkScope?.SourceType, filterScope.SourceType, StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
 }

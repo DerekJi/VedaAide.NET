@@ -21,4 +21,16 @@ public sealed class RagOptions
     /// 启用后每次查询额外消耗一次 LLM 调用，默认关闭。
     /// </summary>
     public bool EnableSelfCheckGuard { get; set; } = false;
+
+    /// <summary>是否启用混合检索双通道（向量 + 关键词 RRF 融合）。默认关闭。</summary>
+    public bool HybridRetrievalEnabled { get; set; } = false;
+
+    /// <summary>混合检索中向量通道权重（仅 WeightedSum 策略有效）。</summary>
+    public float VectorWeight { get; set; } = 0.7f;
+
+    /// <summary>混合检索中关键词通道权重（仅 WeightedSum 策略有效）。</summary>
+    public float KeywordWeight { get; set; } = 0.3f;
+
+    /// <summary>混合检索融合策略：Rrf（默认）或 WeightedSum。</summary>
+    public FusionStrategy FusionStrategy { get; set; } = FusionStrategy.Rrf;
 }

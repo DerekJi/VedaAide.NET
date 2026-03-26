@@ -13,6 +13,7 @@ public sealed class QueryService(
     IPromptTemplateRepository promptTemplateRepository,
     IChainOfThoughtStrategy chainOfThought,
     ISemanticCache semanticCache,
+    IHybridRetriever hybridRetriever,
     IOptions<RagOptions> options,
     ILogger<QueryService> logger) : IQueryService
 {
@@ -64,14 +65,38 @@ public sealed class QueryService(
 
         // 获取 TopK × RerankCandidatesMultiplier 个候选块，为 Reranking 提供更大选择空间。
         var candidateTopK = request.TopK * RagDefaults.RerankCandidatesMultiplier;
-        var candidates = await vectorStore.SearchAsync(
-            queryEmbedding,
-            topK: candidateTopK,
-            minSimilarity: request.MinSimilarity,
-            filterType: request.FilterDocumentType,
-            dateFrom: request.DateFrom,
-            dateTo: request.DateTo,
-            ct: ct);
+        IReadOnlyList<(DocumentChunk Chunk, float Similarity)> candidates;
+
+        if (options.Value.HybridRetrievalEnabled)
+        {
+            var hybridOptions = new HybridRetrievalOptions(
+                options.Value.VectorWeight,
+                options.Value.KeywordWeight,
+                options.Value.FusionStrategy);
+
+            var hybridResults = await hybridRetriever.RetrieveAsync(
+                request.Question, queryEmbedding, candidateTopK, hybridOptions,
+                scope: request.Scope,
+                minSimilarity: request.MinSimilarity,
+                filterType: request.FilterDocumentType,
+                dateFrom: request.DateFrom,
+                dateTo: request.DateTo,
+                ct: ct);
+
+            candidates = hybridResults;
+        }
+        else
+        {
+            candidates = await vectorStore.SearchAsync(
+                queryEmbedding,
+                topK: candidateTopK,
+                minSimilarity: request.MinSimilarity,
+                filterType: request.FilterDocumentType,
+                dateFrom: request.DateFrom,
+                dateTo: request.DateTo,
+                scope: request.Scope,
+                ct: ct);
+        }
 
         if (candidates.Count == 0)
             return new RagQueryResponse

@@ -12,4 +12,8 @@ public record RagQueryRequest
     public DateTimeOffset? DateTo       { get; init; }
     /// <summary>LLM 复杂度模式：Simple（默认）或 Advanced（深度分析）。</summary>
     public QueryMode Mode               { get; init; } = QueryMode.Simple;
+    /// <summary>知识作用域过滤；null 表示不过滤，检索所有可见文档。</summary>
+    public KnowledgeScope? Scope        { get; init; }
+    /// <summary>是否启用结构化推理输出（含 Evidence[] 和 Confidence）。</summary>
+    public bool StructuredOutput        { get; init; } = false;
 }
