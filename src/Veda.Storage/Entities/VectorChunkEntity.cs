@@ -16,4 +16,10 @@ public class VectorChunkEntity
     public string EmbeddingModel { get; set; } = string.Empty;  // 记录生成 Embedding 时使用的模型版本，切换模型时用于重新索引
     public string MetadataJson { get; set; } = "{}";
     public long CreatedAtTicks { get; set; }
+    /// <summary>文档版本号，首次摄取为 1，每次内容变更递增。</summary>
+    public int Version { get; set; } = 1;
+    /// <summary>本 chunk 被取代的 UTC Tick；0 表示当前有效。</summary>
+    public long SupersededAtTicks { get; set; } = 0;
+    /// <summary>取代本 chunk 的新文档 ID（版本升级时填充）。</summary>
+    public string SupersededByDocId { get; set; } = string.Empty;
 }

@@ -17,6 +17,8 @@ public class DocumentIngestServiceTests
     private Mock<IEmbeddingService> _embedding = null!;
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<ILogger<DocumentIngestService>> _logger = null!;
+    private Mock<ISemanticEnhancer> _semanticEnhancer = null!;
+    private Mock<IDocumentDiffService> _documentDiffService = null!;
     private DocumentIntelligenceFileExtractor _docIntelExtractor = null!;
     private VisionModelFileExtractor _visionExtractor = null!;
     private DocumentIngestService _sut = null!;
@@ -42,6 +44,15 @@ public class DocumentIngestServiceTests
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 1.1f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
 
+        _semanticEnhancer = new Mock<ISemanticEnhancer>();
+        _semanticEnhancer
+            .Setup(e => e.GetAliasTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>().ToList());
+        _documentDiffService = new Mock<IDocumentDiffService>();
+        _documentDiffService
+            .Setup(d => d.DiffAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DocumentChangeSummary("doc-id", 0, 0, 0, [], DateTimeOffset.UtcNow));
+
         // Default: SearchAsync (dedup check) returns empty → nothing is a near-duplicate
         _vectorStore
             .Setup(v => v.SearchAsync(
@@ -49,11 +60,17 @@ public class DocumentIngestServiceTests
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
                 It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(DocumentChunk, float)>());
+        // Default: no existing document → version 1
+        _vectorStore
+            .Setup(v => v.GetCurrentChunksByDocumentNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<DocumentChunk>());
 
         _sut = new DocumentIngestService(
             _processor.Object,
             _embedding.Object,
             _vectorStore.Object,
+            _semanticEnhancer.Object,
+            _documentDiffService.Object,
             options,
             vedaOptions,
             _docIntelExtractor,
@@ -200,7 +217,8 @@ public class DocumentIngestServiceTests
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
-            _vectorStore.Object, options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
+            _vectorStore.Object, _semanticEnhancer.Object, _documentDiffService.Object,
+            options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
 
         // Act
         var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);
@@ -231,7 +249,8 @@ public class DocumentIngestServiceTests
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
-            _vectorStore.Object, options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
+            _vectorStore.Object, _semanticEnhancer.Object, _documentDiffService.Object,
+            options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
 
         // Act
         var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);

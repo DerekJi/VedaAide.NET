@@ -22,7 +22,10 @@ public record QueryRequest(
     [Range(0.0, 1.0)] float MinSimilarity = RagDefaults.DefaultMinSimilarity,
     DateTimeOffset? DateFrom = null,
     DateTimeOffset? DateTo = null,
-    QueryMode Mode = QueryMode.Simple);
+    QueryMode Mode = QueryMode.Simple,
+    bool StructuredOutput = false,
+    string? ScopeDomain = null,
+    string? ScopeOwnerId = null);
 
 public record SavePromptRequest(
     [Required, MinLength(1), MaxLength(200)] string Name,

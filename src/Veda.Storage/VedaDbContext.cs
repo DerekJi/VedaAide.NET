@@ -18,6 +18,7 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.ContentHash).IsUnique();
             e.HasIndex(x => x.DocumentId);
+            e.HasIndex(x => new { x.DocumentName, x.SupersededAtTicks });
             e.Property(x => x.Content).IsRequired();
             e.Property(x => x.EmbeddingBlob).IsRequired();
         });

@@ -40,6 +40,15 @@ internal sealed class CosmosChunkDocument
 
     [JsonPropertyName("createdAtTicks")]
     public long CreatedAtTicks { get; set; }
+
+    [JsonPropertyName("version")]
+    public int Version { get; set; } = 1;
+
+    [JsonPropertyName("supersededAtTicks")]
+    public long SupersededAtTicks { get; set; } = 0;
+
+    [JsonPropertyName("supersededByDocId")]
+    public string SupersededByDocId { get; set; } = string.Empty;
 }
 
 /// <summary>仅包含 id 字段，用于删除查询结果反序列化。</summary>
@@ -47,6 +56,22 @@ internal sealed class CosmosIdOnly
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+}
+
+/// <summary>版本历史查询用的轻量行结构。</summary>
+internal sealed class CosmosVersionRow
+{
+    [JsonPropertyName("documentId")]
+    public string DocumentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("version")]
+    public int Version { get; set; } = 1;
+
+    [JsonPropertyName("createdAtTicks")]
+    public long CreatedAtTicks { get; set; }
+
+    [JsonPropertyName("supersededAtTicks")]
+    public long SupersededAtTicks { get; set; }
 }
 
 /// <summary>向量检索查询结果，包含文档字段和向量距离分数。</summary>
@@ -85,4 +110,10 @@ internal sealed class CosmosSearchResult
     /// <summary>VectorDistance 返回的余弦距离（越小越相似，0 = 完全相同）</summary>
     [JsonPropertyName("distance")]
     public double Distance { get; set; }
+
+    [JsonPropertyName("version")]
+    public int Version { get; set; } = 1;
+
+    [JsonPropertyName("supersededAtTicks")]
+    public long SupersededAtTicks { get; set; } = 0;
 }

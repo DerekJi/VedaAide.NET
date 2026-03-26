@@ -54,7 +54,8 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
-        var query = db.VectorChunks.AsNoTracking();
+        var query = db.VectorChunks.AsNoTracking()
+            .Where(x => x.SupersededAtTicks == 0);  // 只检索当前有效块
         if (filterType.HasValue)
             query = query.Where(x => x.DocumentType == (int)filterType.Value);
         if (dateFrom.HasValue)
@@ -63,7 +64,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
             query = query.Where(x => x.CreatedAtTicks <= dateTo.Value.UtcTicks);
 
         var candidates = await query
-            .Select(x => new { x.Id, x.DocumentId, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingBlob, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks })
+            .Select(x => new { x.Id, x.DocumentId, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingBlob, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks, x.Version })
             .ToListAsync(ct);
 
         return candidates
@@ -85,6 +86,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
                         EmbeddingModel = e.EmbeddingModel,
                         Metadata = metadata,
                         CreatedAt = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero),
+                        Version = e.Version,
                         Scope = ReadScope(metadata)
                     },
                     Similarity: similarity
@@ -116,7 +118,8 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         if (keywords.Count == 0)
             return Array.Empty<(DocumentChunk, float)>();
 
-        var dbQuery = db.VectorChunks.AsNoTracking();
+        var dbQuery = db.VectorChunks.AsNoTracking()
+            .Where(x => x.SupersededAtTicks == 0);  // 只检索当前有效块
         if (filterType.HasValue)
             dbQuery = dbQuery.Where(x => x.DocumentType == (int)filterType.Value);
         if (dateFrom.HasValue)
@@ -129,7 +132,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         dbQuery = dbQuery.Where(x => lowerKeywords.Any(kw => EF.Functions.Like(x.Content.ToLower(), $"%{kw}%")));
 
         var entities = await dbQuery
-            .Select(x => new { x.Id, x.DocumentId, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks })
+            .Select(x => new { x.Id, x.DocumentId, x.Content, x.DocumentName, x.DocumentType, x.ChunkIndex, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks, x.Version })
             .ToListAsync(ct);
 
         return entities
@@ -147,6 +150,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
                     EmbeddingModel = e.EmbeddingModel,
                     Metadata       = metadata,
                     CreatedAt      = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero),
+                    Version        = e.Version,
                     Scope          = ReadScope(metadata)
                 };
                 var matchCount = lowerKeywords.Count(kw =>
@@ -168,6 +172,75 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         await db.VectorChunks.Where(x => x.DocumentId == documentId).ExecuteDeleteAsync(ct);
     }
 
+    public async Task<IReadOnlyList<DocumentChunk>> GetCurrentChunksByDocumentNameAsync(
+        string documentName, CancellationToken ct = default)
+    {
+        var entities = await db.VectorChunks.AsNoTracking()
+            .Where(x => x.DocumentName == documentName && x.SupersededAtTicks == 0)
+            .OrderBy(x => x.ChunkIndex)
+            .Select(x => new { x.Id, x.DocumentId, x.DocumentName, x.DocumentType, x.Content, x.ChunkIndex, x.EmbeddingModel, x.MetadataJson, x.CreatedAtTicks, x.Version })
+            .ToListAsync(ct);
+
+        return entities.Select(e =>
+        {
+            var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(e.MetadataJson) ?? new();
+            return new DocumentChunk
+            {
+                Id = e.Id,
+                DocumentId = e.DocumentId,
+                DocumentName = e.DocumentName,
+                DocumentType = (DocumentType)e.DocumentType,
+                Content = e.Content,
+                ChunkIndex = e.ChunkIndex,
+                EmbeddingModel = e.EmbeddingModel,
+                Metadata = metadata,
+                CreatedAt = new DateTimeOffset(e.CreatedAtTicks, TimeSpan.Zero),
+                Version = e.Version,
+                Scope = ReadScope(metadata)
+            };
+        }).ToList();
+    }
+
+    public async Task MarkDocumentSupersededAsync(
+        string documentName, string newDocumentId, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow.UtcTicks;
+        await db.VectorChunks
+            .Where(x => x.DocumentName == documentName && x.SupersededAtTicks == 0)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.SupersededAtTicks, now)
+                .SetProperty(x => x.SupersededByDocId, newDocumentId), ct);
+    }
+
+    public async Task<IReadOnlyList<DocumentVersionInfo>> GetVersionHistoryAsync(
+        string documentName, CancellationToken ct = default)
+    {
+        var groups = await db.VectorChunks.AsNoTracking()
+            .Where(x => x.DocumentName == documentName)
+            .GroupBy(x => new { x.DocumentId, x.Version })
+            .Select(g => new
+            {
+                g.Key.DocumentId,
+                g.Key.Version,
+                ChunkCount = g.Count(),
+                MinCreatedAtTicks = g.Min(x => x.CreatedAtTicks),
+                MaxSupersededAtTicks = g.Max(x => x.SupersededAtTicks)
+            })
+            .OrderBy(g => g.Version)
+            .ToListAsync(ct);
+
+        return groups.Select(g => new DocumentVersionInfo(
+            g.DocumentId,
+            documentName,
+            g.Version,
+            g.ChunkCount,
+            new DateTimeOffset(g.MinCreatedAtTicks, TimeSpan.Zero),
+            g.MaxSupersededAtTicks > 0
+                ? new DateTimeOffset(g.MaxSupersededAtTicks, TimeSpan.Zero)
+                : null
+        )).ToList();
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static VectorChunkEntity ToEntity(DocumentChunk chunk, string hash) => new()
@@ -182,7 +255,10 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         EmbeddingBlob = FloatsToBlob(chunk.Embedding ?? []),
         EmbeddingModel = chunk.EmbeddingModel,
         MetadataJson = JsonSerializer.Serialize(chunk.Metadata),
-        CreatedAtTicks = chunk.CreatedAt.UtcTicks
+        CreatedAtTicks = chunk.CreatedAt.UtcTicks,
+        Version = chunk.Version,
+        SupersededAtTicks = chunk.SupersededAt.HasValue ? chunk.SupersededAt.Value.UtcTicks : 0,
+        SupersededByDocId = chunk.SupersededBy ?? string.Empty
     };
 
     private static string ComputeHash(string text)

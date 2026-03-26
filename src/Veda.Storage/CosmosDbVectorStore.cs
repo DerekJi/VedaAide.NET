@@ -94,7 +94,10 @@ public sealed class CosmosDbVectorStore : IVectorStore
         var vecJson = VectorToJson(queryEmbedding);
 
         // Build optional WHERE conditions for scalar filters
-        var conditions = new List<string>();
+        var conditions = new List<string>
+        {
+            "c.supersededAtTicks = 0"  // 只检索当前有效块
+        };
         if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
         if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
         if (dateTo.HasValue)     conditions.Add("c.createdAtTicks <= @dateTo");
@@ -155,7 +158,10 @@ public sealed class CosmosDbVectorStore : IVectorStore
             return Array.Empty<(DocumentChunk, float)>();
 
         var candidateCount = Math.Max(topK * CandidateMultiplier, 20);
-        var conditions = new List<string>();
+        var conditions = new List<string>
+        {
+            "c.supersededAtTicks = 0"  // 只检索当前有效块
+        };
         if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
         if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
         if (dateTo.HasValue)     conditions.Add("c.createdAtTicks <= @dateTo");
@@ -251,6 +257,98 @@ public sealed class CosmosDbVectorStore : IVectorStore
         _logger.LogDebug("CosmosDbVectorStore: deleted all chunks for documentId={DocumentId}", documentId);
     }
 
+    public async Task<IReadOnlyList<DocumentChunk>> GetCurrentChunksByDocumentNameAsync(
+        string documentName, CancellationToken ct = default)
+    {
+        var queryDef = new QueryDefinition(
+            "SELECT c.id, c.documentId, c.documentName, c.documentType, c.content, c.chunkIndex, c.embeddingModel, c.metadata, c.createdAtTicks, c.version FROM c WHERE c.documentName = @name AND c.supersededAtTicks = 0 ORDER BY c.chunkIndex")
+            .WithParameter("@name", documentName);
+
+        var result = new List<DocumentChunk>();
+        var feed = _container.GetItemQueryIterator<CosmosChunkDocument>(queryDef);
+        while (feed.HasMoreResults)
+        {
+            var page = await feed.ReadNextAsync(ct);
+            foreach (var item in page)
+                result.Add(new DocumentChunk
+                {
+                    Id = item.Id, DocumentId = item.DocumentId,
+                    DocumentName = item.DocumentName, DocumentType = (DocumentType)item.DocumentType,
+                    Content = item.Content, ChunkIndex = item.ChunkIndex,
+                    EmbeddingModel = item.EmbeddingModel, Metadata = item.Metadata,
+                    CreatedAt = new DateTimeOffset(item.CreatedAtTicks, TimeSpan.Zero),
+                    Version = item.Version
+                });
+        }
+        return result;
+    }
+
+    public async Task MarkDocumentSupersededAsync(
+        string documentName, string newDocumentId, CancellationToken ct = default)
+    {
+        // CosmosDB doesn't support UPDATE; must read → patch each document
+        var now = DateTimeOffset.UtcNow.UtcTicks;
+        var queryDef = new QueryDefinition(
+            "SELECT c.id, c.documentId FROM c WHERE c.documentName = @name AND c.supersededAtTicks = 0")
+            .WithParameter("@name", documentName);
+
+        var feed = _container.GetItemQueryIterator<CosmosIdOnly>(queryDef);
+        var patchOps = new[]
+        {
+            PatchOperation.Set("/supersededAtTicks", now),
+            PatchOperation.Set("/supersededByDocId", newDocumentId)
+        };
+
+        while (feed.HasMoreResults)
+        {
+            var page = await feed.ReadNextAsync(ct);
+            foreach (var item in page)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    await _container.PatchItemAsync<CosmosChunkDocument>(
+                        item.Id, PartitionKey.None, patchOps, cancellationToken: ct);
+                }
+                catch (CosmosException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to patch chunk {Id} for supersession", item.Id);
+                }
+            }
+        }
+    }
+
+    public async Task<IReadOnlyList<DocumentVersionInfo>> GetVersionHistoryAsync(
+        string documentName, CancellationToken ct = default)
+    {
+        var queryDef = new QueryDefinition(
+            "SELECT c.documentId, c.version, c.createdAtTicks, c.supersededAtTicks FROM c WHERE c.documentName = @name ORDER BY c.version")
+            .WithParameter("@name", documentName);
+
+        var groups = new Dictionary<(string DocId, int Version), (int Count, long MinCreated, long MaxSuperseded)>();
+        var feed = _container.GetItemQueryIterator<CosmosVersionRow>(queryDef);
+        while (feed.HasMoreResults)
+        {
+            var page = await feed.ReadNextAsync(ct);
+            foreach (var row in page)
+            {
+                var key = (row.DocumentId, row.Version);
+                if (groups.TryGetValue(key, out var existing))
+                    groups[key] = (existing.Count + 1, Math.Min(existing.MinCreated, row.CreatedAtTicks), Math.Max(existing.MaxSuperseded, row.SupersededAtTicks));
+                else
+                    groups[key] = (1, row.CreatedAtTicks, row.SupersededAtTicks);
+            }
+        }
+
+        return groups
+            .OrderBy(kv => kv.Key.Version)
+            .Select(kv => new DocumentVersionInfo(
+                kv.Key.DocId, documentName, kv.Key.Version, kv.Value.Count,
+                new DateTimeOffset(kv.Value.MinCreated, TimeSpan.Zero),
+                kv.Value.MaxSuperseded > 0 ? new DateTimeOffset(kv.Value.MaxSuperseded, TimeSpan.Zero) : null))
+            .ToList();
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static CosmosChunkDocument ToDocument(DocumentChunk chunk, string hash) => new()
@@ -265,7 +363,10 @@ public sealed class CosmosDbVectorStore : IVectorStore
         Embedding      = chunk.Embedding ?? [],
         EmbeddingModel = chunk.EmbeddingModel,
         Metadata       = chunk.Metadata,
-        CreatedAtTicks = chunk.CreatedAt.UtcTicks
+        CreatedAtTicks = chunk.CreatedAt.UtcTicks,
+        Version        = chunk.Version,
+        SupersededAtTicks  = chunk.SupersededAt.HasValue ? chunk.SupersededAt.Value.UtcTicks : 0,
+        SupersededByDocId  = chunk.SupersededBy ?? string.Empty
     };
 
     private static DocumentChunk ToChunk(CosmosSearchResult r) => new()
@@ -278,7 +379,11 @@ public sealed class CosmosDbVectorStore : IVectorStore
         ChunkIndex     = r.ChunkIndex,
         EmbeddingModel = r.EmbeddingModel,
         Metadata       = r.Metadata,
-        CreatedAt      = new DateTimeOffset(r.CreatedAtTicks, TimeSpan.Zero)
+        CreatedAt      = new DateTimeOffset(r.CreatedAtTicks, TimeSpan.Zero),
+        Version        = r.Version,
+        SupersededAt   = r.SupersededAtTicks > 0
+            ? new DateTimeOffset(r.SupersededAtTicks, TimeSpan.Zero)
+            : null
     };
 
     /// <summary>

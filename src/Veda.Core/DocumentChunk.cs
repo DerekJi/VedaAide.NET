@@ -18,4 +18,10 @@ public class DocumentChunk
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     /// <summary>知识作用域元数据，用于多维度过滤；null 表示无限制范围。</summary>
     public KnowledgeScope? Scope { get; init; }
+    /// <summary>文档版本号，首次摄取为 1，每次内容变更递增。</summary>
+    public int Version { get; set; } = 1;
+    /// <summary>本 chunk 被新版本取代的时间；null 表示当前有效。</summary>
+    public DateTimeOffset? SupersededAt { get; init; }
+    /// <summary>取代本 chunk 的新 chunk ID；null 表示当前有效。</summary>
+    public string? SupersededBy { get; init; }
 }

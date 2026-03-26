@@ -19,6 +19,9 @@ public sealed class Query
         float minSimilarity = 0.6f,
         DateTimeOffset? dateFrom = null,
         DateTimeOffset? dateTo = null,
+        bool structuredOutput = false,
+        string? scopeDomain = null,
+        string? scopeOwnerId = null,
         CancellationToken ct = default)
     {
         var request = new RagQueryRequest
@@ -28,7 +31,11 @@ public sealed class Query
             TopK = topK,
             MinSimilarity = minSimilarity,
             DateFrom = dateFrom,
-            DateTo = dateTo
+            DateTo = dateTo,
+            StructuredOutput = structuredOutput,
+            Scope = (scopeDomain is not null || scopeOwnerId is not null)
+                ? new KnowledgeScope(Domain: scopeDomain, OwnerId: scopeOwnerId)
+                : null
         };
         return await queryService.QueryAsync(request, ct);
     }

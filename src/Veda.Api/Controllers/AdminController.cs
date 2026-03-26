@@ -129,4 +129,30 @@ public sealed class AdminController(
 
         return Ok(new { message = $"Document '{documentId}' deleted." });
     }
+
+    /// <summary>返回指定文档名称的版本历史（含已取代的版本）。</summary>
+    [HttpGet("documents/{documentName}/history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDocumentHistory(string documentName, CancellationToken ct)
+    {
+        var history = await vectorStore.GetVersionHistoryAsync(documentName, ct);
+        if (history.Count == 0)
+            return NotFound(new { error = $"Document '{documentName}' not found." });
+
+        return Ok(new
+        {
+            documentName,
+            versionCount = history.Count,
+            versions = history.Select(v => new
+            {
+                v.DocumentId,
+                v.Version,
+                v.ChunkCount,
+                v.CreatedAt,
+                v.SupersededAt,
+                isCurrent = v.SupersededAt is null
+            })
+        });
+    }
 }
