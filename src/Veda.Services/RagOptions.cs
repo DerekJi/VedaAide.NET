@@ -12,6 +12,11 @@ public sealed class RagOptions
     public float HallucinationSimilarityThreshold { get; set; } = RagDefaults.HallucinationSimilarityThreshold;
 
     /// <summary>
+    /// 查询阶段默认最低相似度阈值。客户端未传入 minSimilarity 时使用此值。
+    /// </summary>
+    public float DefaultMinSimilarity { get; set; } = RagDefaults.DefaultMinSimilarity;
+
+    /// <summary>
     /// 是否启用防幻觉第二层（LLM 自我校验）。
     /// 启用后每次查询额外消耗一次 LLM 调用，默认关闭。
     /// </summary>

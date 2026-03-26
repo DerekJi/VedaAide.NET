@@ -19,7 +19,7 @@ public record QueryRequest(
     [Required, MinLength(1)] string Question,
     string? DocumentType,
     [Range(ApiConstraints.TopKMin, ApiConstraints.TopKMax)] int TopK = 5,
-    [Range(0.0, 1.0)] float MinSimilarity = 0.3f,
+    [Range(0.0, 1.0)] float MinSimilarity = RagDefaults.DefaultMinSimilarity,
     DateTimeOffset? DateFrom = null,
     DateTimeOffset? DateTo = null,
     QueryMode Mode = QueryMode.Simple);

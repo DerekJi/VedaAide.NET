@@ -17,6 +17,11 @@ public static class RagDefaults
     public const float HallucinationSimilarityThreshold = 0.3f;
 
     /// <summary>
+    /// 查询阶段默认最低相似度阈值：低于此值的检索结果被过滤，不参与 LLM 回答生成。
+    /// </summary>
+    public const float DefaultMinSimilarity = 0.3f;
+
+    /// <summary>
     /// Reranking 候选数量倍数：初始检索 TopK × 此值 个候选块，再重排取前 TopK 个。
     /// </summary>
     public const int RerankCandidatesMultiplier = 2;
