@@ -110,22 +110,27 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── CosmosDB container initialisation (only when StorageProvider=CosmosDb) ───
+// Run in background so Kestrel starts serving requests immediately.
+// The CosmosDbHealthCheck will report Degraded until init completes.
 var cosmosInitializer = app.Services.GetService<Veda.Storage.CosmosDbInitializer>();
 if (cosmosInitializer is not null)
 {
-    using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-    try
+    var appLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    _ = Task.Run(async () =>
     {
-        await cosmosInitializer.EnsureReadyAsync(initCts.Token);
-    }
-    catch (Exception ex)
-    {
-        var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        startupLogger.LogWarning(ex,
-            "CosmosDB initialisation failed on startup (type={ExType}, msg={Msg}). " +
-            "Check Managed Identity role assignments and CosmosDB endpoint.",
-            ex.GetType().Name, ex.Message);
-    }
+        using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+        try
+        {
+            await cosmosInitializer.EnsureReadyAsync(initCts.Token);
+        }
+        catch (Exception ex)
+        {
+            appLogger.LogWarning(ex,
+                "CosmosDB initialisation failed (type={ExType}, msg={Msg}). " +
+                "Check Managed Identity role assignments and CosmosDB endpoint.",
+                ex.GetType().Name, ex.Message);
+        }
+    });
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
