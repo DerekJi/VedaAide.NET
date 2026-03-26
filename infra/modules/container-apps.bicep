@@ -57,6 +57,29 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-p
   location: location
 }
 
+// ── Azure AI Document Intelligence (F0: 500 pages/month free) ─────────────────
+resource docIntelligence 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
+  name: '${prefix}-docintel'
+  location: location
+  kind: 'FormRecognizer'
+  sku: { name: 'F0' }
+  properties: {
+    publicNetworkAccess: 'Enabled'
+    customSubDomainName: '${prefix}-docintel'
+  }
+}
+
+// Grant Managed Identity "Cognitive Services User" role on Document Intelligence
+resource docIntelRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(docIntelligence.id, identity.id, 'a97b65f3-24c7-4dac-a4e0-291a4c8dc61e')
+  scope: docIntelligence
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4dac-a4e0-291a4c8dc61e')
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // ── Container App ─────────────────────────────────────────────────────────────
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${prefix}-api'
@@ -117,6 +140,11 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             ...(!empty(adminApiKey) ? [{ name: 'Veda__Security__AdminApiKey', secretRef: 'admin-api-key' }] : [])
             { name: 'Veda__Security__AllowedOrigins', value: allowedOrigins    }
 
+            // ── Document Intelligence ──────────────────────────────────────────
+            { name: 'Veda__DocumentIntelligence__Endpoint', value: docIntelligence.properties.endpoint }
+            // ApiKey 留空 → 使用 Managed Identity
+            { name: 'Veda__Vision__Enabled', value: 'true' }
+
             // ── Managed Identity client ID ────────────────────────────────────
             { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
           ]
@@ -130,3 +158,4 @@ output apiUrl string = 'https://${app.properties.configuration.ingress!.fqdn}'
 output containerAppName string = app.name
 output identityClientId string = identity.properties.clientId
 output identityPrincipalId string = identity.properties.principalId
+output docIntelligenceEndpoint string = docIntelligence.properties.endpoint

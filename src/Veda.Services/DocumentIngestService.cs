@@ -2,7 +2,7 @@ namespace Veda.Services;
 
 /// <summary>
 /// 文档摄取服务（SRP：只负责摄取流程）。
-/// 依赖：IDocumentProcessor、IEmbeddingService、IVectorStore。
+/// 依赖：IDocumentProcessor、IEmbeddingService、IVectorStore、IFileExtractor（两个实现）。
 /// </summary>
 public sealed class DocumentIngestService(
     IDocumentProcessor processor,
@@ -10,9 +10,12 @@ public sealed class DocumentIngestService(
     IVectorStore vectorStore,
     IOptions<RagOptions> options,
     IOptions<VedaOptions> vedaOptions,
+    DocumentIntelligenceFileExtractor docIntelExtractor,
+    VisionModelFileExtractor visionExtractor,
     ILogger<DocumentIngestService> logger) : IDocumentIngestor
 {
     private const int LogSnippetLength = 50;
+
     public async Task<IngestResult> IngestAsync(
         string content,
         string documentName,
@@ -62,5 +65,29 @@ public sealed class DocumentIngestService(
             deduped.Count, chunks.Count, documentName, chunks.Count - deduped.Count);
 
         return new IngestResult(documentId, documentName, deduped.Count);
+    }
+
+    public async Task<IngestResult> IngestFileAsync(
+        Stream fileStream,
+        string fileName,
+        string mimeType,
+        DocumentType documentType,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(fileStream);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(mimeType);
+
+        // 路由：RichMedia → Vision 模型；其余 → Document Intelligence
+        IFileExtractor extractor = documentType == DocumentType.RichMedia
+            ? visionExtractor
+            : docIntelExtractor;
+
+        logger.LogInformation(
+            "File ingestion '{Name}' ({MimeType}) as {Type} via {Extractor}",
+            fileName, mimeType, documentType, extractor.GetType().Name);
+
+        var extractedText = await extractor.ExtractAsync(fileStream, fileName, mimeType, documentType, ct);
+        return await IngestAsync(extractedText, fileName, documentType, ct);
     }
 }

@@ -11,6 +11,7 @@ public record ChunkingOptions(int TokenSize, int OverlapTokens)
         DocumentType.Specification => new(1024, 128),
         DocumentType.Report        => new(512,  64),
         DocumentType.PersonalNote  => new(256,  32),
+        DocumentType.RichMedia     => new(512,  64),
         _                          => new(512,  64)
     };
 }

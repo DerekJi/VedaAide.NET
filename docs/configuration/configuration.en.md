@@ -179,6 +179,85 @@ Section: `Veda:DataSources:AutoSync`
 | `true` | `false` | Background service runs, but FileSystem is excluded from each sync |
 | `true` | `true` | Background service runs, FileSystem participates in every sync cycle |
 
+### Enabling Blob Sync on Azure Container Apps
+
+All `appsettings.json` values can be overridden via environment variables (ASP.NET Core standard). Nested sections use `__` (double underscore) as separator.
+
+**Method 1: Azure Portal**
+
+Navigate to **Container Apps → `vedaaide-dev-api` → Settings → Environment variables** and add:
+
+| Name | Value |
+|------|-------|
+| `Veda__DataSources__BlobStorage__Enabled` | `true` |
+| `Veda__DataSources__BlobStorage__AccountUrl` | `https://<storageaccount>.blob.core.windows.net` |
+| `Veda__DataSources__BlobStorage__ContainerName` | `my-docs` |
+| `Veda__DataSources__AutoSync__Enabled` | `true` |
+| `Veda__DataSources__AutoSync__IntervalMinutes` | `60` |
+
+**Method 2: Azure CLI**
+
+```bash
+az containerapp update \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --set-env-vars \
+    "Veda__DataSources__BlobStorage__Enabled=true" \
+    "Veda__DataSources__BlobStorage__AccountUrl=https://<storageaccount>.blob.core.windows.net" \
+    "Veda__DataSources__BlobStorage__ContainerName=my-docs" \
+    "Veda__DataSources__AutoSync__Enabled=true" \
+    "Veda__DataSources__AutoSync__IntervalMinutes=60"
+```
+
+**Authentication for cloud deployment (Managed Identity — recommended)**
+
+Set `AccountUrl` (leave `ConnectionString` empty), then grant the app's Managed Identity access to the storage account:
+
+```bash
+# Replace with your actual values
+STORAGE_ID=$(az storage account show \
+  --name <storageaccount> \
+  --resource-group <resource-group> \
+  --query id -o tsv)
+
+az role assignment create \
+  --assignee <managed-identity-principal-id> \
+  --role "Storage Blob Data Reader" \
+  --scope "$STORAGE_ID"
+```
+
+Alternatively use `Connection String` (set as a secret, not plain text):
+
+```bash
+# Store the connection string as a Container App secret first
+az containerapp secret set \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --secrets "blobconn=<connection-string>"
+
+# Reference the secret in environment variables
+az containerapp update \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --set-env-vars "Veda__DataSources__BlobStorage__ConnectionString=secretref:blobconn"
+```
+
+**Verifying the sync is running**
+
+```bash
+az containerapp logs show \
+  --name vedaaide-dev-api \
+  --resource-group <resource-group> \
+  --follow
+```
+
+Expected log output after startup:
+```
+DataSourceSyncBackgroundService: starting, interval = 60 min
+DataSourceSyncBackgroundService: running scheduled sync
+BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 errors
+```
+
 ---
 
 ## 6. Storage Backend

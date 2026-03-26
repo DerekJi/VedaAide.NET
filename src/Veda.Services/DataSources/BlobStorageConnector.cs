@@ -11,6 +11,8 @@ namespace Veda.Services.DataSources;
 /// 配置节：<c>Veda:DataSources:BlobStorage</c>
 /// 认证：优先 ConnectionString，其次 AccountUrl + DefaultAzureCredential（Managed Identity / 本地 az login）。
 /// 通过 <see cref="ISyncStateStore"/> 跟踪内容哈希，跳过内容未变更的 Blob。
+/// 支持文本文件（.txt / .md）和二进制文件（PDF / 图片），分别路由至
+/// <see cref="IDocumentIngestor.IngestAsync"/> 和 <see cref="IDocumentIngestor.IngestFileAsync"/>。
 /// </summary>
 public sealed class BlobStorageConnector(
     IDocumentIngestor                           documentIngestor,
@@ -75,37 +77,63 @@ public sealed class BlobStorageConnector(
 
             try
             {
-                var blobClient = container.GetBlobClient(blobName);
-                var response   = await blobClient.DownloadContentAsync(ct);
-                var content    = response.Value.Content.ToString();
-
-                if (string.IsNullOrWhiteSpace(content))
-                {
-                    logger.LogDebug("BlobStorageConnector: skipping empty blob '{Blob}'", blobName);
-                    continue;
-                }
-
-                var contentHash = ComputeHash(content);
-
-                // Skip if blob content hasn't changed since last sync
-                var knownHash = await syncStateStore.GetContentHashAsync(Name, blobName, ct);
-                if (knownHash == contentHash)
-                {
-                    filesSkipped++;
-                    logger.LogDebug("BlobStorageConnector: skipping unchanged blob '{Blob}'", blobName);
-                    continue;
-                }
-
                 var documentName = Path.GetFileName(blobName);
                 var docType      = DocumentTypeParser.InferFromName(documentName);
+                var isBinary     = FileTypeHelper.IsBinary(ext);
+                var blobClient   = container.GetBlobClient(blobName);
 
-                logger.LogDebug("BlobStorageConnector: ingesting '{Blob}' as {Type}", blobName, docType);
+                if (isBinary)
+                {
+                    var response   = await blobClient.DownloadContentAsync(ct);
+                    var bytes      = response.Value.Content.ToArray();
+                    var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
-                var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
-                await syncStateStore.UpsertAsync(Name, blobName, contentHash, result.DocumentId, ct);
+                    var knownHash = await syncStateStore.GetContentHashAsync(Name, blobName, ct);
+                    if (knownHash == contentHash)
+                    {
+                        filesSkipped++;
+                        logger.LogDebug("BlobStorageConnector: skipping unchanged blob '{Blob}'", blobName);
+                        continue;
+                    }
 
-                filesProcessed++;
-                chunksStored += result.ChunksStored;
+                    logger.LogDebug("BlobStorageConnector: ingesting binary '{Blob}' as {Type}", blobName, docType);
+
+                    using var stream = new MemoryStream(bytes);
+                    var result = await documentIngestor.IngestFileAsync(
+                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct);
+
+                    await syncStateStore.UpsertAsync(Name, blobName, contentHash, result.DocumentId, ct);
+                    filesProcessed++;
+                    chunksStored += result.ChunksStored;
+                }
+                else
+                {
+                    var response    = await blobClient.DownloadContentAsync(ct);
+                    var content     = response.Value.Content.ToString();
+
+                    if (string.IsNullOrWhiteSpace(content))
+                    {
+                        logger.LogDebug("BlobStorageConnector: skipping empty blob '{Blob}'", blobName);
+                        continue;
+                    }
+
+                    var contentHash = ComputeTextHash(content);
+
+                    var knownHash = await syncStateStore.GetContentHashAsync(Name, blobName, ct);
+                    if (knownHash == contentHash)
+                    {
+                        filesSkipped++;
+                        logger.LogDebug("BlobStorageConnector: skipping unchanged blob '{Blob}'", blobName);
+                        continue;
+                    }
+
+                    logger.LogDebug("BlobStorageConnector: ingesting '{Blob}' as {Type}", blobName, docType);
+
+                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
+                    await syncStateStore.UpsertAsync(Name, blobName, contentHash, result.DocumentId, ct);
+                    filesProcessed++;
+                    chunksStored += result.ChunksStored;
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -122,7 +150,7 @@ public sealed class BlobStorageConnector(
         return MakeResult(filesProcessed, chunksStored, errors);
     }
 
-    private static string ComputeHash(string content)
+    private static string ComputeTextHash(string content)
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

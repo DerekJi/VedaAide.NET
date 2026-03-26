@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
 using NUnit.Framework;
 using Veda.Core;
@@ -16,6 +17,8 @@ public class DocumentIngestServiceTests
     private Mock<IEmbeddingService> _embedding = null!;
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<ILogger<DocumentIngestService>> _logger = null!;
+    private DocumentIntelligenceFileExtractor _docIntelExtractor = null!;
+    private VisionModelFileExtractor _visionExtractor = null!;
     private DocumentIngestService _sut = null!;
 
     [SetUp]
@@ -25,6 +28,15 @@ public class DocumentIngestServiceTests
         _embedding = new Mock<IEmbeddingService>();
         _vectorStore = new Mock<IVectorStore>();
         _logger = new Mock<ILogger<DocumentIngestService>>();
+
+        // Stub extractors with disabled options (IngestFileAsync not exercised in these tests)
+        _docIntelExtractor = new DocumentIntelligenceFileExtractor(
+            Options.Create(new DocumentIntelligenceOptions()),
+            new Mock<ILogger<DocumentIntelligenceFileExtractor>>().Object);
+        _visionExtractor = new VisionModelFileExtractor(
+            new Mock<IChatCompletionService>().Object,
+            Options.Create(new VisionOptions { Enabled = false }),
+            new Mock<ILogger<VisionModelFileExtractor>>().Object);
 
         // Default: threshold = 1.1f → similarity never reaches it → no chunk is skipped as near-duplicate
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 1.1f });
@@ -44,6 +56,8 @@ public class DocumentIngestServiceTests
             _vectorStore.Object,
             options,
             vedaOptions,
+            _docIntelExtractor,
+            _visionExtractor,
             _logger.Object);
     }
 
@@ -186,7 +200,7 @@ public class DocumentIngestServiceTests
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
-            _vectorStore.Object, options, vedaOptions, _logger.Object);
+            _vectorStore.Object, options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
 
         // Act
         var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);
@@ -217,7 +231,7 @@ public class DocumentIngestServiceTests
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
-            _vectorStore.Object, options, vedaOptions, _logger.Object);
+            _vectorStore.Object, options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
 
         // Act
         var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);
