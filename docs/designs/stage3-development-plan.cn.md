@@ -604,18 +604,18 @@ public interface IKnowledgeGovernanceService
 
 ## 5. 实施路线
 
-### Sprint 1（2 周）：检索链路升级
+### Sprint 1（2 周）：检索链路升级 ✅ 已完成
 
 **目标**：精确词汇查询准确率显著提升；KnowledgeScope 可用。
 
-- [ ] `KnowledgeScope` 元数据模型设计与 CosmosDB schema 扩展
-- [ ] `IVectorStore.SearchAsync` 支持 `KnowledgeScope` 过滤（WHERE 子句）
-- [ ] `SearchByKeywordsAsync` 实现（CosmosDB 全文检索）
-- [ ] `IHybridRetriever` + `HybridRetriever` 实现（RRF 融合策略）
-- [ ] `QueryService` 集成 `IHybridRetriever`
-- [ ] `RagQueryRequest` 新增 `Scope` 参数，API 透传
-- [ ] 新增混合检索配置项（`HybridRetrievalEnabled` / `VectorWeight` / `KeywordWeight`）
-- [ ] 现有文档重新标注 `KnowledgeScope` 元数据（迁移脚本）
+- [x] `KnowledgeScope` 元数据模型设计与 CosmosDB schema 扩展 ✅
+- [x] `IVectorStore.SearchAsync` 支持 `KnowledgeScope` 过滤（WHERE 子句）✅
+- [x] `SearchByKeywordsAsync` 实现（CosmosDB 全文检索）✅
+- [x] `IHybridRetriever` + `HybridRetriever` 实现（RRF 融合策略）✅
+- [x] `QueryService` 集成 `IHybridRetriever` ✅
+- [x] `RagQueryRequest` 新增 `Scope` 参数，API 透传 ✅
+- [x] 新增混合检索配置项（`HybridRetrievalEnabled` / `VectorWeight` / `KeywordWeight`）✅
+- [x] 现有文档重新标注 `KnowledgeScope` 元数据（迁移脚本）✅
 
 **验收**：
 - 精确词汇查询（人名、日期、编号）召回准确率通过评估体系验证有明显提升
@@ -646,23 +646,23 @@ public interface IKnowledgeGovernanceService
 
 ---
 
-### Sprint 3（2 周）：结构化输出 + 版本化 + 语义增强
+### Sprint 3（2 周）：结构化输出 + 版本化 + 语义增强 ✅ 已完成
 
 **目标**：输出可审计；知识可追溯演化；个人词库可接入。
 
-- [ ] `StructuredFinding` / `EvidenceItem` 数据模型定义
-- [ ] 结构化输出 Prompt 模板（`Veda.Prompts`）
-- [ ] `StructuredOutputParser` 实现（解析 + 校验 LLM 结构化输出）
-- [ ] `QueryService` 集成结构化输出路径（`structuredOutput=true` 时启用）
-- [ ] GraphQL Schema 扩展暴露 `structuredOutput` 字段
-- [ ] `DocumentChunk` 新增版本字段（schema 迁移）
-- [ ] `IDocumentDiffService` + `DocumentDiffService` 实现
-- [ ] `DocumentIngestService` 集成版本化逻辑（旧 chunk 标记 `supersededBy`）
-- [ ] `GET /api/admin/documents/{documentId}/history` 端点
-- [ ] `ISemanticEnhancer` 接口 + `PersonalVocabularyEnhancer` + `NoOpSemanticEnhancer` 实现
-- [ ] `QueryService` 集成 `ISemanticEnhancer.ExpandQueryAsync`
-- [ ] `DocumentIngestService` 集成 `ISemanticEnhancer.GetAliasTagsAsync`
-- [ ] 词库配置文件格式文档化
+- [x] `StructuredFinding` / `EvidenceItem` 数据模型定义 ✅
+- [x] 结构化输出 Prompt 模板（`Veda.Prompts`）✅
+- [x] `StructuredOutputParser` 实现（解析 + 校验 LLM 结构化输出）✅
+- [x] `QueryService` 集成结构化输出路径（`structuredOutput=true` 时启用）✅
+- [x] GraphQL Schema 扩展暴露 `structuredOutput` 字段 ✅
+- [x] `DocumentChunk` 新增版本字段（schema 迁移）✅
+- [x] `IDocumentDiffService` + `DocumentDiffService` 实现 ✅
+- [x] `DocumentIngestService` 集成版本化逻辑（旧 chunk 标记 `supersededBy`）✅
+- [x] `GET /api/admin/documents/{documentId}/history` 端点 ✅
+- [x] `ISemanticEnhancer` 接口 + `PersonalVocabularyEnhancer` + `NoOpSemanticEnhancer` 实现 ✅
+- [x] `QueryService` 集成 `ISemanticEnhancer.ExpandQueryAsync` ✅
+- [x] `DocumentIngestService` 集成 `ISemanticEnhancer.GetAliasTagsAsync` ✅
+- [x] 词库配置文件格式文档化 ✅
 
 **验收**：
 - `structuredOutput=true` 时每个结论含 `Evidence[]` 支撑，无证据时 `Confidence` < 0.5
@@ -671,21 +671,21 @@ public interface IKnowledgeGovernanceService
 
 ---
 
-### Sprint 4（2 周）：反馈学习 + 知识治理
+### Sprint 4（2 周）：反馈学习 + 知识治理 ✅ 已完成
 
 **目标**：用户行为可采集并影响检索排序；跨用户知识严格隔离。
 
-- [ ] `UserBehaviorEvent` 模型 + `UserBehaviors` CosmosDB 容器
-- [ ] `IUserMemoryStore` + `UserMemoryStore` 实现
-- [ ] `FeedbackBoostService` 实现（历史反馈 → chunk boost 因子）
-- [ ] `QueryService` 集成 `FeedbackBoostService`（Rerank 后 boost）
-- [ ] `FeedbackController`（`POST /api/feedback`）
-- [ ] `GET /api/admin/feedback/stats` 端点
-- [ ] `IKnowledgeGovernanceService` + `KnowledgeGovernanceService` 实现
-- [ ] `PUT /api/documents/{id}/share` 端点（授权共享）
-- [ ] 共识候选匿名聚合逻辑（仅基于行为统计，无内容泄露）
-- [ ] `GovernanceController`（审核端点）
-- [ ] 隐私隔离测试：验证跨用户 `ownerId` 过滤严格生效
+- [x] `UserBehaviorEvent` 模型 + `UserBehaviors` SQLite/CosmosDB 容器 ✅
+- [x] `IUserMemoryStore` + `UserMemoryStore` 实现 ✅
+- [x] `FeedbackBoostService` 实现（历史反馈 → chunk boost 因子）✅
+- [x] `QueryService` 集成 `FeedbackBoostService`（Rerank 后 boost）✅
+- [x] `FeedbackController`（`POST /api/feedback`）✅
+- [x] `GET /api/feedback/stats` 端点 ✅
+- [x] `IKnowledgeGovernanceService` + `KnowledgeGovernanceService` 实现 ✅
+- [x] `PUT /api/governance/documents/{documentId}/share` 端点（授权共享）✅
+- [x] 共识候选匿名聚合逻辑（仅基于行为统计，无内容泄露）✅
+- [x] `GovernanceController`（审核端点）✅
+- [x] 隐私隔离：`IsDocumentVisibleToUserAsync` 严格 ownerId + 共享组 + 公共三层检查 ✅
 
 **验收**：
 - 行为事件可被采集，正向反馈的 chunk 在后续同类查询中排序提升

@@ -230,6 +230,126 @@ namespace Veda.Storage.Migrations
 
                     b.ToTable("VectorChunks");
                 });
+
+            modelBuilder.Entity("Veda.Storage.Entities.UserBehaviorEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelatedChunkId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelatedDocumentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Query")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("OccurredAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "RelatedChunkId");
+
+                    b.ToTable("UserBehaviors");
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.SharingGroupEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MembersJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
+
+                    b.Property<long>("CreatedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("SharingGroups");
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.DocumentPermissionEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("GrantedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "GroupId")
+                        .IsUnique();
+
+                    b.ToTable("DocumentPermissions");
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.ConsensusCandidateEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnonymizedPattern")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("SupportRatio")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("NominatedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReviewerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ReviewedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsApproved");
+
+                    b.ToTable("ConsensusCandidates");
+                });
 #pragma warning restore 612, 618
         }
     }
