@@ -16,9 +16,12 @@
 8. [DeepSeek 高级推理（二期新增）](#8-deepseek-高级推理二期新增)
 9. [API 安全（二期新增）](#9-api-安全二期新增)
 10. [语义缓存（二期新增）](#10-语义缓存二期新增)
-11. [User Secrets（开发环境敏感参数）](#11-user-secrets开发环境敏感参数)
-12. [环境变量覆盖](#12-环境变量覆盖)
-13. [配置优先级](#13-配置优先级)
+11. [混合检索（三期新增）](#11-混合检索三期新增)
+12. [富格式文档摄取（三期新增）](#12-富格式文档摄取三期新增)
+13. [语义增强层（三期新增）](#13-语义增强层三期新增)
+14. [User Secrets（开发环境敏感参数）](#14-user-secrets开发环境敏感参数)
+15. [环境变量覆盖](#15-环境变量覆盖)
+16. [配置优先级](#16-配置优先级)
 
 ---
 
@@ -407,7 +410,122 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
 
 ---
 
-## 11. User Secrets（开发环境敏感参数）
+## 11. 混合检索（三期新增）
+
+配置节：`Veda:Rag`（在现有 RAG 配置节中扩展）
+
+```json
+{
+  "Veda": {
+    "Rag": {
+      "HybridRetrievalEnabled": true,
+      "VectorWeight": 0.7,
+      "KeywordWeight": 0.3,
+      "FusionStrategy": "Rrf"
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `HybridRetrievalEnabled` | bool | `true` | 是否启用向量+关键词双通道混合检索。`false` 时仅使用向量检索 |
+| `VectorWeight` | float | `0.7` | 向量通道在 RRF 融合时的权重 |
+| `KeywordWeight` | float | `0.3` | 关键词通道在 RRF 融合时的权重 |
+| `FusionStrategy` | string | `Rrf` | 融合策略。`Rrf`（Reciprocal Rank Fusion，推荐）或 `WeightedSum` |
+
+**适用场景：**
+- 精确词汇查询（人名、日期、文件编号）：关键词通道提升召回
+- 语义相近但表述不同的查询：向量通道保持优势
+- 双通道 RRF 融合对两类查询均有稳定表现
+
+---
+
+## 12. 富格式文档摄取（三期新增）
+
+配置节：`Veda:DocumentIntelligence` / `Veda:Vision`
+
+```json
+{
+  "Veda": {
+    "DocumentIntelligence": {
+      "Endpoint": "",
+      "ApiKey": ""
+    },
+    "Vision": {
+      "Enabled": false
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `DocumentIntelligence:Endpoint` | string | `""` | Azure AI Document Intelligence 端点（Bicep 自动注入）。留空则跳过 OCR 摄取流程 |
+| `DocumentIntelligence:ApiKey` | string | `""` | Document Intelligence API Key。**留空则使用 Managed Identity**（云端推荐） |
+| `Vision:Enabled` | bool | `false` | 是否启用 Vision 模型（GPT-4o-mini）处理 `RichMedia` 类型文件。Azure OpenAI 环境由 Bicep 自动设为 `true`；本地 Ollama 保持 `false` |
+
+**文件上传端点：**
+
+```
+POST /api/documents/upload  (multipart/form-data)
+  file           binary    图片（JPEG/PNG/WebP/TIFF/BMP）或 PDF，最大 20 MB
+  documentType   string?   可选，默认由文件名推断（BillInvoice/RichMedia/...）
+  documentName   string?   可选，默认使用原始文件名
+```
+
+**DocumentType 路由策略：**
+
+| DocumentType | 提取器 | 说明 |
+|---|---|---|
+| `BillInvoice` | DocumentIntelligenceFileExtractor | `prebuilt-invoice` 结构化发票提取 |
+| 其他（非 RichMedia） | DocumentIntelligenceFileExtractor | `prebuilt-read` 通用 OCR |
+| `RichMedia` | VisionModelFileExtractor | GPT-4o-mini Vision，适用于几何图形/手写批注 |
+
+---
+
+## 13. 语义增强层（三期新增）
+
+配置节：`Veda:Semantics`
+
+```json
+{
+  "Veda": {
+    "Semantics": {
+      "VocabularyFilePath": ""
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `Semantics:VocabularyFilePath` | string | `""` | 个人词库 JSON 配置文件路径（绝对路径或相对于 API 工作目录）。**留空则使用 `NoOpSemanticEnhancer`（不做任何语义增强）** |
+
+**个人词库文件格式（JSON）：**
+
+```json
+{
+  "vocabulary": [
+    { "term": "bg", "synonyms": ["背景资料", "背景文档", "context"] },
+    { "term": "gy", "synonyms": ["工作总结", "工作汇报"] },
+    { "term": "Q4", "synonyms": ["第四季度", "四季度"] }
+  ],
+  "tags": [
+    { "pattern": "血压|血糖|体检", "labels": ["健康", "医疗档案"] },
+    { "pattern": "预算|支出|收入", "labels": ["财务", "账单"] }
+  ]
+}
+```
+
+**运行机制：**
+- 查询时：`QueryService` 在生成 Embedding 前调用 `ISemanticEnhancer.ExpandQueryAsync`，将缩写扩为同义词集合
+- 摄取时：`DocumentIngestService` 在 chunk 入库时调用 `GetAliasTagsAsync`，将别名作为 `metadata.aliasTags` 附加存储
+- 词库文件由用户独立提供，不影响核心代码
+
+---
+
+## 14. User Secrets（开发环境敏感参数）
 
 `UserSecretsId`：`78511e53-5061-4af3-a532-980931a060a8`（`Veda.Api.csproj` 中配置）
 
@@ -451,7 +569,7 @@ dotnet user-secrets remove "Veda:AzureOpenAI:ApiKey"
 
 ---
 
-## 12. 环境变量覆盖
+## 15. 环境变量覆盖
 
 所有 `appsettings.json` 配置项均可通过环境变量覆盖（ASP.NET Core 标准行为）。
 嵌套配置使用 `__`（双下划线）分隔层级：
@@ -472,7 +590,7 @@ environment:
 
 ---
 
-## 13. 配置优先级
+## 16. 配置优先级
 
 从低到高（高优先级覆盖低优先级）：
 
