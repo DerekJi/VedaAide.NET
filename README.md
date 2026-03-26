@@ -127,11 +127,25 @@ VedaAide.NET/
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/documents` | Ingest a document into the knowledge base |
-| `POST` | `/api/query` | RAG query (returns answer + sources + hallucination flag) |
+| `POST` | `/api/documents/upload` | Upload an image/PDF (multimodal) into the knowledge base |
+| `POST` | `/api/query` | RAG query (answer + sources + hallucination flag + optional structuredOutput) |
 | `GET` | `/api/querystream` | Streaming RAG query via SSE |
 | `POST` | `/api/orchestrate/query` | Agent-orchestrated Q&A |
 | `POST` | `/api/orchestrate/ingest` | Agent-orchestrated ingestion |
 | `POST` | `/api/datasources/sync` | Manually trigger all enabled data source connectors |
+| `POST` | `/api/feedback` | Record a user behavior event (accept/reject/edit/click) |
+| `GET` | `/api/feedback/stats` | Get feedback statistics (frequently rejected chunks) |
+| `POST` | `/api/governance/groups` | Create a sharing group (family/team) |
+| `PUT` | `/api/governance/documents/{id}/share` | Authorize document sharing |
+| `GET` | `/api/governance/consensus/pending` | List pending consensus candidates |
+| `POST` | `/api/governance/consensus/{id}/review` | Review a consensus candidate (admin) |
+| `GET` | `/api/governance/documents/{id}/visible` | Check document visibility for a user |
+| `GET` | `/api/admin/stats` | Vector store stats (Admin Key required) |
+| `GET` | `/api/admin/chunks` | Paginated vector chunk browser (Admin Key required) |
+| `GET` | `/api/admin/documents/{name}/history` | Document version history |
+| `DELETE` | `/api/admin/data` | Clear all vector data (requires `X-Confirm: yes`) |
+| `DELETE` | `/api/admin/cache` | Clear semantic cache |
+| `DELETE` | `/api/admin/documents/{id}` | Delete a document |
 | `GET` | `/api/prompts` | List prompt templates |
 | `POST` | `/api/prompts` | Create / update a prompt template |
 | `POST` | `/mcp` | MCP endpoint (for VS Code Copilot / other MCP clients) |
@@ -177,7 +191,7 @@ dotnet test --collect:"XPlat Code Coverage"
 ./scripts/smoke-test.sh
 ```
 
-Current test count: **117 tests**, all passing.
+Current test count: **134 tests**, all passing.
 
 ---
 
@@ -210,4 +224,8 @@ Available tools: `search_knowledge_base`, `list_documents`, `ingest_document`
 | Phase 3 | Full-stack (GraphQL + SSE streaming + Angular frontend + Docker) | ✅ Done |
 | Phase 4 | Agentic workflow + MCP server + Prompt engineering | ✅ Done |
 | Phase 5 | External data sources (FileSystem + Blob), background sync, sync state tracking | ✅ Done |
-| Phase 6 | AI evaluation harness (faithfulness, relevancy, A/B testing) | ⏳ Planned |
+| Phase 6 | AI evaluation harness (faithfulness, relevancy, A/B testing) | ✅ Done |
+| Stage 3 Sprint 1 | KnowledgeScope + hybrid retrieval dual-channel (RRF fusion) | ✅ Done |
+| Stage 3 Sprint 2 | Rich document extraction (Document Intelligence OCR + Vision multimodal) | ✅ Done |
+| Stage 3 Sprint 3 | Structured reasoning output + knowledge versioning + semantic enhancer | ✅ Done |
+| Stage 3 Sprint 4 | Implicit feedback learning + multi-user knowledge governance (4-tier model) | ✅ Done |

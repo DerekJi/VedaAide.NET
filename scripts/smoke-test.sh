@@ -174,6 +174,56 @@ echo "--- 7. Query input validation ---"
 curl_json POST "$API_BASE/api/query" '{"question": ""}'
 assert_http_code "Empty question returns HTTP 400" "$CURL_CODE" "400"
 
+# ── 8. 结构化输出（三期 Sprint 3）────────────────────────────────────────────
+echo ""
+echo "--- 8. Structured output (Stage 3 Sprint 3) ---"
+curl_json POST "$API_BASE/api/query" '{
+  "question": "What are the SOLID principles in VedaAide?",
+  "structuredOutput": true,
+  "topK": 3,
+  "minSimilarity": 0.3
+}'
+assert_http_code "Structured output query returns 200"   "$CURL_CODE" "200"
+assert_contains  "Response contains answer field"        "$CURL_BODY" "answer"
+
+# ── 9. 文档版本历史（三期 Sprint 3）──────────────────────────────────────────
+echo ""
+echo "--- 9. Document version history (Stage 3 Sprint 3) ---"
+CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$API_BASE/api/admin/documents/smoke-test-doc.txt/history" \
+  -H "Content-Type: application/json")
+CURL_BODY=$(cat "$TMPFILE")
+assert_http_code "GET /api/admin/documents/{name}/history returns 200" "$CURL_CODE" "200"
+assert_contains  "History response contains documentName"              "$CURL_BODY" "documentName"
+
+# ── 10. 反馈采集（三期 Sprint 4）─────────────────────────────────────────────
+echo ""
+echo "--- 10. Feedback recording (Stage 3 Sprint 4) ---"
+curl_json POST "$API_BASE/api/feedback" '{
+  "userId": "smoke-test-user",
+  "sessionId": "smoke-session-1",
+  "type": "ResultAccepted",
+  "relatedChunkId": "",
+  "relatedDocumentId": "",
+  "query": "What does ISP stand for?"
+}'
+assert_http_code "POST /api/feedback returns 202"   "$CURL_CODE" "202"
+
+# ── 11. 反馈统计（三期 Sprint 4）─────────────────────────────────────────────
+echo ""
+echo "--- 11. Feedback stats (Stage 3 Sprint 4) ---"
+CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$API_BASE/api/feedback/stats?userId=smoke-test-user")
+CURL_BODY=$(cat "$TMPFILE")
+assert_http_code "GET /api/feedback/stats returns 200"   "$CURL_CODE" "200"
+assert_contains  "Stats response contains totalEvents"   "$CURL_BODY" "totalEvents"
+
+# ── 12. 知识治理 — 可见性检查（三期 Sprint 4）────────────────────────────────
+echo ""
+echo "--- 12. Governance visibility check (Stage 3 Sprint 4) ---"
+CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$API_BASE/api/governance/documents/nonexistent-doc/visible?userId=smoke-test-user")
+CURL_BODY=$(cat "$TMPFILE")
+assert_http_code "GET governance visibility returns 200"  "$CURL_CODE" "200"
+assert_contains  "Visibility response contains visible field" "$CURL_BODY" "visible"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${YELLOW}=== Results ===${NC}"

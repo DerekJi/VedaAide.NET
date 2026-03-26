@@ -129,13 +129,22 @@ VedaAide.NET/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `POST` | `/api/documents` | 摄取文档到知识库 |
-| `POST` | `/api/query` | RAG 问答（返回答案 + 来源 + 幻觉标记） |
+| `POST` | `/api/documents/upload` | 上传图片/PDF（多模态）到知识库 |
+| `POST` | `/api/query` | RAG 问答（返回答案 + 来源 + 幻觉标记、支持 structuredOutput） |
 | `GET` | `/api/querystream` | SSE 流式 RAG 问答 |
 | `POST` | `/api/orchestrate/query` | Agent 编排问答 |
 | `POST` | `/api/orchestrate/ingest` | Agent 编排摄取 |
 | `POST` | `/api/datasources/sync` | 手动触发所有已启用数据源同步 |
+| `POST` | `/api/feedback` | 上报用户行为事件（撇取/拒绝/编辑/点击） |
+| `GET` | `/api/feedback/stats` | 查看高频被标记无关的 chunk 列表 |
+| `POST` | `/api/governance/groups` | 创建共享组（家庭/团队） |
+| `PUT` | `/api/governance/documents/{id}/share` | 授权文档共享 |
+| `GET` | `/api/governance/consensus/pending` | 列出待审核共识候选 |
+| `POST` | `/api/governance/consensus/{id}/review` | 审核共识候选（管理员） |
+| `GET` | `/api/governance/documents/{id}/visible` | 文档对用户的可见性隔离检查 |
 | `GET` | `/api/admin/stats` | 查看向量库统计信息（Admin Key 必填） |
 | `GET` | `/api/admin/chunks` | 分页浏览向量块（Admin Key 必填） |
+| `GET` | `/api/admin/documents/{name}/history` | 查看文档版本历史 |
 | `DELETE` | `/api/admin/data` | 清空所有向量数据（需 `X-Confirm: yes`） |
 | `DELETE` | `/api/admin/cache` | 清空语义缓存 |
 | `DELETE` | `/api/admin/documents/{id}` | 删除指定文档 |
@@ -314,4 +323,8 @@ API 运行时，在 `.vscode/mcp.json` 中添加：
 | 二期 Sprint 2 | LLM 双模式路由（DeepSeek Advanced）+ API 安全 + Admin 管理端点 | ✅ 已完成 |
 | 二期 Sprint 3 | 语义缓存（ISemanticCache，SQLite + CosmosDB 双后端） | ✅ 已完成 |
 | 二期 Sprint 4 | CI/CD（GitHub Actions）+ Bicep IaC + Managed Identity | ✅ 已完成 |
-| 阶段六 | AI 评估体系（忠实度、相关性、A/B 测试） | ⏳ 规划中 |
+| 阮段六 | AI 评估体系（忠实度、相关性、A/B 测试） | ✅ 已完成 |
+| 三期 Sprint 1 | 知识作用域（KnowledgeScope）+ 混合检索双通道（RRF 融合） | ✅ 已完成 |
+| 三期 Sprint 2 | 富格式文档摄取（Document Intelligence OCR + Vision 多模态） | ✅ 已完成 |
+| 三期 Sprint 3 | 结构化推理输出 + 知识版本化 + 语义增强层（个人词库） | ✅ 已完成 |
+| 三期 Sprint 4 | 隐式反馈学习 + 多用户知识治理（四层隔离模型） | ✅ 已完成 |
