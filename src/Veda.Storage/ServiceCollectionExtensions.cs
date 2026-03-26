@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
@@ -34,9 +35,16 @@ public static class ServiceCollectionExtensions
                 ?? throw new InvalidOperationException("Veda:CosmosDb:Endpoint is required when StorageProvider=CosmosDb");
             var accountKey = cfg["Veda:CosmosDb:AccountKey"];
 
+            var cosmosClientOptions = new CosmosClientOptions
+            {
+                Serializer = new SystemTextJsonCosmosSerializer(new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                })
+            };
             var cosmosClient = string.IsNullOrWhiteSpace(accountKey)
-                ? new CosmosClient(endpoint, new DefaultAzureCredential())
-                : new CosmosClient(endpoint, accountKey);
+                ? new CosmosClient(endpoint, new DefaultAzureCredential(), cosmosClientOptions)
+                : new CosmosClient(endpoint, accountKey, cosmosClientOptions);
 
             // Build CosmosDbOptions from config manually (avoids IConfiguration binding extensions dependency)
             var cosmosOpts = new CosmosDbOptions

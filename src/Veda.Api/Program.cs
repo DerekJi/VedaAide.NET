@@ -51,6 +51,16 @@ builder.Services.AddVedaMcp();
 // ── API ───────────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// ── Health Checks ─────────────────────────────────────────────────────────────
+var healthChecks = builder.Services.AddHealthChecks();
+var storageProvider  = cfg["Veda:StorageProvider"]   ?? "Sqlite";
+var embeddingProvider = cfg["Veda:EmbeddingProvider"] ?? "Ollama";
+if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
+    healthChecks.AddCheck<Veda.Api.HealthChecks.CosmosDbHealthCheck>("cosmosdb");
+if (embeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
+    healthChecks.AddCheck<Veda.Api.HealthChecks.AzureOpenAIConfigHealthCheck>("azure-openai");
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "VedaAide API", Version = "v1" });
@@ -95,7 +105,21 @@ using (var scope = app.Services.CreateScope())
 // ── CosmosDB container initialisation (only when StorageProvider=CosmosDb) ───
 var cosmosInitializer = app.Services.GetService<Veda.Storage.CosmosDbInitializer>();
 if (cosmosInitializer is not null)
-    await cosmosInitializer.EnsureReadyAsync();
+{
+    using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+    try
+    {
+        await cosmosInitializer.EnsureReadyAsync(initCts.Token);
+    }
+    catch (Exception ex)
+    {
+        var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+        startupLogger.LogWarning(ex,
+            "CosmosDB initialisation failed on startup (type={ExType}, msg={Msg}). " +
+            "Check Managed Identity role assignments and CosmosDB endpoint.",
+            ex.GetType().Name, ex.Message);
+    }
+}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
@@ -103,11 +127,29 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+// Log all unhandled exceptions; only expose details in Development
+app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
+{
+    var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    var log = ctx.RequestServices.GetRequiredService<ILogger<Program>>();
+    log.LogError(ex, "Unhandled exception on {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
+    ctx.Response.StatusCode = 500;
+    ctx.Response.ContentType = "application/json";
+    var isDev = ctx.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment();
+    await ctx.Response.WriteAsJsonAsync(isDev
+        ? (object)new { error = ex?.GetType().Name, message = ex?.Message }
+        : new { error = "InternalServerError", message = "An unexpected error occurred." });
+}));
 app.UseCors("VedaCorsPolicy");
+app.UseDefaultFiles();   // serve index.html for "/"
+app.UseStaticFiles();    // serve Angular build from wwwroot
 app.UseRateLimiter();
-app.UseMiddleware<ApiKeyMiddleware>();app.UseAuthorization();
+app.UseMiddleware<ApiKeyMiddleware>();
+app.UseAuthorization();
+app.MapHealthChecks("/health");  // Public, excluded from ApiKeyMiddleware
 app.MapControllers();
 app.MapGraphQL();   // GraphQL endpoint: /graphql (Banana Cake Pop UI in dev)
 app.MapVedaMcp();   // MCP endpoint: /mcp (SSE transport for Copilot Chat)
+app.MapFallbackToFile("index.html");  // SPA routing fallback
 
 app.Run();

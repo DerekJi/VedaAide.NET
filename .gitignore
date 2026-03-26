@@ -94,6 +94,9 @@ nul.*
 # Tunnel credentials contain private keys – never commit
 cloudflare/credentials.json
 
+# ── Local deployment parameters (contain real endpoints, never commit) ────────
+infra/main.parameters.local.json
+
 # ── SSH / Deploy keys (never commit) ─────────────────────────────────────────
 *.pem
 *.key

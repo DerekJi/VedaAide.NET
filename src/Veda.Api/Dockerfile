@@ -1,7 +1,17 @@
 # syntax=docker/dockerfile:1
 
 # ──────────────────────────────────────────────────────────────
-# Stage 1: restore & build
+# Stage 1: build Angular frontend
+# ──────────────────────────────────────────────────────────────
+FROM node:22-alpine AS web-build
+WORKDIR /web
+COPY src/Veda.Web/package*.json ./
+RUN npm ci --prefer-offline
+COPY src/Veda.Web/ ./
+RUN npm run build -- --configuration production
+
+# ──────────────────────────────────────────────────────────────
+# Stage 2: restore & build .NET API
 # ──────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /repo
@@ -36,6 +46,8 @@ WORKDIR /app
 VOLUME /app/data
 
 COPY --from=build /app/publish .
+# Copy Angular build output into wwwroot so ASP.NET Core serves the SPA
+COPY --from=web-build /web/dist/veda-web/browser ./wwwroot
 
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production

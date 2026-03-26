@@ -341,17 +341,25 @@ dotnet user-secrets init
 **存储敏感配置**（不提交到 Git）：
 
 ```bash
-# 存储 Blob Storage 连接字符串（代替在 appsettings 中明文填写）
+# Blob Storage 连接字符串
 dotnet user-secrets set "Veda:DataSources:BlobStorage:ConnectionString" "DefaultEndpointsProtocol=..."
 
-# 启用 BlobStorage（也可通过 User Secrets 覆盖）
-dotnet user-secrets set "Veda:DataSources:BlobStorage:Enabled" "true"
+# Azure OpenAI + CosmosDB（本地连云端调试时使用）
+dotnet user-secrets set "Veda:StorageProvider" "CosmosDb"
+dotnet user-secrets set "Veda:EmbeddingProvider" "AzureOpenAI"
+dotnet user-secrets set "Veda:LlmProvider" "AzureOpenAI"
+dotnet user-secrets set "Veda:AzureOpenAI:Endpoint" "https://YOUR_ACCOUNT.openai.azure.com/"
+dotnet user-secrets set "Veda:AzureOpenAI:ApiKey" "<key>"          # 使用 az login 时可省略
+dotnet user-secrets set "Veda:AzureOpenAI:EmbeddingDeployment" "text-embedding-3-small"
+dotnet user-secrets set "Veda:AzureOpenAI:ChatDeployment" "gpt-4o-mini"
+dotnet user-secrets set "Veda:CosmosDb:Endpoint" "https://YOUR_ACCOUNT.documents.azure.com:443/"
+dotnet user-secrets set "Veda:CosmosDb:AccountKey" "<key>"         # 使用 az login 时可省略
+dotnet user-secrets set "Veda:CosmosDb:EmbeddingDimensions" "1536"
+dotnet user-secrets set "Veda:EmbeddingModel" "text-embedding-3-small"
 
-# 查看所有 User Secrets
+# 查看 / 删除
 dotnet user-secrets list
-
-# 删除某个 Secret
-dotnet user-secrets remove "Veda:DataSources:BlobStorage:ConnectionString"
+dotnet user-secrets remove "Veda:AzureOpenAI:ApiKey"
 ```
 
 **User Secrets 文件位置**（自动管理，勿手动编辑）：

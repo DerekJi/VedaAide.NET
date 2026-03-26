@@ -32,7 +32,7 @@ VedaAide.NET is a full-stack AI knowledge base system built on .NET 10 and Seman
 | Frontend | Angular 19 (Standalone + Signals API) |
 | MCP | ModelContextProtocol.AspNetCore (HTTP transport) |
 | Cloud | Azure Blob Storage, Azure Container Apps |
-| Deployment | Docker Compose + Cloudflare Tunnel |
+| Deployment | Docker Compose (local) / Azure Container Apps (cloud) |
 
 ---
 
@@ -76,7 +76,7 @@ Swagger: http://localhost:5126/swagger
 docker compose up -d
 ```
 
-This starts: `veda-api` + `veda-web` + `ollama` + `cloudflared`
+This starts: `veda-api` + `veda-web` + `ollama` (`cloudflared` is opt-in via `--profile tunnel` for local public exposure).
 
 ---
 
