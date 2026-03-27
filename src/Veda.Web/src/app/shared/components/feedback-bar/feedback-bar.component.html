@@ -1,0 +1,17 @@
+<div class="feedback-bar">
+  <span class="feedback-label">这个回答有帮助吗？</span>
+  <button
+    class="btn-vote btn-up"
+    [class.selected]="given === 'up'"
+    [disabled]="given !== null"
+    (click)="vote('up')"
+    title="有用"
+  >👍 有用</button>
+  <button
+    class="btn-vote btn-down"
+    [class.selected]="given === 'down'"
+    [disabled]="given !== null"
+    (click)="vote('down')"
+    title="没帮助"
+  >👎 没帮助</button>
+</div>

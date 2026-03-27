@@ -181,7 +181,9 @@ public sealed class QueryService(
                 ChunkContent = r.Chunk.Content.Length > SourceContentMaxLength
                     ? r.Chunk.Content[..SourceContentMaxLength] + "..."
                     : r.Chunk.Content,
-                Similarity = r.Similarity
+                Similarity   = r.Similarity,
+                ChunkId      = r.Chunk.Id,
+                DocumentId   = r.Chunk.DocumentId
             }).ToList(),
             AnswerConfidence = results.Max(r => r.Similarity),
             StructuredOutput = structuredFinding
@@ -361,7 +363,9 @@ public sealed class QueryService(
                 ChunkContent = r.Chunk.Content.Length > SourceContentMaxLength
                     ? r.Chunk.Content[..SourceContentMaxLength] + "..."
                     : r.Chunk.Content,
-                Similarity = r.Similarity
+                Similarity   = r.Similarity,
+                ChunkId      = r.Chunk.Id,
+                DocumentId   = r.Chunk.DocumentId
             }).ToList()
         };
 
