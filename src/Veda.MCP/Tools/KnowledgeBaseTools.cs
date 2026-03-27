@@ -39,24 +39,16 @@ public sealed class KnowledgeBaseTools(IEmbeddingService embeddingService, IVect
     [Description("List all documents currently stored in the VedaAide knowledge base.")]
     public async Task<string> ListDocuments(CancellationToken cancellationToken = default)
     {
-        var results = await vectorStore.SearchAsync(
-            queryEmbedding: new float[384], // zero vector — retrieves all with no ranking
-            topK: 200,
-            minSimilarity: 0f,
-            ct: cancellationToken);
+        var documents = await vectorStore.GetAllDocumentsAsync(cancellationToken);
 
-        var documents = results
-            .GroupBy(r => new { r.Chunk.DocumentId, r.Chunk.DocumentName, r.Chunk.DocumentType })
-            .Select(g => new
-            {
-                documentId = g.Key.DocumentId,
-                documentName = g.Key.DocumentName,
-                documentType = g.Key.DocumentType.ToString(),
-                chunkCount = g.Count()
-            })
-            .OrderBy(x => x.documentName)
-            .ToList();
+        var output = documents.Select(d => new
+        {
+            documentId   = d.DocumentId,
+            documentName = d.DocumentName,
+            documentType = d.DocumentType.ToString(),
+            chunkCount   = d.ChunkCount
+        });
 
-        return JsonSerializer.Serialize(documents, SerializerOptions);
+        return JsonSerializer.Serialize(output, SerializerOptions);
     }
 }

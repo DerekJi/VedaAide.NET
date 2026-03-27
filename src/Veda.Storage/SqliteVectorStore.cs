@@ -241,6 +241,28 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         )).ToList();
     }
 
+    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default)
+    {
+        var groups = await db.VectorChunks.AsNoTracking()
+            .Where(x => x.SupersededAtTicks == 0)
+            .GroupBy(x => new { x.DocumentId, x.DocumentName, x.DocumentType })
+            .Select(g => new
+            {
+                g.Key.DocumentId,
+                g.Key.DocumentName,
+                g.Key.DocumentType,
+                ChunkCount = g.Count()
+            })
+            .OrderBy(g => g.DocumentName)
+            .ToListAsync(ct);
+
+        return groups.Select(g => new DocumentSummary(
+            g.DocumentId,
+            g.DocumentName,
+            (DocumentType)g.DocumentType,
+            g.ChunkCount)).ToList();
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static VectorChunkEntity ToEntity(DocumentChunk chunk, string hash) => new()

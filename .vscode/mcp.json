@@ -1,8 +1,11 @@
 {
   "servers": {
     "vedaaide": {
-      "type": "sse",
-      "url": "http://localhost:5126/mcp/sse",
+      "type": "http",
+      "url": "http://localhost:5126/mcp",
+      "headers": {
+        "X-Api-Key": ""
+      },
       "metadata": {
         "description": "VedaAide 知识库 MCP Server — 提供向量检索、文档摄取、列表三个工具"
       }

@@ -351,6 +351,31 @@ public sealed class CosmosDbVectorStore : IVectorStore
             .ToList();
     }
 
+    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default)
+    {
+        // 仅查询 documentId/documentName/documentType，不加载 content 和 embedding
+        var queryDef = new QueryDefinition(
+            "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0");
+
+        var rows = new List<CosmosDocRow>();
+        var feed = _container.GetItemQueryIterator<CosmosDocRow>(queryDef);
+        while (feed.HasMoreResults)
+        {
+            var page = await feed.ReadNextAsync(ct);
+            rows.AddRange(page);
+        }
+
+        return rows
+            .GroupBy(r => new { r.DocumentId, r.DocumentName, r.DocumentType })
+            .Select(g => new DocumentSummary(
+                g.Key.DocumentId,
+                g.Key.DocumentName,
+                (DocumentType)g.Key.DocumentType,
+                g.Count()))
+            .OrderBy(s => s.DocumentName)
+            .ToList();
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static CosmosChunkDocument ToDocument(DocumentChunk chunk, string hash) => new()
