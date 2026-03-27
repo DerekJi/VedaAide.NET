@@ -59,3 +59,47 @@
   overflow: auto;
   padding: 2rem;
 }
+
+.user-panel {
+  margin-top: auto;
+  padding: 1rem 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-info {
+  margin-bottom: 0.5rem;
+}
+
+.user-name {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-login,
+.btn-logout {
+  width: 100%;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.btn-login {
+  background: #0078d4;
+  color: #fff;
+
+  &:hover { background: #006cbf; }
+}
+
+.btn-logout {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+
+  &:hover { background: rgba(255, 255, 255, 0.2); }
+}
