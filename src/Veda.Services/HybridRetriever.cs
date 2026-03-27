@@ -23,21 +23,17 @@ public sealed class HybridRetriever(IVectorStore vectorStore) : IHybridRetriever
     {
         var candidateK = topK * 4;
 
-        // 并发执行两个检索通道
-        var vectorTask = vectorStore.SearchAsync(
+        // SQLite 实现的 IVectorStore 底层共享同一个 DbContext（Scoped），
+        // EF Core DbContext 不支持并发操作。顺序执行两个通道，确保兼容 SQLite 和 CosmosDB。
+        var vectorResults = await vectorStore.SearchAsync(
             queryEmbedding, topK: candidateK, minSimilarity: minSimilarity,
             filterType: filterType, dateFrom: dateFrom, dateTo: dateTo,
             scope: scope, ct: ct);
 
-        var keywordTask = vectorStore.SearchByKeywordsAsync(
+        var keywordResults = await vectorStore.SearchByKeywordsAsync(
             query, topK: candidateK,
             filterType: filterType, dateFrom: dateFrom, dateTo: dateTo,
             scope: scope, ct: ct);
-
-        await Task.WhenAll(vectorTask, keywordTask);
-
-        var vectorResults  = await vectorTask;
-        var keywordResults = await keywordTask;
 
         return options.Strategy == FusionStrategy.WeightedSum
             ? FuseWeighted(vectorResults, keywordResults, options.VectorWeight, options.KeywordWeight, topK)

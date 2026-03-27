@@ -409,7 +409,7 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 
 ---
 
-### Sprint 2（1-2 周）：LLM 路由 + 安全 + Dev 工具 ⚠️ 基本完成，2 项待处理
+### Sprint 2（1-2 周）：LLM 路由 + 安全 + Dev 工具 ✅ 已完成
 
 **目标**：双模式路由可用；API 安全可对外。
 
@@ -419,8 +419,7 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 - [x] `ApiKeyMiddleware`（普通 Key + Admin Key 分离）
 - [x] ASP.NET Core Rate Limiting（固定窗口，按 Key 计）
 - [x] CORS 配置化
-- [ ] MCP 端点认证：当前 `/mcp` 路径被 `ApiKeyMiddleware` **排除**在外，未受保护 ⚠️
-- [x] `AdminController`（stats / clear / 分页查看）
+- [x] MCP 端点认证：`/mcp` 路径已从 `ApiKeyMiddleware.IsExcluded()` 中移除，现受 API Key 保护 ✅（2026-03-27）
 - [ ] `Veda.Api.http` 更新 Admin 操作示例（仍为默认 weatherforecast 占位内容）
 
 **验收**：
@@ -431,16 +430,16 @@ const results = await mcp.callTool("search_knowledge_base", { query: userQuestio
 
 ---
 
-### Sprint 3（1-2 周）：语义缓存 ⚠️ 基本完成，3 项偏差或待处理
+### Sprint 3（1-2 周）：语义缓存 ✅ 已完成
 
 **目标**：重复语义问题命中缓存，显著降低延迟与成本。
 
 - [x] `ISemanticCache` 接口定义（实际签名为 `GetAsync` / `SetAsync` / `ClearAsync`，与设计文档描述的 `TryGetAsync` / `InvalidateByDocumentAsync` 有出入）
 - [x] `CosmosDbSemanticCache` 实现（同步实现 `SqliteSemanticCache` 可用于本地）
 - [x] `QueryService` 集成缓存查找与写入（缓存写入异步，不阻塞响应）
-- [ ] `DocumentIngestService` 触发缓存失效：当前 `DocumentIngestService` 未注入 `ISemanticCache`，ingest 后不会主动清除缓存 ⚠️
+- [x] `DocumentIngestService` 触发缓存失效：注入 `ISemanticCache`，ingest 完成后异步调用 `ClearAsync()` ✅（2026-03-27）
 - [x] `AdminController` 新增 `DELETE /api/admin/cache`
-- [ ] `GET /api/admin/stats` 展示缓存命中率：stats 端点目前只返回 chunkCount / documentCount / syncedFileCount，无缓存相关统计 ⚠️
+- [x] `GET /api/admin/stats` 展示缓存条目数：新增 `ISemanticCache.GetCountAsync()`，stats 返回 `semanticCacheEntries` 字段 ✅（2026-03-27）
 - [x] 缓存阈值可配置（`SemanticCacheOptions.SimilarityThreshold`，默认 0.95）
 
 **验收**：
@@ -511,25 +510,30 @@ P0 项中的富格式摄取（`Veda.Ingest.Layout`）、语义增强层（`Veda.
 
 ---
 
-## 9. 未完成事项汇总（截至 2026-03-25）
+## 9. 未完成事项汇总（最后更新：2026-03-27）
 
-> 基于对今日 4 个 commits（Sprint 1–4）的代码检查，以下事项尚未完成或实现与设计存在偏差。
+> 基于代码检查，以下事项尚未完成或实现与设计存在偏差。
 
 ### 9.1 待补全功能
 
 | # | 归属 Sprint | 未完成项 | 影响 | 建议处理 |
-|---|------------|---------|------|---------|
-| 1 | Sprint 2 | **MCP 端点认证未启用**：`ApiKeyMiddleware.IsExcluded()` 中 `/mcp` 路径被豁免，外部调用无需 Key | 安全风险：MCP 工具（包括 `ingest_document`）无访问控制 | 从 `IsExcluded` 中移除 `/mcp`，或对 `ingest_document` 添加独立授权层 |
-| 2 | Sprint 2 | **`Veda.Api.http` 未更新**：Admin / Query mode 示例仍为 weatherforecast 占位内容 | 开发体验问题，无法直接用 .http 文件调试新端点 | 补充 Admin 操作、`mode=simple/advanced` 示例请求 |
-| 3 | Sprint 3 | **`DocumentIngestService` 不触发缓存失效**：ingest 后旧缓存可能持续返回过期答案 | 数据一致性问题 | 在 `DocumentIngestService` 注入 `ISemanticCache`，ingest 完成后调用 `ClearAsync()` 或增加按文档失效方法 |
-| 4 | Sprint 3 | **Stats 端点不含缓存统计**：`/api/admin/stats` 只返回 chunk/文档/文件数，无缓存命中率 | 验收标准未达成 | 在 `ISemanticCache` 增加 `GetStatsAsync()` 或简单计数器，Stats 端点引用 |
-| 5 | Sprint 4 | **云端端到端验收未完成**：Container Apps 手工部署验证 + MCP 外部客户端实测均依赖实际云端环境 | 最终验收标准未闭环 | 完成 Azure 资源配置和角色分配后执行 |
+|---|------------|---------|------|------|
+| 1 | Sprint 2 | **`Veda.Api.http` 未更新**：Admin / Query mode 示例仍为 weatherforecast 占位内容 | 开发体验问题，无法直接用 .http 文件调试新端点 | 补充 Admin 操作、`mode=simple/advanced` 示例请求 |
+| 2 | Sprint 4 | **云端端到端验收未完成**：Container Apps 手工部署验证 + MCP 外部客户端实测均依赖实际云端环境 | 最终验收标准未闭环 | 完成 Azure 资源配置和角色分配后执行 |
+
+### 9.1.1 已于 2026-03-27 修复的待补项
+
+| # | 归属 Sprint | 已修复 |
+|---|------------|---------|
+| 1 | Sprint 2 | **MCP 端点认证**：`/mcp` 路径已从 `IsExcluded()` 中移除，现受 API Key 保护 |
+| 2 | Sprint 3 | **`DocumentIngestService` 触发缓存失效**：已注入 `ISemanticCache`，ingest 完成后异步调用 `ClearAsync()` |
+| 3 | Sprint 3 | **Stats 端点缓存统计**：`ISemanticCache` 新增 `GetCountAsync()`，`/api/admin/stats` 返回 `semanticCacheEntries` |
 
 ### 9.2 实现与设计文档的偏差（已落地但与原方案不同）
 
 | 项目 | 设计文档描述 | 实际实现 | 影响评估 |
 |------|------------|--------|---------|
 | `DeepSeekChatService` | 独立文件 `Veda.Services/DeepSeekChatService.cs` | DeepSeek 逻辑内联在 `LlmRouterService` 中，复用 `OllamaChatService` 适配器 | 功能等价，代码更简洁；但若需要复用 DeepSeek 服务，需重构 |
-| `ISemanticCache` 接口签名 | `TryGetAsync(float[], string hash)` + `SetAsync(string q, float[], string hash, RagQueryResponse)` + `InvalidateByDocumentAsync(string documentId)` | `GetAsync(float[])` + `SetAsync(float[], string answer)` + `ClearAsync()` | 简化实现，去掉 questionHash 参数和按文档失效；全局清除作为替代，粒度较粗 |
+| `ISemanticCache` 接口签名 | `TryGetAsync(float[], string hash)` + `SetAsync(string q, float[], string hash, RagQueryResponse)` + `InvalidateByDocumentAsync(string documentId)` | `GetAsync(float[])` + `SetAsync(float[], string answer)` + `ClearAsync()` + `GetCountAsync()` | 简化实现，去掉 questionHash 参数和按文档失效；`GetCountAsync()` 于 2026-03-27 补充用于 stats 统计 |
 | `SemanticCache` TTL 配置键 | `Veda:Rag:SemanticCacheThreshold` | `Veda:SemanticCache:SimilarityThreshold` | 配置路径差异，文档需同步（已在 `configuration.cn.md` 中更新） |
 

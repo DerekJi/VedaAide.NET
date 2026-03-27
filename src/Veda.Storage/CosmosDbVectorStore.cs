@@ -307,8 +307,10 @@ public sealed class CosmosDbVectorStore : IVectorStore
                 ct.ThrowIfCancellationRequested();
                 try
                 {
+                    // PartitionKey = /documentId — 必须与 item 中的 documentId 精确匹配。
+                    // 使用 PartitionKey.None 会导致跨分区更新被 CosmosDB 拒绝（403/404）。
                     await _container.PatchItemAsync<CosmosChunkDocument>(
-                        item.Id, PartitionKey.None, patchOps, cancellationToken: ct);
+                        item.Id, new PartitionKey(item.DocumentId), patchOps, cancellationToken: ct);
                 }
                 catch (CosmosException ex)
                 {

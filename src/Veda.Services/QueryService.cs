@@ -298,14 +298,36 @@ public sealed class QueryService(
         }
 
         var candidateTopK = request.TopK * RagDefaults.RerankCandidatesMultiplier;
-        var candidates = await vectorStore.SearchAsync(
-            queryEmbedding,
-            topK: candidateTopK,
-            minSimilarity: request.MinSimilarity,
-            filterType: request.FilterDocumentType,
-            dateFrom: request.DateFrom,
-            dateTo: request.DateTo,
-            ct: ct);
+        IReadOnlyList<(DocumentChunk Chunk, float Similarity)> candidates;
+
+        if (options.Value.HybridRetrievalEnabled)
+        {
+            var hybridOptions = new HybridRetrievalOptions(
+                options.Value.VectorWeight,
+                options.Value.KeywordWeight,
+                options.Value.FusionStrategy);
+
+            candidates = await hybridRetriever.RetrieveAsync(
+                request.Question, queryEmbedding, candidateTopK, hybridOptions,
+                scope: request.Scope,
+                minSimilarity: request.MinSimilarity,
+                filterType: request.FilterDocumentType,
+                dateFrom: request.DateFrom,
+                dateTo: request.DateTo,
+                ct: ct);
+        }
+        else
+        {
+            candidates = await vectorStore.SearchAsync(
+                queryEmbedding,
+                topK: candidateTopK,
+                minSimilarity: request.MinSimilarity,
+                filterType: request.FilterDocumentType,
+                dateFrom: request.DateFrom,
+                dateTo: request.DateTo,
+                scope: request.Scope,
+                ct: ct);
+        }
 
         if (candidates.Count == 0)
         {
@@ -315,7 +337,19 @@ public sealed class QueryService(
             yield break;
         }
 
-        var results = Rerank(candidates, request.Question, request.TopK);
+        var reranked = Rerank(candidates, request.Question, request.TopK);
+
+        // 反馈 boost：对有正向历史反馈的 chunk 提升排名（无 userId 时跳过）
+        IReadOnlyList<(DocumentChunk Chunk, float Similarity)> results;
+        if (!string.IsNullOrWhiteSpace(request.UserId))
+        {
+            var boosted = await feedbackBoost.ApplyBoostAsync(request.UserId, reranked, ct);
+            results = boosted;
+        }
+        else
+        {
+            results = reranked;
+        }
 
         // 先发送来源列表，让前端立即渲染引用区域
         yield return new RagStreamChunk

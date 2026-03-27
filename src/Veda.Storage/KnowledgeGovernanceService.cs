@@ -122,8 +122,10 @@ public sealed class KnowledgeGovernanceService(
         if (isOwner) return true;
 
         // 2. Document is shared with a group the user belongs to
+        // 使用引号边界匹配（"userId"），避免 userId="user1" 误匹配 MembersJson=["user12"] 的子串问题。
+        var quotedUserId = $"\"{userId}\"";
         var groups = await db.SharingGroups
-            .Where(g => g.MembersJson.Contains(userId))
+            .Where(g => g.MembersJson.Contains(quotedUserId))
             .Select(g => g.Id)
             .ToListAsync(ct);
         if (groups.Count > 0)

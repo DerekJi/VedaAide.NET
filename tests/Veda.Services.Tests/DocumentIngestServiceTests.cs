@@ -18,6 +18,7 @@ public class DocumentIngestServiceTests
     private Mock<IVectorStore> _vectorStore = null!;
     private Mock<ILogger<DocumentIngestService>> _logger = null!;
     private Mock<ISemanticEnhancer> _semanticEnhancer = null!;
+    private Mock<ISemanticCache> _semanticCache = null!;
     private Mock<IDocumentDiffService> _documentDiffService = null!;
     private DocumentIntelligenceFileExtractor _docIntelExtractor = null!;
     private VisionModelFileExtractor _visionExtractor = null!;
@@ -30,6 +31,8 @@ public class DocumentIngestServiceTests
         _embedding = new Mock<IEmbeddingService>();
         _vectorStore = new Mock<IVectorStore>();
         _logger = new Mock<ILogger<DocumentIngestService>>();
+        _semanticCache = new Mock<ISemanticCache>();
+        _semanticCache.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         // Stub extractors with disabled options (IngestFileAsync not exercised in these tests)
         _docIntelExtractor = new DocumentIntelligenceFileExtractor(
@@ -69,6 +72,7 @@ public class DocumentIngestServiceTests
             _processor.Object,
             _embedding.Object,
             _vectorStore.Object,
+            _semanticCache.Object,
             _semanticEnhancer.Object,
             _documentDiffService.Object,
             options,
@@ -216,8 +220,10 @@ public class DocumentIngestServiceTests
 
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
+        var semanticCache = new Mock<ISemanticCache>();
+        semanticCache.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
-            _vectorStore.Object, _semanticEnhancer.Object, _documentDiffService.Object,
+            _vectorStore.Object, semanticCache.Object, _semanticEnhancer.Object, _documentDiffService.Object,
             options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
 
         // Act
@@ -248,8 +254,10 @@ public class DocumentIngestServiceTests
 
         var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
+        var semanticCache2 = new Mock<ISemanticCache>();
+        semanticCache2.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
-            _vectorStore.Object, _semanticEnhancer.Object, _documentDiffService.Object,
+            _vectorStore.Object, semanticCache2.Object, _semanticEnhancer.Object, _documentDiffService.Object,
             options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
 
         // Act

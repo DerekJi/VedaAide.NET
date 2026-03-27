@@ -56,6 +56,13 @@ public sealed class SqliteSemanticCache(VedaDbContext db, SemanticCacheOptions o
         await db.SemanticCacheEntries.ExecuteDeleteAsync(ct);
     }
 
+    public async Task<int> GetCountAsync(CancellationToken ct = default)
+    {
+        var nowTicks = DateTimeOffset.UtcNow.Ticks;
+        return await db.SemanticCacheEntries
+            .CountAsync(e => e.ExpiresAtTicks > nowTicks, ct);
+    }
+
     // --- helpers ---
 
     private static float CosineSimilarity(float[] a, float[] b)

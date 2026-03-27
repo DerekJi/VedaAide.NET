@@ -17,7 +17,7 @@ public sealed class AdminController(
     VedaDbContext db,
     ILogger<AdminController> logger) : ControllerBase
 {
-    /// <summary>返回向量库统计信息（chunk 总数、文档数）。</summary>
+    /// <summary>返回向量库统计信息（chunk 总数、文档数、缓存条目数）。</summary>
     [HttpGet("stats")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Stats(CancellationToken ct)
@@ -28,12 +28,14 @@ public sealed class AdminController(
             .Distinct()
             .CountAsync(ct);
         var syncedFiles = await db.SyncedFiles.CountAsync(ct);
+        var cacheCount  = await semanticCache.GetCountAsync(ct);
 
         return Ok(new
         {
             chunkCount,
             documentCount = docCount,
-            syncedFileCount = syncedFiles
+            syncedFileCount = syncedFiles,
+            semanticCacheEntries = cacheCount
         });
     }
 
