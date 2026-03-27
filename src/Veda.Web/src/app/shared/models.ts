@@ -75,6 +75,28 @@ export interface SavePromptRequest {
   documentType?: number;
 }
 
+// ── Document Browser (Stage 5) ───────────────────────────────────────────────
+
+export interface DocumentSummary {
+  documentId: string;
+  documentName: string;
+  documentType: string;
+  chunkCount: number;
+}
+
+export interface ChunkPreview {
+  chunkIndex: number;
+  content: string;
+  documentType: string;
+}
+
+export interface DemoDocument {
+  name: string;
+  description: string;
+  sizeBytes: number;
+  extension: string;
+}
+
 // ── Evaluation (Phase 6) ────────────────────────────────────────────────────
 
 export interface EvalQuestion {

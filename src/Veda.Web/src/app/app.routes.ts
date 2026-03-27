@@ -13,6 +13,11 @@ export const routes: Routes = [
     title: 'VedaAide – Chat'
   },
   {
+    path: 'documents',
+    loadComponent: () => import('./pages/documents/documents.component').then(m => m.DocumentsComponent),
+    title: 'VedaAide – Documents'
+  },
+  {
     path: 'prompts',
     loadComponent: () => import('./pages/prompts/prompts.component').then(m => m.PromptsComponent),
     title: 'VedaAide – Prompts'

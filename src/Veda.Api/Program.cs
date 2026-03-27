@@ -49,6 +49,7 @@ builder.Services.Configure<FileSystemConnectorOptions>(cfg.GetSection("Veda:Data
 builder.Services.AddScoped<IDataSourceConnector, FileSystemConnector>();
 builder.Services.Configure<BlobStorageConnectorOptions>(cfg.GetSection("Veda:DataSources:BlobStorage"));
 builder.Services.AddScoped<IDataSourceConnector, BlobStorageConnector>();
+builder.Services.AddScoped<IDemoLibraryService, DemoLibraryService>();
 // Background auto-sync
 builder.Services.Configure<DataSourceSyncOptions>(cfg.GetSection("Veda:DataSources:AutoSync"));
 builder.Services.AddHostedService<Veda.Api.DataSourceSyncBackgroundService>();
