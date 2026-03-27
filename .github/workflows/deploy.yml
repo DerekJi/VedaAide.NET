@@ -120,7 +120,7 @@ jobs:
           imageToDeploy: ${{ needs.publish-image.outputs.image-ref }}
           registryUrl: ${{ env.REGISTRY }}
           registryUsername: ${{ github.actor }}
-          registryPassword: ${{ secrets.GHCR_PAT }}
+          registryPassword: ${{ github.token }}
 
       - name: Enforce single revision mode
         run: |
