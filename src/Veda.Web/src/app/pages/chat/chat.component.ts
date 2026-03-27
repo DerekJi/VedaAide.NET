@@ -1,7 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, OnDestroy, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChatStreamService } from '../../services/chat-stream.service';
+import { FeedbackService } from '../../services/feedback.service';
 import { RagStreamChunk, SourceReference } from '../../shared/models';
+import { FeedbackBarComponent } from '../../shared/components/feedback-bar/feedback-bar.component';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -10,32 +12,66 @@ interface Message {
   sources?: SourceReference[];
   confidence?: number;
   isHallucination?: boolean;
+  expandedSources: Set<number>;
+  query?: string;        // the question that produced this assistant answer
 }
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, FeedbackBarComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
-export class ChatComponent {
-  private stream = inject(ChatStreamService);
+export class ChatComponent implements OnInit, OnDestroy {
+  @ViewChild('messagesArea') messagesArea?: ElementRef<HTMLElement>;
+
+  private readonly stream   = inject(ChatStreamService);
+  private readonly feedback = inject(FeedbackService);
+
+  readonly sessionId = crypto.randomUUID();
 
   question = signal('');
   messages = signal<Message[]>([]);
-  busy = signal(false);
+  busy     = signal(false);
+
+  private lastQuery     = '';
+  private copyListener?: (e: Event) => void;
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
+
+  ngOnInit(): void {
+    // 隐式反馈：用户复制文本 → ResultAccepted
+    this.copyListener = () => this.reportLastSourcesAs('ResultAccepted');
+    document.addEventListener('copy', this.copyListener);
+  }
+
+  ngOnDestroy(): void {
+    if (this.copyListener) document.removeEventListener('copy', this.copyListener);
+  }
+
+  // ── Public API ───────────────────────────────────────────────────────────────
 
   ask(): void {
     const q = this.question().trim();
     if (!q || this.busy()) return;
 
-    this.messages.update((m: Message[]) => [...m, { role: 'user', text: q }]);
+    // 隐式反馈：追问 → 上一轮来源 ResultAccepted
+    this.reportLastSourcesAs('ResultAccepted');
+
+    this.messages.update(m => [...m, { role: 'user', text: q, expandedSources: new Set() }]);
     this.question.set('');
     this.busy.set(true);
+    this.lastQuery = q;
 
-    const assistant: Message = { role: 'assistant', text: '', streaming: true };
-    this.messages.update((m: Message[]) => [...m, assistant]);
+    const assistant: Message = {
+      role: 'assistant',
+      text: '',
+      streaming: true,
+      expandedSources: new Set(),
+      query: q
+    };
+    this.messages.update(m => [...m, assistant]);
 
     this.stream.stream(q).subscribe({
       next: (chunk: RagStreamChunk) => {
@@ -44,25 +80,23 @@ export class ChatComponent {
         } else if (chunk.type === 'token') {
           assistant.text += chunk.token ?? '';
         } else if (chunk.type === 'done') {
-          assistant.streaming = false;
-          assistant.confidence = chunk.answerConfidence;
+          assistant.streaming   = false;
+          assistant.confidence  = chunk.answerConfidence;
           assistant.isHallucination = chunk.isHallucination;
         }
-        this.messages.update((m: Message[]) => [...m]);
+        this.messages.update(m => [...m]);
       },
       error: () => {
-        assistant.text += '\n\n[Connection error — please retry]';
+        assistant.text    += '\n\n[Connection error — please retry]';
         assistant.streaming = false;
         this.busy.set(false);
-        this.messages.update((m: Message[]) => [...m]);
+        this.messages.update(m => [...m]);
       },
       complete: () => this.busy.set(false)
     });
   }
 
-  submit(): void {
-    this.ask();
-  }
+  submit(): void { this.ask(); }
 
   onKeyDown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -70,4 +104,55 @@ export class ChatComponent {
       this.submit();
     }
   }
+
+  toggleSource(msg: Message, index: number): void {
+    if (msg.expandedSources.has(index)) {
+      msg.expandedSources.delete(index);
+    } else {
+      msg.expandedSources.add(index);
+      // 隐式反馈：展开来源 → SourceClicked
+      const src = msg.sources?.[index];
+      if (src?.chunkId) {
+        this.feedback.record({
+          userId:           'anonymous',
+          type:             'SourceClicked',
+          sessionId:        this.sessionId,
+          relatedChunkId:   src.chunkId,
+          relatedDocumentId: src.documentId ?? undefined,
+          query:            msg.query
+        });
+      }
+    }
+    this.messages.update(m => [...m]);
+  }
+
+  isSourceExpanded(msg: Message, index: number): boolean {
+    return msg.expandedSources.has(index);
+  }
+
+  getChunkIds(msg: Message): string[] {
+    return (msg.sources ?? []).map(s => s.chunkId).filter((id): id is string => !!id);
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────────
+
+  private reportLastSourcesAs(type: 'ResultAccepted' | 'ResultRejected'): void {
+    const msgs = this.messages();
+    const last  = [...msgs].reverse().find(m => m.role === 'assistant' && !m.streaming);
+    if (!last?.sources?.length) return;
+
+    last.sources.forEach(src => {
+      if (src.chunkId) {
+        this.feedback.record({
+          userId:           'anonymous',
+          type,
+          sessionId:        this.sessionId,
+          relatedChunkId:   src.chunkId,
+          relatedDocumentId: src.documentId ?? undefined,
+          query:            last.query
+        });
+      }
+    });
+  }
 }
+

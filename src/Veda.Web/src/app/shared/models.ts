@@ -25,6 +25,23 @@ export interface SourceReference {
   documentName: string;
   chunkContent: string;
   similarity: number;
+  chunkId?: string;
+  documentId?: string;
+}
+
+export type BehaviorType =
+  | 'ResultAccepted'
+  | 'ResultRejected'
+  | 'SourceClicked'
+  | 'QueryRefined';
+
+export interface FeedbackRequest {
+  userId: string;
+  type: BehaviorType;
+  sessionId?: string;
+  relatedDocumentId?: string;
+  relatedChunkId?: string;
+  query?: string;
 }
 
 export interface QueryResponse {
