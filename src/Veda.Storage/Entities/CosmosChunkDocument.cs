@@ -62,6 +62,19 @@ internal sealed class CosmosIdOnly
     public string DocumentId { get; set; } = string.Empty;
 }
 
+/// <summary>文档列表查询用的轻量行结构（无 embedding/content），用于 GetAllDocumentsAsync。</summary>
+internal sealed class CosmosDocRow
+{
+    [JsonPropertyName("documentId")]
+    public string DocumentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentName")]
+    public string DocumentName { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentType")]
+    public int DocumentType { get; set; }
+}
+
 /// <summary>版本历史查询用的轻量行结构。</summary>
 internal sealed class CosmosVersionRow
 {

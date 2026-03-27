@@ -48,6 +48,12 @@ public interface IVectorStore
     /// <summary>返回指定文档名称的所有版本历史（含已取代的 chunks）。</summary>
     Task<IReadOnlyList<DocumentVersionInfo>> GetVersionHistoryAsync(
         string documentName, CancellationToken ct = default);
+
+    /// <summary>
+    /// 列出所有当前有效文档的摘要（不含向量和内容），用于 MCP list_documents 工具。
+    /// 按文档名称排序，返回去重后的文档级汇总（每个文档的 chunk 数量）。
+    /// </summary>
+    Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default);
 }
 
 /// <summary>文档版本历史摘要（用于 history 端点）。</summary>
@@ -58,3 +64,10 @@ public record DocumentVersionInfo(
     int ChunkCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset? SupersededAt);
+
+/// <summary>文档摘要（用于 list_documents MCP 工具），不含 embedding 和 content。</summary>
+public record DocumentSummary(
+    string DocumentId,
+    string DocumentName,
+    DocumentType DocumentType,
+    int ChunkCount);

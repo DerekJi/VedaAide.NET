@@ -112,18 +112,16 @@ public class KnowledgeBaseToolsTests
     // ── ListDocuments ─────────────────────────────────────────────────────────
 
     [Test]
-    public async Task ListDocuments_MultipleChunks_ShouldGroupByDocument()
+    public async Task ListDocuments_MultipleDocuments_ShouldReturnSummaries()
     {
         var docId = Guid.NewGuid().ToString();
-        var chunk1 = new DocumentChunk { DocumentId = docId, DocumentName = "report.txt", Content = "chunk1", DocumentType = DocumentType.Report, ChunkIndex = 0 };
-        var chunk2 = new DocumentChunk { DocumentId = docId, DocumentName = "report.txt", Content = "chunk2", DocumentType = DocumentType.Report, ChunkIndex = 1 };
-        var otherChunk = new DocumentChunk { DocumentId = Guid.NewGuid().ToString(), DocumentName = "other.txt", Content = "c", DocumentType = DocumentType.Other, ChunkIndex = 0 };
-
         _vectorStore
-            .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([(chunk1, 0f), (chunk2, 0f), (otherChunk, 0f)]);
+            .Setup(v => v.GetAllDocumentsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new DocumentSummary(docId, "report.txt", DocumentType.Report, 2),
+                new DocumentSummary(Guid.NewGuid().ToString(), "other.txt", DocumentType.Other, 1)
+            ]);
 
         var json = await _sut.ListDocuments();
 
@@ -132,15 +130,14 @@ public class KnowledgeBaseToolsTests
 
         var report = items.FirstOrDefault(i => i.GetProperty("documentName").GetString() == "report.txt");
         report.GetProperty("chunkCount").GetInt32().Should().Be(2);
+        report.GetProperty("documentType").GetString().Should().Be("Report");
     }
 
     [Test]
     public async Task ListDocuments_EmptyStore_ShouldReturnEmptyJsonArray()
     {
         _vectorStore
-            .Setup(v => v.SearchAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
-                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
-                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
+            .Setup(v => v.GetAllDocumentsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var json = await _sut.ListDocuments();
