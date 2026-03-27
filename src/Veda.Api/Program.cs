@@ -106,7 +106,18 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<VedaDbContext>();
-    await db.Database.MigrateAsync();
+    try
+    {
+        await db.Database.MigrateAsync();
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("already exists"))
+    {
+        // DB was created by an older migration set; __EFMigrationsHistory may be
+        // missing or inconsistent with the new InitialSchema migration.
+        // Delete and recreate so the container starts cleanly.
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.MigrateAsync();
+    }
 }
 
 // ── CosmosDB container initialisation (only when StorageProvider=CosmosDb) ───
