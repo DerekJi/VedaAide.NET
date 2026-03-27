@@ -51,11 +51,15 @@ internal sealed class CosmosChunkDocument
     public string SupersededByDocId { get; set; } = string.Empty;
 }
 
-/// <summary>仅包含 id 字段，用于删除查询结果反序列化。</summary>
+/// <summary>仅包含 id + documentId 字段，用于删除/Patch 查询结果反序列化。</summary>
 internal sealed class CosmosIdOnly
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>Partition Key 字段——Patch/Delete 操作必须提供精确的 PartitionKey。</summary>
+    [JsonPropertyName("documentId")]
+    public string DocumentId { get; set; } = string.Empty;
 }
 
 /// <summary>版本历史查询用的轻量行结构。</summary>

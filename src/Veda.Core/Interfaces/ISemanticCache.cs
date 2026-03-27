@@ -20,4 +20,9 @@ public interface ISemanticCache
     /// 清空全部缓存条目。
     /// </summary>
     Task ClearAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// 返回当前有效（未过期）的缓存条目数量。
+    /// </summary>
+    Task<int> GetCountAsync(CancellationToken ct = default);
 }

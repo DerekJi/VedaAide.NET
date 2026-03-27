@@ -8,6 +8,7 @@ public sealed class DocumentIngestService(
     IDocumentProcessor processor,
     IEmbeddingService embeddingService,
     IVectorStore vectorStore,
+    ISemanticCache semanticCache,
     ISemanticEnhancer semanticEnhancer,
     IDocumentDiffService documentDiffService,
     IOptions<RagOptions> options,
@@ -85,16 +86,21 @@ public sealed class DocumentIngestService(
                     chunk.Content[..Math.Min(LogSnippetLength, chunk.Content.Length)]);
         }
 
-        if (deduped.Count > 0)
-            await vectorStore.UpsertBatchAsync(deduped, ct);
-
-        // 版本化：标记旧版本 chunks 为已取代
+        // 版本化：先标记旧版本 chunks 为已取代，再写入新 chunks。
+        // 顺序必须先标记后写入：若先 UpsertBatch 再标记，则 WHERE SupersededAtTicks==0
+        // 会同时命中刚写入的新 chunk，导致新 chunk 被立刻标记为已取代。
         if (oldDocumentId is not null)
             await vectorStore.MarkDocumentSupersededAsync(documentName, documentId, ct);
+
+        if (deduped.Count > 0)
+            await vectorStore.UpsertBatchAsync(deduped, ct);
 
         logger.LogInformation(
             "Stored {Stored}/{Total} chunks for '{Name}' v{Version} (skipped {Skipped} near-duplicates)",
             deduped.Count, chunks.Count, documentName, version, chunks.Count - deduped.Count);
+
+        // 知识库内容变更后清空语义缓存，避免返回过期答案（异步，不阻塞响应）。
+        _ = semanticCache.ClearAsync(CancellationToken.None);
 
         return new IngestResult(documentId, documentName, deduped.Count);
     }

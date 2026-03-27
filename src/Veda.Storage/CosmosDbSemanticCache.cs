@@ -75,6 +75,17 @@ public sealed class CosmosDbSemanticCache : ISemanticCache
         }
     }
 
+    public async Task<int> GetCountAsync(CancellationToken ct = default)
+    {
+        var nowEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var query = new QueryDefinition("SELECT VALUE COUNT(1) FROM c WHERE c.expiresAt > @now")
+            .WithParameter("@now", nowEpoch);
+        var feed = _container.GetItemQueryIterator<int>(query);
+        if (!feed.HasMoreResults) return 0;
+        var page = await feed.ReadNextAsync(ct);
+        return page.FirstOrDefault();
+    }
+
     private static float CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length) return 0f;
