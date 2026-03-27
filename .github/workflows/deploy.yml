@@ -113,12 +113,13 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Set single revision mode (pre-deploy)
+        continue-on-error: true
         run: |
           az extension add --name containerapp --upgrade --only-show-errors -y || true
-          az containerapp update \
+          az containerapp revision set-mode \
+            --mode single \
             --name ${{ vars.CONTAINER_APP_NAME }} \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --revisions-mode single \
             --only-show-errors
 
       - name: Deploy to Container Apps
