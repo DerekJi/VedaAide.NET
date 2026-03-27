@@ -1,0 +1,42 @@
+<div class="demo-panel">
+  <div class="panel-header">
+    <h3 class="panel-title">📚 示例文档库</h3>
+    <p class="panel-subtitle">勾选后点击「加载到知识库」即可开始提问，无需上传任何文件。</p>
+  </div>
+
+  @if (loading()) {
+    <p class="loading-text">加载中…</p>
+  } @else if (entries().length === 0) {
+    <p class="empty-text">暂无示例文档（需配置 Blob Storage demo-documents/ 前缀）。</p>
+  } @else {
+    <div class="entry-list">
+      @for (entry of entries(); track entry.name) {
+        <label class="entry-row" [class.done]="entry.status === 'done'">
+          <input type="checkbox" [(ngModel)]="entry.selected" [disabled]="entry.status === 'ingesting' || entry.status === 'done'" />
+          <span class="entry-name">{{ entry.name }}</span>
+          <span class="entry-size">{{ (entry.sizeBytes / 1024).toFixed(0) }} KB</span>
+          @if (entry.status === 'ingesting') { <span class="badge badge-loading">加载中…</span> }
+          @if (entry.status === 'done') { <span class="badge badge-done">✓ {{ entry.result?.chunksStored }} chunks</span> }
+          @if (entry.status === 'error') { <span class="badge badge-error">失败</span> }
+        </label>
+      }
+    </div>
+
+    <button
+      class="btn btn-primary load-btn"
+      [disabled]="!hasSelection || ingesting()"
+      (click)="ingestSelected()"
+    >
+      @if (ingesting()) { 加载中… } @else { 加载到我的知识库 }
+    </button>
+  }
+
+  <div class="suggested">
+    <p class="suggested-title">💡 推荐问题：</p>
+    <ul>
+      @for (q of recommendedQuestions; track q) {
+        <li>{{ q }}</li>
+      }
+    </ul>
+  </div>
+</div>

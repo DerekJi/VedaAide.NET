@@ -19,6 +19,11 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
             </a>
           </li>
           <li>
+            <a routerLink="/documents" routerLinkActive="active">
+              <span class="nav-icon">📂</span> Documents
+            </a>
+          </li>
+          <li>
             <a routerLink="/ingest" routerLinkActive="active">
               <span class="nav-icon">📥</span> Ingest
             </a>

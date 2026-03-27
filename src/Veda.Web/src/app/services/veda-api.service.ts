@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
+  ChunkPreview, DemoDocument, DocumentSummary,
   EvalQuestion, EvaluationReport, IngestRequest, IngestResult,
   PromptTemplate, QueryRequest, QueryResponse,
   RunEvaluationRequest, SaveEvalQuestionRequest, SavePromptRequest,
@@ -19,6 +20,28 @@ export class VedaApiService {
   query(req: QueryRequest): Observable<QueryResponse> {
     return this.http.post<QueryResponse>(`${this.base}/query`, req);
   }
+
+  // ── Documents ──────────────────────────────────────────────────────────────
+
+  listDocuments(): Observable<DocumentSummary[]> {
+    return this.http.get<DocumentSummary[]>(`${this.base}/documents`);
+  }
+
+  getDocumentChunks(documentName: string): Observable<ChunkPreview[]> {
+    return this.http.get<ChunkPreview[]>(`${this.base}/documents/${encodeURIComponent(documentName)}/chunks`);
+  }
+
+  // ── Demo Library ───────────────────────────────────────────────────────────
+
+  listDemoDocuments(): Observable<DemoDocument[]> {
+    return this.http.get<DemoDocument[]>(`${this.base}/demo/documents`);
+  }
+
+  ingestDemoDocument(name: string): Observable<IngestResult> {
+    return this.http.post<IngestResult>(`${this.base}/demo/documents/${encodeURIComponent(name)}/ingest`, {});
+  }
+
+  // ── Prompts ────────────────────────────────────────────────────────────────
 
   listPrompts(): Observable<PromptTemplate[]> {
     return this.http.get<PromptTemplate[]>(`${this.base}/prompts`);
