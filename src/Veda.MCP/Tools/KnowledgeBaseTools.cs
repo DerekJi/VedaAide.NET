@@ -20,7 +20,10 @@ public sealed class KnowledgeBaseTools(IEmbeddingService embeddingService, IVect
         topK = Math.Clamp(topK, 1, 20);
 
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(query, cancellationToken);
-        var results = await vectorStore.SearchAsync(queryEmbedding, topK, ct: cancellationToken);
+        var results = await vectorStore.SearchAsync(
+            queryEmbedding, topK,
+            scope: new KnowledgeScope(Visibility: Visibility.Public),
+            ct: cancellationToken);
 
         var output = results.Select(r => new
         {

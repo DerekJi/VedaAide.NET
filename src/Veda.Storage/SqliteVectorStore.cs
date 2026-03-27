@@ -318,7 +318,8 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         metadata.TryGetValue("_scope_ownerId",    out var ownerId);
         metadata.TryGetValue("_scope_sourceType", out var sourceType);
         metadata.TryGetValue("_scope_visibility", out var visStr);
-        var visibility = Enum.TryParse<Visibility>(visStr, out var v) ? v : Visibility.Private;
+        // null visibility = 历史文档，视为 Public（兼容旧数据）
+        Visibility? visibility = Enum.TryParse<Visibility>(visStr, out var v) ? v : null;
         return new KnowledgeScope(domain, sourceType, null, null, null, ownerId, visibility);
     }
 
@@ -329,6 +330,12 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         if (filterScope.Domain     is not null && !string.Equals(chunkScope?.Domain,     filterScope.Domain,     StringComparison.OrdinalIgnoreCase)) return false;
         if (filterScope.OwnerId    is not null && !string.Equals(chunkScope?.OwnerId,    filterScope.OwnerId,    StringComparison.OrdinalIgnoreCase)) return false;
         if (filterScope.SourceType is not null && !string.Equals(chunkScope?.SourceType, filterScope.SourceType, StringComparison.OrdinalIgnoreCase)) return false;
+        if (filterScope.Visibility is not null)
+        {
+            // null visibility = 历史文档，无限制 → 兼容视为 Public
+            var effectiveVisibility = chunkScope?.Visibility ?? Visibility.Public;
+            if (effectiveVisibility != filterScope.Visibility) return false;
+        }
         return true;
     }
 }

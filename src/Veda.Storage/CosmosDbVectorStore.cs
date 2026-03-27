@@ -445,6 +445,14 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (scope.Domain     is not null) conditions.Add("c.metadata[\"_scope_domain\"] = @scopeDomain");
         if (scope.OwnerId    is not null) conditions.Add("c.metadata[\"_scope_ownerId\"] = @scopeOwnerId");
         if (scope.SourceType is not null) conditions.Add("c.metadata[\"_scope_sourceType\"] = @scopeSourceType");
+        if (scope.Visibility is not null)
+        {
+            // Public 过滤：历史文档（无 visibility 元数据）也视为 Public
+            if (scope.Visibility == Visibility.Public)
+                conditions.Add("(NOT IS_DEFINED(c.metadata[\"_scope_visibility\"]) OR c.metadata[\"_scope_visibility\"] = @scopeVisibility)");
+            else
+                conditions.Add("c.metadata[\"_scope_visibility\"] = @scopeVisibility");
+        }
     }
 
     private static void BindScopeParameters(ref QueryDefinition queryDef, KnowledgeScope? scope)
@@ -453,6 +461,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (scope.Domain     is not null) queryDef = queryDef.WithParameter("@scopeDomain",     scope.Domain);
         if (scope.OwnerId    is not null) queryDef = queryDef.WithParameter("@scopeOwnerId",    scope.OwnerId);
         if (scope.SourceType is not null) queryDef = queryDef.WithParameter("@scopeSourceType", scope.SourceType);
+        if (scope.Visibility is not null) queryDef = queryDef.WithParameter("@scopeVisibility", scope.Visibility.ToString());
     }
 
     /// <summary>从查询字符串提取有意义的关键词（过滤停用词和短词）。</summary>
