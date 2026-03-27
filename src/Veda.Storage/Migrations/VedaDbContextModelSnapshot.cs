@@ -17,6 +17,61 @@ namespace Veda.Storage.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
 
+            modelBuilder.Entity("Veda.Storage.Entities.ConsensusCandidateEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnonymizedPattern")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NominatedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ReviewedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReviewerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("SupportRatio")
+                        .HasColumnType("REAL");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsApproved");
+
+                    b.ToTable("ConsensusCandidates");
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.DocumentPermissionEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("GrantedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("GroupId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "GroupId")
+                        .IsUnique();
+
+                    b.ToTable("DocumentPermissions");
+                });
+
             modelBuilder.Entity("Veda.Storage.Entities.EvalQuestionEntity", b =>
                 {
                     b.Property<string>("Id")
@@ -124,6 +179,29 @@ namespace Veda.Storage.Migrations
                     b.ToTable("SemanticCacheEntries");
                 });
 
+            modelBuilder.Entity("Veda.Storage.Entities.SharingGroupEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MembersJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("SharingGroups");
+                });
+
             modelBuilder.Entity("Veda.Storage.Entities.SyncedFileEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -159,6 +237,46 @@ namespace Veda.Storage.Migrations
                         .IsUnique();
 
                     b.ToTable("SyncedFiles");
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.UserBehaviorEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("OccurredAtTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Query")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelatedChunkId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelatedDocumentId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "RelatedChunkId");
+
+                    b.ToTable("UserBehaviors");
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.VectorChunkEntity", b =>
@@ -203,21 +321,15 @@ namespace Veda.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Version")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(1);
-
                     b.Property<long>("SupersededAtTicks")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0L);
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SupersededByDocId")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("");
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -229,126 +341,6 @@ namespace Veda.Storage.Migrations
                     b.HasIndex("DocumentName", "SupersededAtTicks");
 
                     b.ToTable("VectorChunks");
-                });
-
-            modelBuilder.Entity("Veda.Storage.Entities.UserBehaviorEntity", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SessionId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("RelatedChunkId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RelatedDocumentId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Query")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("OccurredAtTicks")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "RelatedChunkId");
-
-                    b.ToTable("UserBehaviors");
-                });
-
-            modelBuilder.Entity("Veda.Storage.Entities.SharingGroupEntity", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("OwnerId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MembersJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("[]");
-
-                    b.Property<long>("CreatedAtTicks")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OwnerId");
-
-                    b.ToTable("SharingGroups");
-                });
-
-            modelBuilder.Entity("Veda.Storage.Entities.DocumentPermissionEntity", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DocumentId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GroupId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("GrantedAtTicks")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentId", "GroupId")
-                        .IsUnique();
-
-                    b.ToTable("DocumentPermissions");
-                });
-
-            modelBuilder.Entity("Veda.Storage.Entities.ConsensusCandidateEntity", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AnonymizedPattern")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<double>("SupportRatio")
-                        .HasColumnType("REAL");
-
-                    b.Property<long>("NominatedAtTicks")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsApproved")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ReviewerId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("ReviewedAtTicks")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsApproved");
-
-                    b.ToTable("ConsensusCandidates");
                 });
 #pragma warning restore 612, 618
         }

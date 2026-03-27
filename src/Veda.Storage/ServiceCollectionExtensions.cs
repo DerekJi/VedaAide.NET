@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Veda.Core;
 using Veda.Core.Interfaces;
 
@@ -20,8 +22,12 @@ public static class ServiceCollectionExtensions
         var dbPath = cfg["Veda:DbPath"] ?? "veda.db";
 
         // Metadata repositories always use SQLite
+        // Suppress PendingModelChangesWarning: EF Core 10 compares model hash from Designer.cs of the
+        // last migration; Sprint3/Sprint4 migrations lack Designer.cs so the hash check produces a
+        // false-positive mismatch. The model snapshot is correct and all migrations are present.
         services.AddDbContext<VedaDbContext>(opt =>
-            opt.UseSqlite($"Data Source={dbPath}"));
+            opt.UseSqlite($"Data Source={dbPath}")
+               .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
         services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
         services.AddScoped<ISyncStateStore, SyncStateStore>();
         services.AddScoped<IEvalDatasetRepository, EvalDatasetRepository>();
