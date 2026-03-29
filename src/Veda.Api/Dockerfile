@@ -6,7 +6,7 @@
 FROM node:22-alpine AS web-build
 WORKDIR /web
 COPY src/Veda.Web/package*.json ./
-RUN npm ci
+RUN npm install -g npm@11 && npm ci
 COPY src/Veda.Web/ ./
 RUN npm run build -- --configuration production
 
