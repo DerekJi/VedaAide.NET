@@ -27,14 +27,18 @@ public sealed class QueryService(
 
     /// <summary>
     /// 动态生成 System Prompt：优先从数据库加载 "rag-system" 模板，fallback 到硬编码默认内容。
-    /// 模板内容支持 {today} 占位符。
+    /// 模板内容支持 {today} 占位符。根据问题语言自动调整语言规则指令。
     /// </summary>
-    private async Task<string> BuildSystemPromptAsync(CancellationToken ct)
+    private async Task<string> BuildSystemPromptAsync(string question, CancellationToken ct)
     {
         var today = DateTimeOffset.Now.ToString("yyyy-MM-dd");
         var template = await promptTemplateRepository.GetLatestAsync("rag-system", ct);
         if (template is not null)
             return template.Content.Replace("{today}", today, StringComparison.Ordinal);
+
+        var langRule = IsChinese(question)
+            ? "2. 必须使用中文回答。"
+            : "2. You MUST respond entirely in English. Do not use Chinese.";
 
         return $"""
             你是一个贴心的个人助理，善于根据用户记录的笔记回答问题。
@@ -42,11 +46,21 @@ public sealed class QueryService(
 
             回答规则：
             1. 优先依据下方提供的 Context 内容回答，并结合常识进行合理推断。
-            2. 回答请使用与用户提问相同的语言（中文提问则用中文回答）。
+            {langRule}
             3. 如果 Context 中有部分相关信息，请基于已有信息给出最佳推断，并说明推断依据。
-            4. 只有在 Context 完全没有任何相关信息时，才回答"我的笔记中没有相关记录"。
+            4. 只有在 Context 完全没有任何相关信息时，才回答无相关记录。
             5. 不要重复引用文档名称，直接给出结论。
             """;
+    }
+
+    /// <summary>
+    /// 简单启发式语言检测：CJK 字符占比超过 33% 则视为中文。
+    /// </summary>
+    private static bool IsChinese(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        var cjkCount = text.Count(c => c >= '\u4E00' && c <= '\u9FFF');
+        return cjkCount * 3 > text.Length;
     }
 
     public async Task<RagQueryResponse> QueryAsync(RagQueryRequest request, CancellationToken ct = default)
@@ -126,7 +140,7 @@ public sealed class QueryService(
 
         var contextChunks = contextWindowBuilder.Build(results);
         var context = BuildContext(contextChunks);
-        var systemPrompt = await BuildSystemPromptAsync(ct);
+        var systemPrompt = await BuildSystemPromptAsync(request.Question, ct);
 
         // 结构化输出模式：使用专用 Prompt 强制 LLM 按协议返回 JSON
         string userMessage;
@@ -371,7 +385,7 @@ public sealed class QueryService(
 
         var contextChunks = contextWindowBuilder.Build(results);
         var context = BuildContext(contextChunks);
-        var systemPrompt = await BuildSystemPromptAsync(ct);
+        var systemPrompt = await BuildSystemPromptAsync(request.Question, ct);
         var userMessage = chainOfThought.Enhance(request.Question, context);
 
         // 逐 token 流式输出
