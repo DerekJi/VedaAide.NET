@@ -28,7 +28,16 @@ export function msalInitializer(msalInstance: IPublicClientApplication): () => P
   return () =>
     msalInstance.initialize()
       .then(() => msalInstance.handleRedirectPromise())
-      .then(() => {})
+      .then((result) => {
+        if (result?.account) {
+          msalInstance.setActiveAccount(result.account);
+        } else {
+          const accounts = msalInstance.getAllAccounts();
+          if (accounts.length > 0) {
+            msalInstance.setActiveAccount(accounts[0]);
+          }
+        }
+      })
       .catch(() => {});
 }
 
