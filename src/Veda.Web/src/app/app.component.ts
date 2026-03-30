@@ -49,7 +49,7 @@ import { AuthService } from './services/auth.service';
             <button class="btn-logout" (click)="auth.logout()">退出登录</button>
           } @else {
             <button class="btn-login" (click)="auth.login()">
-              <span>🔑</span> Microsoft 登录
+              <span>🔑</span> 登录
             </button>
           }
         </div>
