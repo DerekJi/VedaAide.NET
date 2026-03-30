@@ -25,6 +25,23 @@ export interface SourceReference {
   documentName: string;
   chunkContent: string;
   similarity: number;
+  chunkId?: string;
+  documentId?: string;
+}
+
+export type BehaviorType =
+  | 'ResultAccepted'
+  | 'ResultRejected'
+  | 'SourceClicked'
+  | 'QueryRefined';
+
+export interface FeedbackRequest {
+  userId: string;
+  type: BehaviorType;
+  sessionId?: string;
+  relatedDocumentId?: string;
+  relatedChunkId?: string;
+  query?: string;
 }
 
 export interface QueryResponse {
@@ -56,6 +73,28 @@ export interface SavePromptRequest {
   version: string;
   content: string;
   documentType?: number;
+}
+
+// ── Document Browser (Stage 5) ───────────────────────────────────────────────
+
+export interface DocumentSummary {
+  documentId: string;
+  documentName: string;
+  documentType: string;
+  chunkCount: number;
+}
+
+export interface ChunkPreview {
+  chunkIndex: number;
+  content: string;
+  documentType: string;
+}
+
+export interface DemoDocument {
+  name: string;
+  description: string;
+  sizeBytes: number;
+  extension: string;
 }
 
 // ── Evaluation (Phase 6) ────────────────────────────────────────────────────

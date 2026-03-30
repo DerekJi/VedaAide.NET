@@ -31,6 +31,7 @@ VedaAide.NET is a full-stack AI knowledge base system built on .NET 10 and Seman
 | API | GraphQL (HotChocolate 15) + REST + SSE |
 | Frontend | Angular 19 (Standalone + Signals API) |
 | MCP | ModelContextProtocol.AspNetCore (HTTP transport) |
+| Auth | Azure Entra External ID (CIAM) + MSAL Angular 3 |
 | Cloud | Azure Blob Storage, Azure Container Apps |
 | Deployment | Docker Compose (local) / Azure Container Apps (cloud) |
 
@@ -46,7 +47,7 @@ VedaAide.NET is a full-stack AI knowledge base system built on .NET 10 and Seman
   ollama pull bge-m3        # embedding model
   ollama pull qwen3:8b      # chat model
   ```
-- [Node.js 22+](https://nodejs.org/) (for frontend)
+- [Node.js 24+](https://nodejs.org/) (for frontend)
 - [Docker](https://www.docker.com/) (for containerized deployment)
 
 ### Run Locally
@@ -229,3 +230,4 @@ Available tools: `search_knowledge_base`, `list_documents`, `ingest_document`
 | Stage 3 Sprint 2 | Rich document extraction (Document Intelligence OCR + Vision multimodal) | ✅ Done |
 | Stage 3 Sprint 3 | Structured reasoning output + knowledge versioning + semantic enhancer | ✅ Done |
 | Stage 3 Sprint 4 | Implicit feedback learning + multi-user knowledge governance (4-tier model) | ✅ Done |
+| Stage 5 | User authentication (Azure Entra External ID CIAM) + full route protection (MsalGuard) + JWT-based user data isolation | ✅ Done |

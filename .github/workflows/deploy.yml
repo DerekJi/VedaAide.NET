@@ -45,7 +45,7 @@ jobs:
     name: Publish Docker Image
     needs: build-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
@@ -75,7 +75,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
 
       - name: Build and push
         id: push
@@ -99,7 +99,7 @@ jobs:
     permissions:
       id-token: write   # required for OIDC Azure login
       contents: read
-      packages: read    # required to pass GITHUB_TOKEN as GHCR pull secret
+      packages: read    # required to pass GHCR pull secret
 
     steps:
       - name: Checkout
@@ -130,4 +130,8 @@ jobs:
           imageToDeploy: ${{ needs.publish-image.outputs.image-ref }}
           registryUrl: ${{ env.REGISTRY }}
           registryUsername: ${{ github.actor }}
-          registryPassword: ${{ github.token }}
+          # Use long-lived GHCR_PAT when available; GitHub token expires after
+          # the workflow run and will cause the Container App to become Unhealthy
+          # on the next restart. Set GHCR_PAT secret in repo Settings → Secrets.
+          registryPassword: ${{ secrets.GHCR_PAT || github.token }}
+

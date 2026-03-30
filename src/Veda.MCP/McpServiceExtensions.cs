@@ -8,14 +8,14 @@ namespace Veda.MCP;
 public static class McpServiceExtensions
 {
     /// <summary>
-    /// 注册 VedaAide MCP Server（HTTP/SSE 传输），挂载三个知识库工具。
+    /// 注册 VedaAide MCP Server（HTTP/SSE 传输），挂载知识库只读工具。
+    /// IngestTools 已移除：/mcp 通道定位为公共知识库只读接口。
     /// </summary>
     public static IServiceCollection AddVedaMcp(this IServiceCollection services)
     {
         services.AddMcpServer()
             .WithHttpTransport()
-            .WithTools<KnowledgeBaseTools>()
-            .WithTools<IngestTools>();
+            .WithTools<KnowledgeBaseTools>();
 
         return services;
     }

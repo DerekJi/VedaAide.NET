@@ -1,72 +1,83 @@
 <div class="page">
-  <h1 class="page-title">Document Management</h1>
+  <h1 class="page-title">Documents</h1>
 
-  <!-- Upload form -->
-  <div class="card upload-card">
-    <h2>Ingest New Document</h2>
+  <!-- Demo Library Panel -->
+  <app-demo-library-panel />
 
-    <div class="form-group">
-      <label class="form-label">Upload File</label>
-      <input type="file" accept=".txt,.md,.pdf" class="file-input" (change)="onFileSelected($event)" />
+  <!-- Ingested Documents List -->
+  <div class="card">
+    <div class="list-header">
+      <h2 class="list-title">已 Ingest 的文档</h2>
+      <button
+        class="btn btn-danger-outline"
+        [disabled]="clearingAll() || documents().length === 0"
+        (click)="requestClearAll()"
+      >全部清空</button>
     </div>
 
-    <div class="form-row">
-      <div class="form-group flex-1">
-        <label class="form-label">Document Name</label>
-        <input type="text" class="form-input" [value]="documentName()"
-               (input)="documentName.set($any($event.target).value)"
-               placeholder="my-document.txt" />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Type</label>
-        <select class="form-input" [value]="documentType()"
-                (change)="documentType.set($any($event.target).value)">
-          @for (t of documentTypes; track t) {
-            <option [value]="t">{{ t || '(auto-detect)' }}</option>
-          }
-        </select>
-      </div>
-    </div>
-
-    @if (content()) {
-      <div class="form-group">
-        <label class="form-label">Preview (first 300 chars)</label>
-        <pre class="content-preview">{{ content().slice(0, 300) }}{{ content().length > 300 ? '…' : '' }}</pre>
+    @if (confirmClearAll()) {
+      <div class="confirm-bar">
+        <span class="confirm-text">⚠ 此操作不可恢复，确认清空全部数据？</span>
+        <button class="btn btn-danger btn-sm" (click)="clearAll()" [disabled]="clearingAll()">确认清空</button>
+        <button class="btn btn-secondary btn-sm" (click)="cancelClearAll()">取消</button>
       </div>
     }
 
-    <button class="btn btn-primary" (click)="ingest()" [disabled]="!content() || !documentName() || uploading()">
-      {{ uploading() ? 'Ingesting…' : 'Ingest Document' }}
-    </button>
-  </div>
-
-  <!-- History table -->
-  @if (entries().length > 0) {
-    <div class="card">
-      <h2>Ingest History</h2>
+    @if (loading()) {
+      <p class="loading-text">加载中…</p>
+    } @else if (documents().length === 0) {
+      <p class="empty-text">暂无已 Ingest 的文档。</p>
+    } @else {
       <table class="table">
         <thead>
           <tr>
-            <th>Document</th>
-            <th>Status</th>
-            <th>Chunks Stored</th>
-            <th>Document ID</th>
+            <th>文档名称</th>
+            <th>类型</th>
+            <th>Chunks</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          @for (entry of entries(); track entry.name) {
-            <tr>
-              <td>{{ entry.name }}</td>
+          @for (doc of documents(); track doc.documentId) {
+            <tr [class.active-row]="selectedDoc()?.documentId === doc.documentId">
               <td>
-                <span class="badge" [class]="'badge-' + entry.status">{{ entry.status }}</span>
+                <button class="doc-name-btn" (click)="viewChunks(doc)">
+                  {{ doc.documentName }}
+                </button>
               </td>
-              <td>{{ entry.result?.chunksStored ?? '—' }}</td>
-              <td class="mono">{{ entry.result?.documentId ?? entry.error ?? '—' }}</td>
+              <td>{{ doc.documentType }}</td>
+              <td>{{ doc.chunkCount }}</td>
+              <td>
+                <button
+                  class="btn btn-danger-outline btn-sm"
+                  [disabled]="deletingId() === doc.documentId"
+                  (click)="deleteDocument(doc)"
+                >
+                  {{ deletingId() === doc.documentId ? '删除中…' : '删除' }}
+                </button>
+              </td>
             </tr>
+            @if (selectedDoc()?.documentId === doc.documentId) {
+              <tr class="chunks-row">
+                <td colspan="4">
+                  @if (chunksLoading()) {
+                    <p class="loading-text">加载 chunks…</p>
+                  } @else {
+                    <div class="chunks-list">
+                      @for (chunk of chunks(); track chunk.chunkIndex) {
+                        <div class="chunk-item">
+                          <span class="chunk-index">#{{ chunk.chunkIndex }}</span>
+                          <pre class="chunk-content">{{ chunk.content }}</pre>
+                        </div>
+                      }
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
           }
         </tbody>
       </table>
-    </div>
-  }
+    }
+  </div>
 </div>
