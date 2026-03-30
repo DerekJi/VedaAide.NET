@@ -38,6 +38,8 @@ public class QueryStreamController(IQueryService queryService, IOptions<RagOptio
             return;
         }
 
+        var currentUser = HttpContext.RequestServices.GetRequiredService<ICurrentUserService>();
+
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
@@ -50,7 +52,11 @@ public class QueryStreamController(IQueryService queryService, IOptions<RagOptio
             MinSimilarity = minSimilarity ?? ragOptions.Value.DefaultMinSimilarity,
             DateFrom = dateFrom,
             DateTo = dateTo,
-            Mode = mode
+            Mode = mode,
+            UserId = currentUser.UserId,
+            Scope = currentUser.UserId is not null
+                ? new KnowledgeScope(OwnerId: currentUser.UserId)
+                : null
         };
 
         await foreach (var chunk in queryService.QueryStreamAsync(request, ct))

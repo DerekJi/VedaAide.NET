@@ -5,7 +5,7 @@ namespace Veda.Api.Middleware;
 /// <summary>
 /// API Key 认证中间件。
 /// 从请求头 X-Api-Key 读取密钥，与 Veda:Security:ApiKey 比对。
-/// /api/admin/* 端点独立使用 Veda:Security:AdminApiKey 进行鉴权。
+/// /api/admin/* 和 /mcp 端点使用 Veda:Security:AdminApiKey 进行鉴权。
 /// 密钥未配置时跳过验证（方便本地开发）。
 /// </summary>
 public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration cfg)
@@ -25,7 +25,8 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration cfg)
 
         var requestKey = context.Request.Headers[ApiKeyHeader].FirstOrDefault();
 
-        if (path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase))
+        if (path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/mcp",       StringComparison.OrdinalIgnoreCase))
         {
             var adminKey = cfg["Veda:Security:AdminApiKey"];
             if (!string.IsNullOrWhiteSpace(adminKey) && requestKey != adminKey)

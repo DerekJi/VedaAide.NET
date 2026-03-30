@@ -11,6 +11,7 @@ namespace Veda.Api.Controllers;
 [Route("api/feedback")]
 public sealed class FeedbackController(
     IUserMemoryStore userMemoryStore,
+    ICurrentUserService currentUser,
     ILogger<FeedbackController> logger) : ControllerBase
 {
     /// <summary>上报用户行为事件。</summary>
@@ -24,8 +25,11 @@ public sealed class FeedbackController(
         if (!Enum.TryParse<BehaviorType>(request.Type, ignoreCase: true, out var behaviorType))
             return BadRequest(new { error = $"Unknown behavior type: {request.Type}" });
 
+        // JWT identity takes priority; fall back to client-supplied UserId for anonymous sessions.
+        var userId = currentUser.UserId ?? request.UserId;
+
         var evt = new UserBehaviorEvent(
-            UserId: request.UserId,
+            UserId: userId,
             SessionId: request.SessionId ?? Guid.NewGuid().ToString(),
             Type: behaviorType,
             RelatedDocumentId: request.RelatedDocumentId,

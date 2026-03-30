@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 using Veda.Agents;
 using Veda.Api.GraphQL;
 using Veda.Api.Middleware;
+using Veda.Api.Services;
 using Veda.Evaluation;
 using Veda.MCP;
 using Veda.Prompts;
@@ -49,6 +51,7 @@ builder.Services.Configure<FileSystemConnectorOptions>(cfg.GetSection("Veda:Data
 builder.Services.AddScoped<IDataSourceConnector, FileSystemConnector>();
 builder.Services.Configure<BlobStorageConnectorOptions>(cfg.GetSection("Veda:DataSources:BlobStorage"));
 builder.Services.AddScoped<IDataSourceConnector, BlobStorageConnector>();
+builder.Services.AddScoped<IDemoLibraryService, DemoLibraryService>();
 // Background auto-sync
 builder.Services.Configure<DataSourceSyncOptions>(cfg.GetSection("Veda:DataSources:AutoSync"));
 builder.Services.AddHostedService<Veda.Api.DataSourceSyncBackgroundService>();
@@ -58,6 +61,40 @@ builder.Services.AddVedaMcp();
 // ── API ───────────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// ── Current User (Sprint 1: Entra ID JWT identity) ─────────────────────────────────
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, HttpContextCurrentUserService>();
+
+// ── JWT Bearer Authentication (Microsoft Entra ID) ──────────────────────────────────
+// Validates JWT tokens issued by the configured Entra ID tenant.
+// When AzureAd config is absent, operates in pass-through / anonymous mode.
+var entraInstance = cfg["AzureAd:Instance"] ?? "https://login.microsoftonline.com/";
+var entraDomain   = cfg["AzureAd:Domain"];   // CIAM: e.g. vedaaide.onmicrosoft.com
+var entraTenantId = cfg["AzureAd:TenantId"];
+var entraClientId = cfg["AzureAd:ClientId"];
+var entraAudience = cfg["AzureAd:Audience"] ?? entraClientId;
+
+if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entraClientId))
+{
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = !string.IsNullOrWhiteSpace(entraDomain)
+                ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"   // CIAM
+                : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/"; // Standard Entra
+            options.Audience  = entraAudience;
+            options.TokenValidationParameters.ValidateIssuerSigningKey = true;
+            options.TokenValidationParameters.NameClaimType = "name";
+        });
+}
+else
+{
+    // No Entra ID config: register no-op auth so UseAuthentication() doesn't throw.
+    builder.Services.AddAuthentication().AddJwtBearer();
+}
+builder.Services.AddAuthorization();
 
 // ── Health Checks ─────────────────────────────────────────────────────────────
 var healthChecks = builder.Services.AddHealthChecks();
@@ -167,6 +204,7 @@ app.UseCors("VedaCorsPolicy");
 app.UseDefaultFiles();   // serve index.html for "/"
 app.UseStaticFiles();    // serve Angular build from wwwroot
 app.UseRateLimiter();
+app.UseAuthentication();  // JWT Bearer — must come before ApiKeyMiddleware
 app.UseMiddleware<ApiKeyMiddleware>();
 app.UseAuthorization();
 app.MapHealthChecks("/health");  // Public, excluded from ApiKeyMiddleware

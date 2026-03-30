@@ -15,5 +15,7 @@ public record SourceReference
 {
     public string DocumentName { get; init; } = string.Empty;
     public string ChunkContent { get; init; } = string.Empty;
-    public float Similarity    { get; init; }
+    public float  Similarity   { get; init; }
+    public string? ChunkId     { get; init; }
+    public string? DocumentId  { get; init; }
 }

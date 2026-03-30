@@ -70,27 +70,27 @@ VedaAide 四期已完成：
 
 ## 3. 功能模块详细设计
 
-### 3.1 多用户身份认证（Azure AD B2C）
+### 3.1 多用户身份认证（Azure Entra External ID CIAM）
 
-#### 3.1.1 为什么选 Azure AD B2C
+#### 3.1.1 为什么选 Azure Entra External ID
 
 | 方案 | 优点 | 缺点 |
 |------|------|------|
-| **Azure AD B2C** | 同时支持 Google、Microsoft、GitHub；与 Azure 基础设施天然集成；免费 50,000 MAU | 配置稍复杂（需建租户） |
+| **Azure Entra External ID (CIAM)** | 与 Azure 基础设施天然集成；免费 50,000 MAU；支持邮箱注册 + 社交 IDP；MSAL Angular 直接支持 | 配置稍复杂（需建租户） |
 | Auth0 / Clerk | 配置最简，开箱即用 | 额外平台依赖，有费用 |
 | 自建用户表 | 完全控制 | 需实现注册/密码管理/邮件验证，工作量大 |
 | Azure Static Web Apps 内置认证 | 零代码 | 仅适用 SWA，不适合 Container Apps |
 
-**结论**：选 Azure AD B2C。招聘方可用 Microsoft/Google 账号直接登录，无需注册，演示体验最好。
+**结论**：选 Azure Entra External ID (CIAM)。用户使用任意邮箱注册即可登录，无需依赖第三方社交账号。
 
 #### 3.1.2 认证流程
 
 ```
 [浏览器]
-  1. 点击"登录" → 重定向到 B2C 登录页
-  2. 选择 Google / Microsoft 账号 → OAuth 授权
-  3. B2C 返回 JWT（id_token + access_token）
-  4. Angular 存储 token（sessionStorage，非 localStorage）
+  1. 点击"登录" → 重定向到 CIAM 登录页
+  2. 输入邮箱 + 密码（或注册新账号）→ CIAM 验证
+  3. CIAM 返回 JWT（id_token + access_token）
+  4. Angular 存储 token（localStorage）
 
 [API 请求]
   5. 每次请求附带 Authorization: Bearer <access_token>
@@ -153,7 +153,7 @@ public async Task<IActionResult> Query(
 | 路径 | 认证方式 | 说明 |
 |------|----------|------|
 | `/api/admin/*` | Admin API Key（不变） | 开发/运维专用 |
-| `/api/*`（用户端） | JWT Bearer（新增） | 取消 X-Api-Key，改为 B2C token |
+| `/api/*`（用户端） | JWT Bearer（新增） | 取消 X-Api-Key，改为 CIAM token |
 | `/mcp` | API Key（收紧，见 3.3） | MCP 通道独立鉴权 |
 
 #### 3.1.4 Angular 认证集成
@@ -161,18 +161,17 @@ public async Task<IActionResult> Query(
 使用 `@azure/msal-angular`：
 
 ```typescript
-// app.config.ts
-MsalModule.forRoot(
-  new PublicClientApplication({
-    auth: {
-      clientId: environment.b2cClientId,
-      authority: 'https://<tenant>.b2clogin.com/.../B2C_1_signupsignin',
-      knownAuthorities: ['<tenant>.b2clogin.com'],
-    }
-  }),
-  { interactionType: InteractionType.Redirect },
-  { interactionType: InteractionType.Redirect, protectedResourceMap }
-)
+// app.config.ts（实际实现）
+new PublicClientApplication({
+  auth: {
+    clientId: environment.msalConfig.auth.clientId,
+    authority: 'https://<tenant>.ciamlogin.com/<tenant>.onmicrosoft.com',
+    knownAuthorities: ['<tenant>.ciamlogin.com'],
+    redirectUri: window.location.origin
+  },
+  cache: { cacheLocation: 'localStorage' }
+})
+```
 ```
 
 ---

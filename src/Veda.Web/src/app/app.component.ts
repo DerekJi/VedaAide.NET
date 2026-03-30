@@ -1,10 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { MsalModule } from '@azure/msal-angular';
+import { AuthService } from './services/auth.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MsalModule],
   template: `
     <div class="shell">
       <nav class="sidebar">
@@ -16,6 +18,11 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
           <li>
             <a routerLink="/chat" routerLinkActive="active">
               <span class="nav-icon">💬</span> Chat
+            </a>
+          </li>
+          <li>
+            <a routerLink="/documents" routerLinkActive="active">
+              <span class="nav-icon">📂</span> Documents
             </a>
           </li>
           <li>
@@ -34,6 +41,18 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
             </a>
           </li>
         </ul>
+        <div class="user-panel">
+          @if (auth.isLoggedIn()) {
+            <div class="user-info">
+              <span class="user-name" title="{{ auth.userEmail() }}">{{ auth.userName() }}</span>
+            </div>
+            <button class="btn-logout" (click)="auth.logout()">退出登录</button>
+          } @else {
+            <button class="btn-login" (click)="auth.login()">
+              <span>🔑</span> 登录
+            </button>
+          }
+        </div>
       </nav>
       <main class="content">
         <router-outlet />
@@ -42,4 +61,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
   `,
   styleUrl: './app.component.scss'
 })
-export class AppComponent {}
+export class AppComponent {
+  readonly auth = inject(AuthService);
+}
+

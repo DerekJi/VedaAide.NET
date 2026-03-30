@@ -4,7 +4,10 @@ namespace Veda.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class DocumentsController(IDocumentIngestor ingestor, ILogger<DocumentsController> logger) : ControllerBase
+public class DocumentsController(
+    IDocumentIngestor ingestor,
+    IVectorStore      vectorStore,
+    ILogger<DocumentsController> logger) : ControllerBase
 {
     private static readonly HashSet<string> AllowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -12,9 +15,33 @@ public class DocumentsController(IDocumentIngestor ingestor, ILogger<DocumentsCo
         "image/tiff", "image/bmp", "application/pdf"
     };
 
-    /// <summary>
-    /// 摄取纯文本文档：分块 → Embedding → 去重 → 存储。
-    /// </summary>
+    /// <summary>列出已 Ingest 的所有文档摘要（文档级汇总，含 chunk 数量）。</summary>
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListDocuments(CancellationToken ct)
+    {
+        var docs = await vectorStore.GetAllDocumentsAsync(ct);
+        return Ok(docs);
+    }
+
+    /// <summary>获取指定文档的所有当前 chunk 内容（用于答案来源校验）。</summary>
+    [HttpGet("{documentName}/chunks")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetChunks(string documentName, CancellationToken ct)
+    {
+        var chunks = await vectorStore.GetCurrentChunksByDocumentNameAsync(documentName, ct);
+        if (chunks.Count == 0) return NotFound(new { error = $"No chunks found for '{documentName}'." });
+
+        return Ok(chunks.Select(c => new
+        {
+            c.ChunkIndex,
+            c.Content,
+            documentType = c.DocumentType.ToString()
+        }));
+    }
+
+    /// <summary>摄取纯文本文档：分块 → Embedding → 去重 → 存储。</summary>
     [HttpPost]
     [ProducesResponseType(typeof(IngestResult), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
