@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [02-ingest-flow.en.md](02-ingest-flow.en.md)
+
 # 02 — Ingest 数据流
 
 > 一个文档（文本或文件）如何进入 VedaAide 知识库的完整过程。

@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [01-system-architecture.en.md](01-system-architecture.en.md)
+
 # 01 — 系统整体架构
 
 > 本文描述 VedaAide 的整体架构：代码分层、模块职责、以及 Azure 云基础设施。
@@ -88,60 +92,59 @@ end note
 @startuml runtime-overview
 skinparam backgroundColor #FAFAFA
 skinparam defaultFontSize 12
+skinparam componentStyle rectangle
 
 title VedaAide — 运行时请求路径总览
 
-actor 用户/外部LLM as Client
+actor "用户/外部LLM" as Client
 
-rectangle "Veda.Api" #E8F4FD {
-  [REST Controller]
-  [GraphQL Query]
-  [SSE Stream]
+package "Veda.Api" #E8F4FD {
+  component "REST Controller" as REST
+  component "GraphQL Query" as GQL
+  component "SSE Stream" as SSE
 }
 
-rectangle "Veda.MCP" #FFF3CD {
-  [MCP Tools\n(HTTP/SSE)]
+package "Veda.MCP" #FFF3CD {
+  component "MCP Tools\n(HTTP/SSE)" as MCPTools
 }
 
-rectangle "Veda.Agents" #FFF3CD {
-  [IRCoT Agent Loop]
+package "Veda.Agents" #FFF3CD {
+  component "IRCoT Agent Loop" as AgentLoop
 }
 
-rectangle "Veda.Services" #E8F8E8 {
-  [DocumentIngestService]
-  [QueryService]
+package "Veda.Services" #E8F8E8 {
+  component "DocumentIngestService" as IngestSvc
+  component "QueryService" as QuerySvc
 }
 
-rectangle "AI 外部服务" #F0F0F0 {
-  [Azure OpenAI\nor Ollama\n(Embedding + Chat)]
-  [Azure Document Intelligence\n(PDF/图片 OCR)]
+package "AI 外部服务" #F0F0F0 {
+  component "Azure OpenAI / Ollama\n(Embedding + Chat)" as AI
+  component "Azure Document Intelligence\n(PDF/图片 OCR)" as DI
 }
 
-rectangle "Veda.Storage" #F8E8FF {
-  database "SQLite\n(本地开发)" as SQLite
-  database "CosmosDB\n(生产)" as CosmosDB
-}
+database "SQLite\n(本地开发)" as SQLite
+database "CosmosDB\n(生产)" as CosmosDB
 
-Client --> [REST Controller] : POST /api/documents\nPOST /api/query
-Client --> [MCP Tools] : MCP Protocol
-Client --> [GraphQL Query] : POST /graphql
+Client --> REST : POST /api/documents\nPOST /api/query
+Client --> MCPTools : MCP Protocol
+Client --> GQL : POST /graphql
 
-[REST Controller]  --> [DocumentIngestService]
-[REST Controller]  --> [QueryService]
-[MCP Tools]        --> [DocumentIngestService]
-[MCP Tools]        --> [QueryService]
-[GraphQL Query]    --> [QueryService]
-[SSE Stream]       --> [QueryService]
-[IRCoT Agent Loop] --> [QueryService]
+REST  --> IngestSvc
+REST  --> QuerySvc
+MCPTools --> IngestSvc
+MCPTools --> QuerySvc
+GQL   --> QuerySvc
+SSE   --> QuerySvc
+AgentLoop --> QuerySvc
 
-[DocumentIngestService] --> [Azure OpenAI\nor Ollama\n(Embedding + Chat)] : 生成 Embedding
-[DocumentIngestService] --> [Azure Document Intelligence\n(PDF/图片 OCR)] : 提取文本
-[DocumentIngestService] --> SQLite
-[DocumentIngestService] --> CosmosDB
+IngestSvc --> AI : 生成 Embedding
+IngestSvc --> DI : 提取文本
+IngestSvc --> SQLite
+IngestSvc --> CosmosDB
 
-[QueryService] --> [Azure OpenAI\nor Ollama\n(Embedding + Chat)] : Embedding + Chat
-[QueryService] --> SQLite
-[QueryService] --> CosmosDB
+QuerySvc --> AI : Embedding + Chat
+QuerySvc --> SQLite
+QuerySvc --> CosmosDB
 
 @enduml
 ```

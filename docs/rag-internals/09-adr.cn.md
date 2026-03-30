@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [09-adr.en.md](09-adr.en.md)
+
 # 09 — 架构决策记录（ADR）
 
 > 记录 VedaAide 系统中关键技术决策的背景、备选方案、最终选择和权衡理由。  

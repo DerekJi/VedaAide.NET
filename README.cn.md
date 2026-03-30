@@ -120,6 +120,17 @@ VedaAide.NET/
 | [docs/tests/test-conventions.cn.md](docs/tests/test-conventions.cn.md) | 测试命名规范与编写约定 |
 | [docs/insights/README.cn.md](docs/insights/README.cn.md) | 工程洞察索引 |
 | [cloudflare/README.md](cloudflare/README.md) | Cloudflare Tunnel 配置指南 |
+| **RAG 内部机制（PlantUML 架构图）** | |
+| [docs/rag-internals/PLAN.cn.md](docs/rag-internals/PLAN.cn.md) | RAG 内部文档索引 |
+| [docs/rag-internals/01-system-architecture.cn.md](docs/rag-internals/01-system-architecture.cn.md) | 系统架构：6 个项目分层 + Azure 基础设施（PlantUML） |
+| [docs/rag-internals/02-ingest-flow.cn.md](docs/rag-internals/02-ingest-flow.cn.md) | Ingest 流程：分块、Embedding、去重、版本化（PlantUML） |
+| [docs/rag-internals/03-query-flow.cn.md](docs/rag-internals/03-query-flow.cn.md) | Query 流程：混合检索、Rerank、CoT、防幻觉（PlantUML） |
+| [docs/rag-internals/04-storage-retrieval.cn.md](docs/rag-internals/04-storage-retrieval.cn.md) | 存储层：SQLite vs CosmosDB、向量检索、语义缓存（PlantUML） |
+| [docs/rag-internals/05-concept-code-map.cn.md](docs/rag-internals/05-concept-code-map.cn.md) | RAG 概念↔代码对照表（30 个标准术语） |
+| [docs/rag-internals/06-module-dependencies.cn.md](docs/rag-internals/06-module-dependencies.cn.md) | 模块依赖拓扑 + DI 注册（PlantUML） |
+| [docs/rag-internals/07-data-model-er.cn.md](docs/rag-internals/07-data-model-er.cn.md) | 数据模型 ER 图：所有实体与关系（PlantUML） |
+| [docs/rag-internals/08-azure-deployment.cn.md](docs/rag-internals/08-azure-deployment.cn.md) | Azure 部署：Container Apps、CosmosDB、CI/CD（PlantUML） |
+| [docs/rag-internals/09-adr.cn.md](docs/rag-internals/09-adr.cn.md) | 架构决策记录：7 条关键决策 |
 
 > 所有文档均维护中英文两个版本：`.cn.md`（中文）和 `.en.md`（英文）。
 

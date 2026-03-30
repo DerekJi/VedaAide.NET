@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [03-query-flow.en.md](03-query-flow.en.md)
+
 # 03 — Query 数据流
 
 > 用户提问后，VedaAide 如何检索知识库、生成回答，并验证回答质量。
