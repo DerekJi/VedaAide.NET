@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [07-data-model-er.en.md](07-data-model-er.en.md)
+
 # 07 — 数据模型 ER 图
 
 > VedaAide SQLite 数据库的完整实体关系图，以及领域模型（内存对象）与存储实体的映射关系。

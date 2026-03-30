@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [06-module-dependencies.en.md](06-module-dependencies.en.md)
+
 # 06 — 模块依赖拓扑
 
 > VedaAide 各 C# 项目之间的依赖关系，以及 SOLID 原则在项目边界上的体现。

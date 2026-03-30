@@ -118,6 +118,17 @@ VedaAide.NET/
 | [docs/tests/test-conventions.en.md](docs/tests/test-conventions.en.md) | Test naming conventions and coding standards |
 | [docs/insights/README.en.md](docs/insights/README.en.md) | Engineering insights index |
 | [cloudflare/README.md](cloudflare/README.md) | Cloudflare Tunnel setup guide |
+| **RAG Internals (PlantUML diagrams)** | |
+| [docs/rag-internals/PLAN.en.md](docs/rag-internals/PLAN.en.md) | RAG internals document index |
+| [docs/rag-internals/01-system-architecture.en.md](docs/rag-internals/01-system-architecture.en.md) | System architecture: 6-project layering + Azure infra (PlantUML) |
+| [docs/rag-internals/02-ingest-flow.en.md](docs/rag-internals/02-ingest-flow.en.md) | Ingest pipeline: chunking, embedding, dedup, versioning (PlantUML) |
+| [docs/rag-internals/03-query-flow.en.md](docs/rag-internals/03-query-flow.en.md) | Query pipeline: hybrid retrieval, rerank, CoT, hallucination guard (PlantUML) |
+| [docs/rag-internals/04-storage-retrieval.en.md](docs/rag-internals/04-storage-retrieval.en.md) | Storage layer: SQLite vs CosmosDB, vector search, semantic cache (PlantUML) |
+| [docs/rag-internals/05-concept-code-map.en.md](docs/rag-internals/05-concept-code-map.en.md) | RAG concept ↔ code mapping table (30 standard terms) |
+| [docs/rag-internals/06-module-dependencies.en.md](docs/rag-internals/06-module-dependencies.en.md) | Module dependency topology + DI registration (PlantUML) |
+| [docs/rag-internals/07-data-model-er.en.md](docs/rag-internals/07-data-model-er.en.md) | Data model ER diagram: all entities and relationships (PlantUML) |
+| [docs/rag-internals/08-azure-deployment.en.md](docs/rag-internals/08-azure-deployment.en.md) | Azure deployment: Container Apps, CosmosDB, CI/CD (PlantUML) |
+| [docs/rag-internals/09-adr.en.md](docs/rag-internals/09-adr.en.md) | Architecture Decision Records: 7 key decisions |
 
 > All docs are maintained in two languages: `.cn.md` (Chinese) and `.en.md` (English).
 

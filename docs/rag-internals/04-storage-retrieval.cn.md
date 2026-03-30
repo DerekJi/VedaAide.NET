@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [04-storage-retrieval.en.md](04-storage-retrieval.en.md)
+
 # 04 — 存储层与向量检索
 
 > 覆盖两套向量存储实现（SQLite / CosmosDB）、余弦相似度计算原理、关键词检索，以及语义缓存机制。

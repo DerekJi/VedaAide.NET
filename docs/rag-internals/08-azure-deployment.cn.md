@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [08-azure-deployment.en.md](08-azure-deployment.en.md)
+
 # 08 — Azure 部署架构
 
 > VedaAide 在 Azure 上的基础设施布局，以及本地开发环境与云端的对应关系。

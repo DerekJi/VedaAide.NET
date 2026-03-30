@@ -1,3 +1,7 @@
+> **查看图表说明：** 浏览器安装 [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) 扩展；VS Code 安装 [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) 插件。
+
+> English version: [05-concept-code-map.en.md](05-concept-code-map.en.md)
+
 # 05 — RAG 概念与代码对照表
 
 > 把 RAG 技术体系中常见的概念，逐一映射到 VedaAide 的具体实现位置。  
