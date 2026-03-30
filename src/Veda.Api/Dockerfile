@@ -3,10 +3,10 @@
 # ──────────────────────────────────────────────────────────────
 # Stage 1: build Angular frontend
 # ──────────────────────────────────────────────────────────────
-FROM node:22-alpine AS web-build
+FROM node:24-alpine AS web-build
 WORKDIR /web
 COPY src/Veda.Web/package*.json ./
-RUN npm install -g npm@11 && npm ci
+RUN npm ci
 COPY src/Veda.Web/ ./
 RUN npm run build -- --configuration production
 
