@@ -80,6 +80,7 @@ public class DocumentIngestServiceTests
             vedaOptions,
             _docIntelExtractor,
             _visionExtractor,
+            new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object),
             _logger.Object);
     }
 
@@ -225,7 +226,8 @@ public class DocumentIngestServiceTests
         semanticCache.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
             _vectorStore.Object, semanticCache.Object, _semanticEnhancer.Object, _documentDiffService.Object,
-            options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
+            options, vedaOptions, _docIntelExtractor, _visionExtractor,
+            new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object), _logger.Object);
 
         // Act
         var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);
@@ -259,7 +261,8 @@ public class DocumentIngestServiceTests
         semanticCache2.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
             _vectorStore.Object, semanticCache2.Object, _semanticEnhancer.Object, _documentDiffService.Object,
-            options, vedaOptions, _docIntelExtractor, _visionExtractor, _logger.Object);
+            options, vedaOptions, _docIntelExtractor, _visionExtractor,
+            new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object), _logger.Object);
 
         // Act
         var result = await sut.IngestAsync("content", "doc.txt", DocumentType.Other);

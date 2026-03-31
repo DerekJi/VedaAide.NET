@@ -3,6 +3,7 @@ namespace Veda.Services;
 /// <summary>
 /// 文档摄取服务（SRP：只负责摄取流程）。
 /// 依赖：IDocumentProcessor、IEmbeddingService、IVectorStore、IFileExtractor（两个实现）。
+/// 文字层 PDF 直通提取：PdfTextLayerExtractor 优先，扫描件降级到 Azure DI。
 /// Azure DI 配额超限时自动降级到 Vision 模型（QuotaExceededException fallback）。
 /// </summary>
 public sealed class DocumentIngestService(
@@ -16,6 +17,7 @@ public sealed class DocumentIngestService(
     IOptions<VedaOptions> vedaOptions,
     DocumentIntelligenceFileExtractor docIntelExtractor,
     VisionModelFileExtractor visionExtractor,
+    PdfTextLayerExtractor pdfTextLayerExtractor,
     ILogger<DocumentIngestService> logger) : IDocumentIngestor
 {
     private const int LogSnippetLength = 50;
@@ -117,6 +119,27 @@ public sealed class DocumentIngestService(
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(mimeType);
 
+        // 缓冲 fileStream：允许 Azure DI 配额超限时将同一流交给 Vision 降级处理
+        using var buffered = new MemoryStream();
+        await fileStream.CopyToAsync(buffered, ct);
+        buffered.Position = 0;
+
+        string extractedText;
+
+        // PDF 文字层直通：纯文字 PDF 跳过 OCR 管线
+        if (mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            var textLayerResult = pdfTextLayerExtractor.TryExtract(buffered, fileName);
+            if (textLayerResult is not null)
+                return await IngestAsync(textLayerResult, fileName, documentType, ct);
+
+            // 打印件（文字层为空）：重置流并降级到 Azure DI
+            logger.LogInformation(
+                "PdfTextLayerExtractor: '{Name}' is a scanned PDF, falling back to Document Intelligence",
+                fileName);
+            buffered.Position = 0;
+        }
+
         // 路由：RichMedia → Vision 模型；其余 → Document Intelligence
         IFileExtractor extractor = documentType == DocumentType.RichMedia
             ? visionExtractor
@@ -126,12 +149,6 @@ public sealed class DocumentIngestService(
             "File ingestion '{Name}' ({MimeType}) as {Type} via {Extractor}",
             fileName, mimeType, documentType, extractor.GetType().Name);
 
-        // 缓冲 fileStream：允许 Azure DI 配额超限时将同一流交给 Vision 降级处理
-        using var buffered = new MemoryStream();
-        await fileStream.CopyToAsync(buffered, ct);
-        buffered.Position = 0;
-
-        string extractedText;
         try
         {
             extractedText = await extractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);

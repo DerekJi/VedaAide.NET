@@ -94,7 +94,11 @@ else
     // No Entra ID config: register no-op auth so UseAuthentication() doesn't throw.
     builder.Services.AddAuthentication().AddJwtBearer();
 }
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // AdminOnly: JWT roles claim 中包含 "Admin"（通过 Entra ID App Roles 分配）
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
 
 // ── Health Checks ─────────────────────────────────────────────────────────────
 var healthChecks = builder.Services.AddHealthChecks();

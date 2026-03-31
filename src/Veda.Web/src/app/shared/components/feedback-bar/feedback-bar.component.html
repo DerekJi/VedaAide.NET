@@ -1,17 +1,17 @@
 <div class="feedback-bar">
-  <span class="feedback-label">这个回答有帮助吗？</span>
+  <span class="feedback-label">{{ labels[lang].feedbackQuestion }}</span>
   <button
     class="btn-vote btn-up"
     [class.selected]="given === 'up'"
     [disabled]="given !== null"
     (click)="vote('up')"
-    title="有用"
-  >👍 有用</button>
+    [title]="labels[lang].helpful"
+  >{{ labels[lang].helpful }}</button>
   <button
     class="btn-vote btn-down"
     [class.selected]="given === 'down'"
     [disabled]="given !== null"
     (click)="vote('down')"
-    title="没帮助"
-  >👎 没帮助</button>
+    [title]="labels[lang].notHelpful"
+  >{{ labels[lang].notHelpful }}</button>
 </div>

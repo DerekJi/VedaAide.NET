@@ -80,6 +80,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AzureDiQuotaState>();  // 跨请求持久化配额超限状态
         services.AddScoped<DocumentIntelligenceFileExtractor>();
         services.AddScoped<VisionModelFileExtractor>();
+        services.AddScoped<PdfTextLayerExtractor>();
 
         // 混合检索（双通道 RRF 融合）
         services.AddScoped<IHybridRetriever, HybridRetriever>();

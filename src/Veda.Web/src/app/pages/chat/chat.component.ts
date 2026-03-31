@@ -4,6 +4,7 @@ import { ChatStreamService } from '../../services/chat-stream.service';
 import { FeedbackService } from '../../services/feedback.service';
 import { RagStreamChunk, SourceReference } from '../../shared/models';
 import { FeedbackBarComponent } from '../../shared/components/feedback-bar/feedback-bar.component';
+import { CHAT_LABELS, ChatLang, detectChatLang } from '../../shared/chat-labels';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -14,6 +15,7 @@ interface Message {
   isHallucination?: boolean;
   expandedSources: Set<number>;
   query?: string;        // the question that produced this assistant answer
+  lang?: ChatLang;       // detected language of the answer
 }
 
 @Component({
@@ -83,6 +85,7 @@ export class ChatComponent implements OnInit, OnDestroy {
           assistant.streaming   = false;
           assistant.confidence  = chunk.answerConfidence;
           assistant.isHallucination = chunk.isHallucination;
+          assistant.lang        = detectChatLang(assistant.text);
         }
         this.messages.update(m => [...m]);
       },
@@ -132,6 +135,10 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   getChunkIds(msg: Message): string[] {
     return (msg.sources ?? []).map(s => s.chunkId).filter((id): id is string => !!id);
+  }
+
+  labelsFor(msg: Message) {
+    return CHAT_LABELS[msg.lang ?? 'zh'];
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
