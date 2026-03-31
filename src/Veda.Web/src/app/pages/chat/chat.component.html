@@ -24,20 +24,8 @@
               @if (msg.sourcesExpanded) {
               @for (src of msg.sources; track $index) {
                 <div class="source-item">
-                  <button
-                    class="source-toggle"
-                    (click)="toggleSource(msg, $index)"
-                    [attr.aria-expanded]="isSourceExpanded(msg, $index)"
-                  >
-                    <span class="toggle-icon">{{ isSourceExpanded(msg, $index) ? '▼' : '▶' }}</span>
-                    <span class="source-name">{{ src.documentName }}</span>
-                    <span class="source-sim">{{ (src.similarity * 100).toFixed(0) }}%</span>
-                  </button>
-                  @if (isSourceExpanded(msg, $index)) {
-                    <p class="source-snippet expanded">{{ src.chunkContent }}</p>
-                  } @else {
-                    <p class="source-snippet">{{ src.chunkContent }}</p>
-                  }
+                  <span class="source-name">{{ src.documentName }}</span>
+                  <span class="source-sim">{{ (src.similarity * 100).toFixed(0) }}%</span>
                 </div>
               }
               }

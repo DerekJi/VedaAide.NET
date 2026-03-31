@@ -124,7 +124,7 @@ internal sealed class CosmosSearchResult
     [JsonPropertyName("createdAtTicks")]
     public long CreatedAtTicks { get; set; }
 
-    /// <summary>VectorDistance 返回的余弦距离（越小越相似，0 = 完全相同）</summary>
+    /// <summary>VectorDistance 返回的余弦相似度（[-1,1]，越大越相似）</summary>
     [JsonPropertyName("distance")]
     public double Distance { get; set; }
 

@@ -26,7 +26,7 @@ public class DocumentsController(
         var scope = currentUser.UserId is not null
             ? new KnowledgeScope(OwnerId: currentUser.UserId)
             : null;
-        var docs = await vectorStore.GetAllDocumentsAsync(scope, ct);
+        var docs = await vectorStore.GetAllDocumentsAsync(scope: scope, ct: ct);
         return Ok(docs);
     }
 

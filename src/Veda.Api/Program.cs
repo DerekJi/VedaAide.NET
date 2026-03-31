@@ -88,9 +88,22 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
                 ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"
                 : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/";
             options.Audience  = entraAudience;
+            // Disable claim type remapping so CIAM claims (oid, sub, name, roles)
+            // are preserved verbatim from the JWT rather than being mapped to
+            // the long System.Security.Claims URI form.
+            options.MapInboundClaims = false;
             options.TokenValidationParameters.ValidateIssuer = false;
             options.TokenValidationParameters.ValidateIssuerSigningKey = true;
             options.TokenValidationParameters.NameClaimType = "name";
+            // Accept both bare ClientId and api://ClientId audience formats,
+            // since CIAM access tokens carry the plain GUID as 'aud'.
+            options.TokenValidationParameters.ValidAudiences =
+            [
+                entraAudience,
+                $"api://{entraAudience}",
+                entraClientId!,
+                $"api://{entraClientId}"
+            ];
         });
 }
 else
@@ -100,8 +113,17 @@ else
 }
 builder.Services.AddAuthorization(options =>
 {
-    // AdminOnly: JWT roles claim 中包含 "Admin"（通过 Entra ID App Roles 分配）
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    // AdminOnly: JWT roles claim 包含 "Admin"（Entra ID App Roles），
+    // 或 oid/sub claim 在 AzureAd:AdminOids 白名单中（适合 CIAM token 无 roles claim 的场景）。
+    var adminOids = cfg.GetSection("AzureAd:AdminOids").Get<string[]>() ?? [];
+    options.AddPolicy("AdminOnly", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(ctx =>
+            ctx.User.IsInRole("Admin")
+            || (ctx.User.FindFirst("oid")?.Value is string oid
+                && adminOids.Contains(oid, StringComparer.OrdinalIgnoreCase))
+            || (ctx.User.FindFirst("sub")?.Value is string sub
+                && adminOids.Contains(sub, StringComparer.OrdinalIgnoreCase))));
 });
 
 // ── Health Checks ─────────────────────────────────────────────────────────────

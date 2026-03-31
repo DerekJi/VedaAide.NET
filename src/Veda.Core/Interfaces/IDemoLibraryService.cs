@@ -16,7 +16,8 @@ public interface IDemoLibraryService
     Task<IReadOnlyList<DemoDocument>> ListAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// 将指定示例文档从 Blob Storage 下载并 ingest 到知识库（scope=Public）。
+    /// 将指定示例文档从 Blob Storage 下载并 ingest 到知识库。
+    /// 提供 scope 时按用户隔离；不提供时属公共数据。
     /// </summary>
-    Task<IngestResult> IngestAsync(string blobName, CancellationToken ct = default);
+    Task<IngestResult> IngestAsync(string blobName, KnowledgeScope? scope = null, CancellationToken ct = default);
 }

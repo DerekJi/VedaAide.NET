@@ -109,7 +109,7 @@
   font-size: .78rem;
   margin-bottom: .4rem;
 
-  .source-name { font-weight: 600; }
+  .source-name { font-weight: 600; display: inline; }
   .source-sim {
     float: right;
     background: #e0e7ff;
@@ -119,40 +119,6 @@
     font-size: .7rem;
     font-weight: 600;
   }
-  .source-snippet {
-    margin-top: .25rem;
-    color: var(--color-text-muted);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-
-    &.expanded {
-      display: block;
-      -webkit-line-clamp: unset;
-      line-clamp: unset;
-      overflow: visible;
-      white-space: pre-wrap;
-    }
-  }
-}
-
-.source-toggle {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: .78rem;
-  color: var(--color-text);
-  padding: 0;
-  text-align: left;
-
-  .toggle-icon { font-size: .65rem; color: var(--color-text-muted); }
-  &:hover .source-name { color: var(--color-primary); }
 }
 
 .meta {

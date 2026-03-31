@@ -16,11 +16,11 @@
     <div class="card">
       <h2>Quick Note</h2>
       <div class="form-group">
-        <label class="form-label">记录一件事</label>
+        <label class="form-label">Write something down</label>
         <textarea
           class="form-input note-input"
           rows="3"
-          placeholder="例如：今天收到水费单，$319（Enter 保存，Shift+Enter 换行）"
+          placeholder="e.g. Received water bill today, $319 (Enter to save, Shift+Enter for new line)"
           [value]="noteText()"
           (input)="noteText.set($any($event.target).value)"
           (keydown)="onNoteKeyDown($event)"
@@ -29,7 +29,7 @@
       </div>
       <button class="btn btn-primary" (click)="saveNote()"
               [disabled]="!noteText().trim() || noteBusy()">
-        {{ noteBusy() ? '保存中…' : '📌 记住' }}
+        {{ noteBusy() ? 'Saving…' : '📌 Remember' }}
       </button>
     </div>
   }

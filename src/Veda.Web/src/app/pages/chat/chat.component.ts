@@ -13,8 +13,7 @@ interface Message {
   sources?: SourceReference[];
   confidence?: number;
   isHallucination?: boolean;
-  expandedSources: Set<number>;
-  sourcesExpanded?: boolean;  // top-level sources section collapsed by default
+  sourcesExpanded?: boolean;
   query?: string;        // the question that produced this assistant answer
   lang?: ChatLang;       // detected language of the answer
 }
@@ -62,7 +61,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     // 隐式反馈：追问 → 上一轮来源 ResultAccepted
     this.reportLastSourcesAs('ResultAccepted');
 
-    this.messages.update(m => [...m, { role: 'user', text: q, expandedSources: new Set() }]);
+    this.messages.update(m => [...m, { role: 'user', text: q }]);
     this.question.set('');
     this.busy.set(true);
     this.lastQuery = q;
@@ -71,7 +70,6 @@ export class ChatComponent implements OnInit, OnDestroy {
       role: 'assistant',
       text: '',
       streaming: true,
-      expandedSources: new Set(),
       query: q
     };
     this.messages.update(m => [...m, assistant]);
@@ -112,31 +110,6 @@ export class ChatComponent implements OnInit, OnDestroy {
   toggleSources(msg: Message): void {
     msg.sourcesExpanded = !msg.sourcesExpanded;
     this.messages.update(m => [...m]);
-  }
-
-  toggleSource(msg: Message, index: number): void {
-    if (msg.expandedSources.has(index)) {
-      msg.expandedSources.delete(index);
-    } else {
-      msg.expandedSources.add(index);
-      // 隐式反馈：展开来源 → SourceClicked
-      const src = msg.sources?.[index];
-      if (src?.chunkId) {
-        this.feedback.record({
-          userId:           'anonymous',
-          type:             'SourceClicked',
-          sessionId:        this.sessionId,
-          relatedChunkId:   src.chunkId,
-          relatedDocumentId: src.documentId ?? undefined,
-          query:            msg.query
-        });
-      }
-    }
-    this.messages.update(m => [...m]);
-  }
-
-  isSourceExpanded(msg: Message, index: number): boolean {
-    return msg.expandedSources.has(index);
   }
 
   getChunkIds(msg: Message): string[] {
