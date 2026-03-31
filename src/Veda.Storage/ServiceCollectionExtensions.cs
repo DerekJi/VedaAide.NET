@@ -84,6 +84,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserMemoryStore, UserMemoryStore>();
         services.AddScoped<IKnowledgeGovernanceService, KnowledgeGovernanceService>();
 
+        // Stage 6: Token 消耗记录
+        services.AddScoped<ITokenUsageRepository, TokenUsageRepository>();
+
         return services;
     }
 

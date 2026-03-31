@@ -33,5 +33,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/evaluation/evaluation.component').then(m => m.EvaluationComponent),
     title: 'VedaAide – Evaluation'
   },
+  {
+    path: 'usage',
+    canActivate: [MsalGuard],
+    loadComponent: () => import('./pages/usage/usage.component').then(m => m.UsageComponent),
+    title: 'VedaAide – Usage'
+  },
   { path: '**', redirectTo: 'chat' }
 ];

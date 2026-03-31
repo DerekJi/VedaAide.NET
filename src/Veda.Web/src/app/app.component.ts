@@ -42,6 +42,11 @@ import { AuthService } from './services/auth.service';
             </a>
           </li>
           }
+          <li>
+            <a routerLink="/usage" routerLinkActive="active">
+              <span class="nav-icon">🔢</span> 用量
+            </a>
+          </li>
         </ul>
         <div class="user-panel">
           @if (auth.isLoggedIn()) {
