@@ -3,6 +3,7 @@ namespace Veda.Services;
 /// <summary>
 /// 文档摄取服务（SRP：只负责摄取流程）。
 /// 依赖：IDocumentProcessor、IEmbeddingService、IVectorStore、IFileExtractor（两个实现）。
+/// Azure DI 配额超限时自动降级到 Vision 模型（QuotaExceededException fallback）。
 /// </summary>
 public sealed class DocumentIngestService(
     IDocumentProcessor processor,
@@ -125,7 +126,24 @@ public sealed class DocumentIngestService(
             "File ingestion '{Name}' ({MimeType}) as {Type} via {Extractor}",
             fileName, mimeType, documentType, extractor.GetType().Name);
 
-        var extractedText = await extractor.ExtractAsync(fileStream, fileName, mimeType, documentType, ct);
+        // 缓冲 fileStream：允许 Azure DI 配额超限时将同一流交给 Vision 降级处理
+        using var buffered = new MemoryStream();
+        await fileStream.CopyToAsync(buffered, ct);
+        buffered.Position = 0;
+
+        string extractedText;
+        try
+        {
+            extractedText = await extractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
+        }
+        catch (QuotaExceededException) when (!ReferenceEquals(extractor, visionExtractor))
+        {
+            logger.LogWarning(
+                "Azure DI quota exceeded, falling back to Vision model for '{Name}'", fileName);
+            buffered.Position = 0;
+            extractedText = await visionExtractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
+        }
+
         return await IngestAsync(extractedText, fileName, documentType, ct);
     }
 }

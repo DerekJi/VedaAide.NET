@@ -37,7 +37,8 @@ public class DocumentIngestServiceTests
         // Stub extractors with disabled options (IngestFileAsync not exercised in these tests)
         _docIntelExtractor = new DocumentIntelligenceFileExtractor(
             Options.Create(new DocumentIntelligenceOptions()),
-            new Mock<ILogger<DocumentIntelligenceFileExtractor>>().Object);
+            new Mock<ILogger<DocumentIntelligenceFileExtractor>>().Object,
+            new AzureDiQuotaState());
         _visionExtractor = new VisionModelFileExtractor(
             new Mock<IChatCompletionService>().Object,
             Options.Create(new VisionOptions { Enabled = false }),

@@ -77,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IQueryService, QueryService>();
 
         // 多模态文件提取器（文件上传管线）
+        services.AddSingleton<AzureDiQuotaState>();  // 跨请求持久化配额超限状态
         services.AddScoped<DocumentIntelligenceFileExtractor>();
         services.AddScoped<VisionModelFileExtractor>();
 
