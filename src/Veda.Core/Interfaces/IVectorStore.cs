@@ -56,6 +56,9 @@ public interface IVectorStore
     Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(
         KnowledgeScope? scope = null,
         CancellationToken ct = default);
+
+    /// <summary>清空所有向量数据（admin 操作，不受 scope 限制）。返回被删除的 chunk 数量。</summary>
+    Task<int> ClearAllAsync(CancellationToken ct = default);
 }
 
 /// <summary>文档版本历史摘要（用于 history 端点）。</summary>

@@ -96,7 +96,9 @@ public sealed class DocumentIngestService(
         // 版本化：先标记旧版本 chunks 为已取代，再写入新 chunks。
         // 顺序必须先标记后写入：若先 UpsertBatch 再标记，则 WHERE SupersededAtTicks==0
         // 会同时命中刚写入的新 chunk，导致新 chunk 被立刻标记为已取代。
-        if (oldDocumentId is not null)
+        // 仅当有新 chunks 需要写入时才执行 supersede：若所有块均被去重跳过，
+        // 保留原有 chunks 不变，避免文档从列表中消失。
+        if (oldDocumentId is not null && deduped.Count > 0)
             await vectorStore.MarkDocumentSupersededAsync(documentName, documentId, ct);
 
         if (deduped.Count > 0)

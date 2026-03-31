@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { VedaApiService } from '../../services/veda-api.service';
 import { AdminService } from '../../services/admin.service';
@@ -24,6 +24,9 @@ export class DocumentsComponent implements OnInit {
   deletingId      = signal<string | null>(null);
   clearingAll     = signal(false);
   confirmClearAll = signal(false);
+
+  /** Set of already-ingested document names, passed to the demo panel to disable those entries. */
+  ingestedNameSet = computed(() => new Set(this.documents().map(d => d.documentName)));
 
   ngOnInit(): void {
     this.loadDocuments();

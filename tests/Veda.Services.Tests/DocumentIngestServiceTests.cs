@@ -273,6 +273,65 @@ public class DocumentIngestServiceTests
         result.ChunksStored.Should().Be(0);
     }
 
+    /// <summary>
+    /// 回归测试：重复加载相同内容的文档时，所有 chunks 被语义去重跳过，
+    /// 此时不应调用 MarkDocumentSupersededAsync，否则原有 chunks 会被标记为已取代
+    /// 但没有新 chunks 写入，导致文档从列表消失（无法查询）。
+    /// </summary>
+    [Test]
+    public async Task IngestAsync_ReIngestSameContent_AllChunksDeduped_ShouldNotSupersedePreviousVersion()
+    {
+        // Arrange: document already has an active chunk (previous version)
+        var existingChunk = new DocumentChunk
+        {
+            Id = Guid.NewGuid().ToString(),
+            DocumentId = "old-doc-id",
+            DocumentName = "doc.txt",
+            DocumentType = DocumentType.Other,
+            Content = "same content",
+            ChunkIndex = 0
+        };
+        _vectorStore
+            .Setup(v => v.GetCurrentChunksByDocumentNameAsync("doc.txt", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existingChunk]);
+
+        var newChunk = MakeChunk("same content");
+        _processor
+            .Setup(p => p.Process(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<string>()))
+            .Returns([newChunk]);
+        _embedding
+            .Setup(e => e.GenerateEmbeddingsAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<float[]> { new float[3] });
+
+        // Semantic dedup: new chunk is near-identical to existing → skipped
+        _vectorStore
+            .Setup(v => v.SearchAsync(
+                It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
+                It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
+                It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([(existingChunk, 0.99f)]);
+
+        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
+        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
+        var semanticCache3 = new Mock<ISemanticCache>();
+        semanticCache3.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
+            _vectorStore.Object, semanticCache3.Object, _semanticEnhancer.Object, _documentDiffService.Object,
+            options, vedaOptions, _docIntelExtractor, _visionExtractor,
+            new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object), _logger.Object);
+
+        // Act
+        var result = await sut.IngestAsync("same content", "doc.txt", DocumentType.Other);
+
+        // Assert: MarkDocumentSupersededAsync must NOT be called — the old chunks must remain active.
+        // Previously this was a bug: supersede was called unconditionally, wiping the document from the list.
+        _vectorStore.Verify(v => v.MarkDocumentSupersededAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _vectorStore.Verify(v => v.UpsertBatchAsync(
+            It.IsAny<IEnumerable<DocumentChunk>>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.ChunksStored.Should().Be(0);
+    }
+
     private static DocumentChunk MakeChunk(string content) => new()
     {
         Id = Guid.NewGuid().ToString(),

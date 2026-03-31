@@ -93,7 +93,7 @@ public sealed class AdminController(
         if (!string.Equals(confirm, "yes", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { error = "Include 'X-Confirm: yes' header to confirm deletion." });
 
-        var deletedChunks = await db.VectorChunks.ExecuteDeleteAsync(ct);
+        var deletedChunks = await vectorStore.ClearAllAsync(ct);
         var deletedFiles  = await db.SyncedFiles.ExecuteDeleteAsync(ct);
 
         logger.LogWarning("Admin: cleared {Chunks} chunks and {Files} sync records", deletedChunks, deletedFiles);
@@ -119,13 +119,8 @@ public sealed class AdminController(
     /// <summary>删除指定文档的所有 chunks。</summary>
     [HttpDelete("documents/{documentId}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteDocument(string documentId, CancellationToken ct)
     {
-        var exists = await db.VectorChunks.AnyAsync(c => c.DocumentId == documentId, ct);
-        if (!exists)
-            return NotFound(new { error = $"Document '{documentId}' not found." });
-
         await vectorStore.DeleteByDocumentAsync(documentId, ct);
         logger.LogInformation("Admin: deleted document {DocumentId}", documentId);
 

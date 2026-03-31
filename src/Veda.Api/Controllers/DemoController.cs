@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
+using Veda.Core.Interfaces;
+
 namespace Veda.Api.Controllers;
 
 /// <summary>
@@ -7,8 +10,10 @@ namespace Veda.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/demo")]
+[Authorize]
 public sealed class DemoController(
     IDemoLibraryService        demoLibrary,
+    ICurrentUserService        currentUser,
     ILogger<DemoController>    logger) : ControllerBase
 {
     /// <summary>列出可用的示例文档。</summary>
@@ -20,7 +25,7 @@ public sealed class DemoController(
         return Ok(docs);
     }
 
-    /// <summary>将指定示例文档 ingest 到公共知识库。</summary>
+    /// <summary>将指定示例文档 ingest 到当前用户的知识库（携带 OwnerId scope）。</summary>
     [HttpPost("documents/{name}/ingest")]
     [ProducesResponseType(typeof(IngestResult), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -30,10 +35,15 @@ public sealed class DemoController(
         if (string.IsNullOrWhiteSpace(name))
             return BadRequest(new { error = "Document name is required." });
 
+        var scope = currentUser.UserId is not null
+            ? new KnowledgeScope(OwnerId: currentUser.UserId)
+            : null;
+
         try
         {
-            var result = await demoLibrary.IngestAsync(name, ct);
-            logger.LogInformation("Demo ingest: '{Name}' → {Count} chunks", name, result.ChunksStored);
+            var result = await demoLibrary.IngestAsync(name, scope, ct);
+            logger.LogInformation("Demo ingest: '{Name}' → {Count} chunks (owner={Owner})",
+                name, result.ChunksStored, currentUser.UserId);
             return StatusCode(StatusCodes.Status201Created, result);
         }
         catch (InvalidOperationException ex)
