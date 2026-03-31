@@ -104,13 +104,13 @@ public class OrchestrationServiceTests
     public async Task RunIngestFlowAsync_ValidContent_ShouldCallDocumentIngestor()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("doc-1", "file.txt", 5));
 
         var result = await _sut.RunIngestFlowAsync("content", "file.txt");
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            "content", "file.txt", It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()), Times.Once);
+            "content", "file.txt", It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
         result.Answer.Should().Contain("5");
         result.Answer.Should().Contain("file.txt");
     }
@@ -119,7 +119,7 @@ public class OrchestrationServiceTests
     public async Task RunIngestFlowAsync_InvoiceFileName_ShouldInferBillInvoiceType()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("d", "invoice_2025.txt", 1));
 
         await _sut.RunIngestFlowAsync("content", "invoice_2025.txt");
@@ -127,14 +127,14 @@ public class OrchestrationServiceTests
         _documentIngestor.Verify(d => d.IngestAsync(
             It.IsAny<string>(), It.IsAny<string>(),
             DocumentType.BillInvoice,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
     public async Task RunIngestFlowAsync_SpecFileName_ShouldInferSpecificationType()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("d", "spec.md", 3));
 
         await _sut.RunIngestFlowAsync("content", "spec.md");
@@ -142,14 +142,14 @@ public class OrchestrationServiceTests
         _documentIngestor.Verify(d => d.IngestAsync(
             It.IsAny<string>(), It.IsAny<string>(),
             DocumentType.Specification,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
     public async Task RunIngestFlowAsync_UnknownFileName_ShouldInferOtherType()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("d", "notes.txt", 2));
 
         await _sut.RunIngestFlowAsync("content", "notes.txt");
@@ -157,6 +157,6 @@ public class OrchestrationServiceTests
         _documentIngestor.Verify(d => d.IngestAsync(
             It.IsAny<string>(), It.IsAny<string>(),
             DocumentType.Other,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

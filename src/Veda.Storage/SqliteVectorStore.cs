@@ -241,10 +241,21 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         )).ToList();
     }
 
-    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(
+        KnowledgeScope? scope = null,
+        CancellationToken ct = default)
     {
-        var groups = await db.VectorChunks.AsNoTracking()
-            .Where(x => x.SupersededAtTicks == 0)
+        var query = db.VectorChunks.AsNoTracking()
+            .Where(x => x.SupersededAtTicks == 0);
+
+        // Filter by OwnerId when scope is provided — prevents cross-user document leakage.
+        if (scope?.OwnerId is not null)
+        {
+            var ownerTag = $"\"_scope_ownerId\":\"{scope.OwnerId}\"";
+            query = query.Where(x => x.MetadataJson.Contains(ownerTag));
+        }
+
+        var groups = await query
             .GroupBy(x => new { x.DocumentId, x.DocumentName, x.DocumentType })
             .Select(g => new
             {

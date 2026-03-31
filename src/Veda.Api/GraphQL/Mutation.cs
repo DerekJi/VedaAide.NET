@@ -18,6 +18,6 @@ public sealed class Mutation
         CancellationToken ct = default)
     {
         var docType = DocumentTypeParser.ParseOrDefault(documentType);
-        return await ingestor.IngestAsync(content, documentName, docType, ct);
+        return await ingestor.IngestAsync(content, documentName, docType, ct: ct);
     }
 }

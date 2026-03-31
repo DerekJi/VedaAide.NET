@@ -54,7 +54,7 @@ public sealed class OrchestrationService(
         var docType = InferDocumentType(documentName);
         trace.Add($"DocumentAgent: inferred type = {docType}");
 
-        var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
+        var result = await documentIngestor.IngestAsync(content, documentName, docType, ct: ct);
         trace.Add($"DocumentAgent: stored {result.ChunksStored} chunks (documentId={result.DocumentId})");
 
         return new OrchestrationResult

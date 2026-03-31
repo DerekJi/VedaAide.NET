@@ -81,20 +81,16 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
-            // For CIAM tokens, the 'iss' claim uses tenantId UUID, not the domain alias.
-            // Setting Authority to tenantId-based URL ensures the correct OIDC metadata is loaded.
-            options.Authority = $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/";
+            // For CIAM, the OIDC metadata is served under the domain-based URL.
+            // The token 'iss' claim uses tenantId format, so we disable issuer
+            // validation and rely on audience + signing key validation instead.
+            options.Authority = !string.IsNullOrWhiteSpace(entraDomain)
+                ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"
+                : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/";
             options.Audience  = entraAudience;
+            options.TokenValidationParameters.ValidateIssuer = false;
             options.TokenValidationParameters.ValidateIssuerSigningKey = true;
             options.TokenValidationParameters.NameClaimType = "name";
-            // Accept both tenantId-based and domain-based issuers to handle CIAM token variations.
-            options.TokenValidationParameters.ValidIssuers =
-            [
-                $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0",
-                $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/",
-                $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0",
-                $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/",
-            ];
         });
 }
 else

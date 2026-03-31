@@ -72,12 +72,12 @@ public sealed class DemoLibraryService(
         {
             var response = await blobClient.DownloadContentAsync(ct);
             var content  = response.Value.Content.ToString();
-            return await documentIngestor.IngestAsync(content, blobName, DocumentType.Other, ct);
+            return await documentIngestor.IngestAsync(content, blobName, DocumentType.Other, ct: ct);
         }
         else
         {
             var response = await blobClient.OpenReadAsync(cancellationToken: ct);
-            return await documentIngestor.IngestFileAsync(response, blobName, mimeType, DocumentType.Other, ct);
+            return await documentIngestor.IngestFileAsync(response, blobName, mimeType, DocumentType.Other, ct: ct);
         }
     }
 

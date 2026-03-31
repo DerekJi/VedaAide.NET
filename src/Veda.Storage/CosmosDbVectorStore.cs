@@ -351,11 +351,23 @@ public sealed class CosmosDbVectorStore : IVectorStore
             .ToList();
     }
 
-    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(
+        KnowledgeScope? scope = null,
+        CancellationToken ct = default)
     {
-        // 仅查询 documentId/documentName/documentType，不加载 content 和 embedding
-        var queryDef = new QueryDefinition(
-            "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0");
+        // Build query — filter by _scope_ownerId when scope is provided.
+        string sql;
+        QueryDefinition queryDef;
+        if (scope?.OwnerId is not null)
+        {
+            sql = "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0 AND IS_DEFINED(c.metadata._scope_ownerId) AND c.metadata._scope_ownerId = @ownerId";
+            queryDef = new QueryDefinition(sql).WithParameter("@ownerId", scope.OwnerId);
+        }
+        else
+        {
+            sql = "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0";
+            queryDef = new QueryDefinition(sql);
+        }
 
         var rows = new List<CosmosDocRow>();
         var feed = _container.GetItemQueryIterator<CosmosDocRow>(queryDef);

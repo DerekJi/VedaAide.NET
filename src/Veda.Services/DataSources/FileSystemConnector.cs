@@ -79,7 +79,7 @@ public sealed class FileSystemConnector(
 
                     using var stream = new MemoryStream(bytes);
                     var result = await documentIngestor.IngestFileAsync(
-                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct);
+                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct: ct);
 
                     await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
                     filesProcessed++;
@@ -100,7 +100,7 @@ public sealed class FileSystemConnector(
 
                     logger.LogDebug("FileSystemConnector: ingesting '{File}' as {Type}", documentName, docType);
 
-                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
+                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct: ct);
                     await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
                     filesProcessed++;
                     chunksStored += result.ChunksStored;
