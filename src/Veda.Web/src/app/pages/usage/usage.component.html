@@ -1,0 +1,81 @@
+<div class="usage-layout">
+  <h1 class="page-title">🔢 Token 用量</h1>
+
+  @if (loading()) {
+    <p class="loading">加载中…</p>
+  } @else if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else if (summary(); as s) {
+    <div class="periods">
+
+      <!-- 本月 -->
+      <section class="period-card">
+        <h2 class="period-title">
+          本月消耗
+          <span class="total-badge">{{ s.thisMonth.totalTokens | number }} tokens</span>
+        </h2>
+        @if (periodIsEmpty(s.thisMonth)) {
+          <p class="empty">本月暂无记录</p>
+        } @else {
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>模型</th>
+                <th>类型</th>
+                <th class="num">输入</th>
+                <th class="num">输出</th>
+                <th class="num">合计</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of s.thisMonth.byModel; track row.modelName + row.operationType) {
+                <tr>
+                  <td class="model-name">{{ row.modelName }}</td>
+                  <td><span class="op-badge op-{{ row.operationType.toLowerCase() }}">{{ row.operationType }}</span></td>
+                  <td class="num">{{ row.promptTokens | number }}</td>
+                  <td class="num">{{ row.completionTokens | number }}</td>
+                  <td class="num total">{{ row.totalTokens | number }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+      <!-- 历史合计 -->
+      <section class="period-card">
+        <h2 class="period-title">
+          历史累计
+          <span class="total-badge">{{ s.allTime.totalTokens | number }} tokens</span>
+        </h2>
+        @if (periodIsEmpty(s.allTime)) {
+          <p class="empty">暂无历史记录</p>
+        } @else {
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>模型</th>
+                <th>类型</th>
+                <th class="num">输入</th>
+                <th class="num">输出</th>
+                <th class="num">合计</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of s.allTime.byModel; track row.modelName + row.operationType) {
+                <tr>
+                  <td class="model-name">{{ row.modelName }}</td>
+                  <td><span class="op-badge op-{{ row.operationType.toLowerCase() }}">{{ row.operationType }}</span></td>
+                  <td class="num">{{ row.promptTokens | number }}</td>
+                  <td class="num">{{ row.completionTokens | number }}</td>
+                  <td class="num total">{{ row.totalTokens | number }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+    </div>
+  }
+</div>

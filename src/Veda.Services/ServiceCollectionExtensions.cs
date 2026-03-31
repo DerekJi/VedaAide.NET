@@ -4,6 +4,7 @@ using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace Veda.Services;
 
@@ -64,8 +65,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDocumentProcessor, TextDocumentProcessor>();
 
         // DIP 适配器：将 SK 的 IChatCompletionService 包装为领域接口 IChatService
-        services.AddScoped<IChatService, OllamaChatService>();
-
+        // optional ITokenUsageRepository + ICurrentUserService 由 DI 自动注入
+        services.AddScoped<IChatService>(sp =>
+            new OllamaChatService(
+                sp.GetRequiredService<IChatCompletionService>(),
+                sp.GetService<ITokenUsageRepository>(),
+                sp.GetService<ICurrentUserService>()));
         // LLM Router: 根据 QueryMode 分发到 simple / advanced 服务
         services.AddScoped<ILlmRouter, LlmRouterService>();
 

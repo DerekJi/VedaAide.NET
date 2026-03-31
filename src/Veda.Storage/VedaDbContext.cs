@@ -14,6 +14,7 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
     public DbSet<SharingGroupEntity> SharingGroups => Set<SharingGroupEntity>();
     public DbSet<DocumentPermissionEntity> DocumentPermissions => Set<DocumentPermissionEntity>();
     public DbSet<ConsensusCandidateEntity> ConsensusCandidates => Set<ConsensusCandidateEntity>();
+    public DbSet<TokenUsageEntity> TokenUsages => Set<TokenUsageEntity>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -92,6 +93,14 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.IsApproved);
+        });
+
+        mb.Entity<TokenUsageEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.CreatedAtUtc);
+            e.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
         });
     }
 }
