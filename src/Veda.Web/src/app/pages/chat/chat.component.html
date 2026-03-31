@@ -17,7 +17,11 @@
 
           @if (msg.sources && msg.sources.length > 0) {
             <div class="sources">
-              <p class="sources-label">{{ labelsFor(msg).sources(msg.sources.length) }}</p>
+              <button class="sources-header" (click)="toggleSources(msg)" [attr.aria-expanded]="msg.sourcesExpanded ?? false">
+                <span>{{ labelsFor(msg).sources(msg.sources.length) }}</span>
+                <span class="sources-chevron">{{ (msg.sourcesExpanded) ? '▲' : '▼' }}</span>
+              </button>
+              @if (msg.sourcesExpanded) {
               @for (src of msg.sources; track $index) {
                 <div class="source-item">
                   <button
@@ -35,6 +39,7 @@
                     <p class="source-snippet">{{ src.chunkContent }}</p>
                   }
                 </div>
+              }
               }
             </div>
           }

@@ -14,6 +14,7 @@ interface Message {
   confidence?: number;
   isHallucination?: boolean;
   expandedSources: Set<number>;
+  sourcesExpanded?: boolean;  // top-level sources section collapsed by default
   query?: string;        // the question that produced this assistant answer
   lang?: ChatLang;       // detected language of the answer
 }
@@ -106,6 +107,11 @@ export class ChatComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.submit();
     }
+  }
+
+  toggleSources(msg: Message): void {
+    msg.sourcesExpanded = !msg.sourcesExpanded;
+    this.messages.update(m => [...m]);
   }
 
   toggleSource(msg: Message, index: number): void {
