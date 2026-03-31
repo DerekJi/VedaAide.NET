@@ -43,9 +43,12 @@ public class DocumentIntelligenceFileExtractor(
                 "Azure AI Document Intelligence is not configured. " +
                 "Set Veda:DocumentIntelligence:Endpoint in appsettings or environment variables.");
 
-        var modelId = documentType == DocumentType.BillInvoice
-            ? "prebuilt-invoice"
-            : "prebuilt-read";
+        var modelId = documentType switch
+        {
+            DocumentType.BillInvoice => "prebuilt-invoice",
+            DocumentType.Identity    => "prebuilt-idDocument",
+            _                        => "prebuilt-read",
+        };
 
         logger.LogInformation(
             "Extracting '{Name}' ({MimeType}) with Document Intelligence model '{Model}'",

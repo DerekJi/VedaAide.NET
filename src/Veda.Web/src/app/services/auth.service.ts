@@ -18,6 +18,11 @@ export class AuthService implements OnDestroy {
   readonly userName = computed(() => this._account()?.name ?? this._account()?.username ?? null);
   readonly userEmail = computed(() => this._account()?.username ?? null);
 
+  isAdmin(): boolean {
+    const roles = this._account()?.idTokenClaims?.['roles'] as string[] | undefined;
+    return roles?.includes('Admin') ?? false;
+  }
+
   constructor() {
     this.broadcast.inProgress$
       .pipe(

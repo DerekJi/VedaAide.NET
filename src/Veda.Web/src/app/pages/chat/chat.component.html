@@ -17,7 +17,7 @@
 
           @if (msg.sources && msg.sources.length > 0) {
             <div class="sources">
-              <p class="sources-label">📎 参考来源（{{ msg.sources.length }} 处）</p>
+              <p class="sources-label">{{ labelsFor(msg).sources(msg.sources.length) }}</p>
               @for (src of msg.sources; track $index) {
                 <div class="source-item">
                   <button
@@ -42,7 +42,7 @@
           @if (!msg.streaming && msg.role === 'assistant') {
             <div class="meta">
               @if (msg.isHallucination) {
-                <span class="badge badge-warn">⚠ Possible hallucination</span>
+                <span class="badge badge-warn">{{ labelsFor(msg).hallucination }}</span>
               }
               @if (msg.confidence != null) {
                 <span class="confidence">Confidence: {{ (msg.confidence * 100).toFixed(0) }}%</span>
@@ -52,6 +52,7 @@
               [sessionId]="sessionId"
               [query]="msg.query ?? ''"
               [chunkIds]="getChunkIds(msg)"
+              [lang]="msg.lang ?? 'zh'"
             />
           }
         </div>

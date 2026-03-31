@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { FeedbackService } from '../../../services/feedback.service';
+import { CHAT_LABELS, ChatLang } from '../../chat-labels';
 
 /**
  * 显式反馈条：👍 / 👎 按钮，在每条 assistant 消息末尾显示一次。
@@ -15,12 +16,15 @@ export class FeedbackBarComponent {
   @Input({ required: true }) sessionId!: string;
   @Input({ required: true }) query!: string;
   @Input() chunkIds: string[] = [];
+  @Input() lang: ChatLang = 'zh';
 
   @Output() voted = new EventEmitter<'up' | 'down'>();
 
   given: 'up' | 'down' | null = null;
 
   private readonly feedback = inject(FeedbackService);
+
+  readonly labels = CHAT_LABELS;
 
   vote(type: 'up' | 'down'): void {
     if (this.given) return;

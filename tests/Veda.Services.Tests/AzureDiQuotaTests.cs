@@ -223,6 +223,7 @@ public class DocumentIngestServiceFallbackTests
             Options.Create(new VedaOptions { EmbeddingModel = "test-model" }),
             docIntelExtractor,
             visionExtractor,
+            new PdfTextLayerExtractor(Mock.Of<ILogger<PdfTextLayerExtractor>>()),
             Mock.Of<ILogger<DocumentIngestService>>());
 
         // Act

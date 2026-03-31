@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Veda.Api.Models;
 
 namespace Veda.Api.Controllers;
 
 [ApiController]
+[Authorize(Policy = "AdminOnly")]
 [Route("api/evaluation")]
 public class EvaluationController(
     IEvalDatasetRepository datasetRepo,
