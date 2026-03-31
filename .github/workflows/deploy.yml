@@ -2,7 +2,7 @@ name: Build, Test & Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, features/stage6]
   pull_request:
     branches: [main]
 
@@ -45,7 +45,7 @@ jobs:
     name: Publish Docker Image
     needs: build-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/features/stage6') && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
@@ -94,7 +94,7 @@ jobs:
     name: Deploy to Azure Container Apps
     needs: publish-image
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/features/stage6') && github.event_name == 'push'
     environment: production
     permissions:
       id-token: write   # required for OIDC Azure login
