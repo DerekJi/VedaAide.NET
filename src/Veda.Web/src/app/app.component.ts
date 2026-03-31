@@ -11,7 +11,7 @@ import { AuthService } from './services/auth.service';
     <div class="shell">
       <nav class="sidebar">
         <div class="logo">
-          <span class="logo-icon">⚡</span>
+          <img class="logo-icon" src="logo.svg" alt="VedaAide logo" width="32" height="32">
           <span class="logo-text">VedaAide</span>
         </div>
         <ul class="nav-links">
