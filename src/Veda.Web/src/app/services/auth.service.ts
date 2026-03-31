@@ -19,8 +19,8 @@ export class AuthService implements OnDestroy {
   readonly userEmail = computed(() => this._account()?.username ?? null);
 
   isAdmin(): boolean {
-    const roles = this._account()?.idTokenClaims?.['roles'] as string[] | undefined;
-    return roles?.includes('Admin') ?? false;
+    const oid = this._account()?.idTokenClaims?.['oid'] as string | undefined;
+    return oid ? environment.adminOids.includes(oid) : false;
   }
 
   constructor() {
