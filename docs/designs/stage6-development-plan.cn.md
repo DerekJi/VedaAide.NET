@@ -51,6 +51,8 @@ RichMedia  →  VisionModelFileExtractor   (GPT-4o-mini Vision)
 | **VisionFileExtractor Prompt 优化** | P2 | 针对发票/小票/证件的结构化提取 Prompt，输出质量对齐 Azure DI |
 | **管理员角色权限隔离** | P1 | 基于 Entra ID App Roles，将 Evaluation/Prompts/Governance 限制为 Admin 角色专用 |
 | **Chat 辅助文字语言跟随** | P2 | 参考来源、幻觉警告、反馈按钮等辅助标签随回答语言动态切换 |
+| **Token 消耗统计** | P2 | 每次 Query/Ingest 实时记录各模型 token 消耗，支持本月/历史聚合查询 |
+| **参考来源折叠显示** | P2 | 参考来源区块默认折叠，点击展开，减少视觉噪音 |
 
 ---
 
@@ -79,6 +81,14 @@ RichMedia  →  VisionModelFileExtractor   (GPT-4o-mini Vision)
 │  变更：AuthService — 新增 isAdmin() 方法读取 roles claim │
 │  变更：app.component — Admin 菜单项条件显示              │
 │  变更：chat.component / feedback-bar — 辅助标签语言跟随  │
+│  变更：chat.component — 参考来源折叠/展开交互            │
+├─────────────────────────────────────────────────────────┤
+│                   Veda.Storage                          │
+│  新增：TokenUsageEntity — 每条 AI 调用的 token 记录      │
+│  新增：TokenUsageRepository — 写入/月度聚合查询          │
+├─────────────────────────────────────────────────────────┤
+│                   Veda.Api                              │
+│  新增：UsageController — GET /api/usage/summary         │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -324,6 +334,138 @@ function detectLang(text: string): Lang {
 
 ---
 
+### 3.7 Token 消耗统计（P2）
+
+#### 3.7.1 背景与目标
+
+当前系统调用 LLM（Ollama / Azure OpenAI）、Embedding 服务和 Vision 模型时，均无 token 消耗记录。用户无法了解：
+- 单次 Query/Ingest 消耗了多少 token
+- 使用了哪个模型
+- 本月/历史总计消耗量及费用估算
+
+#### 3.7.2 Token 捕获点
+
+| 调用位置 | SDK | 捕获方式 |
+|---------|-----|---------|
+| `OllamaChatService.CompleteAsync` | Semantic Kernel | `ChatMessageContent.Metadata["Usage"]` → `CompletionsUsage.PromptTokens / CompletionTokens` |
+| `VisionModelFileExtractor.ExtractAsync` | Semantic Kernel | 同上（GPT-4o-mini Vision 返回 usage） |
+| `EmbeddingService.GenerateEmbeddingAsync` | Microsoft.Extensions.AI | `GeneratedEmbeddings<T>.Usage.InputTokenCount` |
+| Azure DI `DocumentIntelligenceFileExtractor` | Azure SDK | 页数计费，非 token，记录 **页数** 而非 token |
+
+> Ollama 本地模型返回的 usage 字段可能为 null，需 null-safe 读取，graceful skip 即可。
+
+#### 3.7.3 数据存储
+
+新增 `TokenUsageEntity`（SQLite，EF Core，需 Migration）：
+
+```csharp
+public class TokenUsageEntity
+{
+    public Guid   Id              { get; set; } = Guid.NewGuid();
+    public string UserId          { get; set; } = string.Empty; // OwnerId from JWT
+    public string ModelName       { get; set; } = string.Empty; // "gpt-4o-mini" / "nomic-embed-text"
+    public string OperationType   { get; set; } = string.Empty; // "Chat" | "Embedding" | "Vision" | "Ingest"
+    public int    PromptTokens    { get; set; }
+    public int    CompletionTokens{ get; set; }
+    public int    TotalTokens     { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+}
+```
+
+#### 3.7.4 服务接口与实现
+
+`ITokenUsageRepository`（`Veda.Core.Interfaces`）：
+
+```csharp
+public interface ITokenUsageRepository
+{
+    Task RecordAsync(TokenUsageEntity record, CancellationToken ct = default);
+    Task<TokenUsageSummary> GetSummaryAsync(string userId, CancellationToken ct = default);
+}
+
+public record TokenUsageSummary(
+    TokenUsagePeriod ThisMonth,
+    TokenUsagePeriod AllTime);
+
+public record TokenUsagePeriod(
+    int TotalTokens,
+    IReadOnlyList<TokenUsageByModel> ByModel);
+
+public record TokenUsageByModel(
+    string ModelName,
+    string OperationType,
+    int PromptTokens,
+    int CompletionTokens,
+    int TotalTokens);
+```
+
+`TokenUsageRepository`（`Veda.Storage`）：使用 EF Core，`ThisMonth` 以 UTC 当月 1 日 00:00 为起点过滤。
+
+#### 3.7.5 API 端点
+
+`UsageController`（`Veda.Api`）：
+
+```
+GET /api/usage/summary
+→ { thisMonth: { totalTokens, byModel: [...] }, allTime: { ... } }
+```
+
+登录用户只能查看自己的数据（`ICurrentUserService.OwnerId` 过滤），Admin 可附加 `?userId=xxx` 查看其他用户。
+
+#### 3.7.6 前端展示
+
+- Chat 页：回答气泡底部追加轻量 token badge，如 `🔢 234 tokens (gpt-4o-mini)`，仅展示本次调用消耗
+- 新增 `UsagePage`（路由 `/usage`）：表格展示本月/历史分模型汇总，支持 Admin 查看全局数据
+- 导航菜单新增「用量」入口（普通用户可见，显示个人数据）
+
+---
+
+### 3.8 参考来源折叠显示（P2）
+
+#### 3.8.1 背景
+
+当前 Chat 页每条消息的参考来源区块默认展开，来源数量多时占据大量垂直空间，干扰阅读主答案。
+
+#### 3.8.2 方案：纯前端状态控制
+
+`Message` 接口新增字段：
+
+```typescript
+interface Message {
+  // ... 现有字段
+  sourcesExpanded?: boolean; // undefined = 默认折叠
+}
+```
+
+`ChatComponent` 新增方法：
+
+```typescript
+toggleSources(msg: Message): void {
+  msg.sourcesExpanded = !msg.sourcesExpanded;
+}
+```
+
+`chat.component.html` 改动：
+
+```html
+<!-- 来源标题行：始终可见，点击切换 -->
+<div class="sources-header" (click)="toggleSources(msg)">
+  {{ labelsFor(msg).sources(msg.sources.length) }}
+  <span class="chevron">{{ msg.sourcesExpanded ? '▲' : '▼' }}</span>
+</div>
+
+<!-- 来源内容：仅在展开时渲染 -->
+@if (msg.sourcesExpanded) {
+  <div class="sources-body">
+    @for (src of msg.sources; ...) { ... }
+  </div>
+}
+```
+
+样式：`sources-header` 加 `cursor: pointer`，`sources-body` 加淡入 CSS transition（`animation: fadeIn 0.15s ease-in`）。
+
+---
+
 ## 4. 数据模型变化
 
 | 变更 | 范围 | 说明 |
@@ -331,7 +473,8 @@ function detectLang(text: string): Lang {
 | `DocumentType.Identity` 枚举值新增 | `Veda.Core` | 影响前端上传表单的类型选项，需同步更新 API DTO |
 | `ICurrentUserService.IsAdmin` 属性新增 | `Veda.Core` | 从 JWT `roles` claim 读取，后端 Controller 可直接使用 |
 | `ChatMessage.lang` 字段新增 | `Veda.Web` | 前端模型，不持久化，仅运行时使用 |
-| 无 Schema 变更 | `Veda.Storage` | 存储层无需迁移 |
+| `ChatMessage.sourcesExpanded` 字段新增 | `Veda.Web` | 前端模型，不持久化，仅运行时使用 |
+| `TokenUsageEntity` 新表 | `Veda.Storage` | 需新增 EF Migration；字段：UserId / ModelName / OperationType / PromptTokens / CompletionTokens / CreatedAtUtc |
 
 ---
 
@@ -352,8 +495,17 @@ Week 2
 Week 3
   ├── P2 VisionModelFileExtractor Prompt 优化（BillInvoice / Identity）
   ├── P2 Chat 辅助文字语言跟随（chat-labels.ts + detectLang + 组件绑定）
+  ├── P2 参考来源折叠（sourcesExpanded 状态 + toggleSources + chevron UI）
   ├── 前端上传表单同步新增 Identity 类型选项
   └── 集成测试：发票/超市小票/护照/身份证/PDF 各场景 + 权限隔离 + 标签语言各场景验收
+
+Week 4
+  ├── P2 TokenUsageEntity + EF Migration
+  ├── P2 ITokenUsageRepository + TokenUsageRepository 实现
+  ├── P2 OllamaChatService / VisionModelFileExtractor / EmbeddingService token 捕获
+  ├── P2 UsageController GET /api/usage/summary
+  ├── P2 前端 UsagePage + 导航入口 + Chat 气泡 token badge
+  └── 端到端验收：Chat query 后 token badge 显示、/usage 页月度汇总正确
 ```
 
 ---
@@ -374,6 +526,12 @@ Week 3
 | Admin 用户访问 Evaluation/Prompts | 正常响应，菜单可见 |
 | 中文回答时辅助标签 | 参考来源、反馈按钮、幻觉警告均显示中文 |
 | 英文回答时辅助标签 | 参考来源、反馈按钮、幻觉警告均显示英文 |
+| 参考来源默认折叠 | 回答消息的参考来源区块首次渲染为折叠状态，仅显示「📎 参考来源（N 处）▼」标题行 |
+| 参考来源点击展开 | 点击标题行后来源列表展开，标题变为「▲」，再次点击折叠 |
+| Chat Query token badge | 回答气泡底部显示「🔢 xxx tokens (model-name)」，数值从服务器 usage 元数据读取 |
+| /usage 页月度汇总 | 登录用户访问 `/usage`，显示本月各模型消耗统计（有数据时非空） |
+| 历史总计 | `/api/usage/summary` 返回 `allTime.totalTokens` 随请求增多持续累加 |
+| 用量数据隔离 | 普通用户只能看见自己的数据；Admin 可查看全局 |
 
 ---
 
@@ -387,3 +545,6 @@ Week 3
 | 多实例部署 | 内存状态各实例独立，每实例第一次 429 才触发 fallback，可接受；若未来横向扩展明显，再考虑 Redis 共享状态 |
 | Entra App Role 分配 | 需在 Azure Portal 手动操作，首次配置由管理员在 Enterprise Applications 完成；无代码风险 |
 | 语言检测启发式误判 | CJK 占比阈值 20% 为经验值，极少数混合语言回答可能误判；误判仅影响辅助标签语言，不影响核心功能 |
+| SK token usage null 安全 | Ollama 本地模型 Metadata["Usage"] 可能为 null；用 `as` + null-check 处理，graceful skip 不影响主流程 |
+| TokenUsage EF Migration | 新增一张表需执行 `dotnet ef migrations add`；Docker 启动时 EnsureCreated/Migrate 会自动应用，无手动操作 |
+| 来源折叠状态丢失 | `sourcesExpanded` 仅为运行时内存状态，刷新页面后重置为折叠，符合预期设计 |
