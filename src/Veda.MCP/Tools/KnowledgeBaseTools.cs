@@ -42,7 +42,7 @@ public sealed class KnowledgeBaseTools(IEmbeddingService embeddingService, IVect
     [Description("List all documents currently stored in the VedaAide knowledge base.")]
     public async Task<string> ListDocuments(CancellationToken cancellationToken = default)
     {
-        var documents = await vectorStore.GetAllDocumentsAsync(cancellationToken);
+        var documents = await vectorStore.GetAllDocumentsAsync(ct: cancellationToken);
 
         var output = documents.Select(d => new
         {

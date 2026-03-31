@@ -20,7 +20,7 @@ public sealed class IngestTools(IDocumentIngestor documentIngestor)
         ArgumentException.ThrowIfNullOrWhiteSpace(documentName);
 
         var parsedType = DocumentTypeParser.ParseOrDefault(documentType);
-        var result = await documentIngestor.IngestAsync(content, documentName, parsedType, cancellationToken);
+        var result = await documentIngestor.IngestAsync(content, documentName, parsedType, ct: cancellationToken);
 
         return JsonSerializer.Serialize(new
         {

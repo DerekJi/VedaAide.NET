@@ -26,6 +26,7 @@ public sealed class DocumentIngestService(
         string content,
         string documentName,
         DocumentType documentType,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
@@ -59,6 +60,9 @@ public sealed class DocumentIngestService(
         foreach (var chunk in chunks)
         {
             chunk.Version = version;
+            // 写入 OwnerId scope，确保文档按用户隔离
+            if (scope?.OwnerId is not null)
+                chunk.Metadata["_scope_ownerId"] = scope.OwnerId;
             var aliasTags = await semanticEnhancer.GetAliasTagsAsync(chunk.Content, ct);
             if (aliasTags.Count > 0)
                 chunk.Metadata["aliasTags"] = string.Join(",", aliasTags);
@@ -113,6 +117,7 @@ public sealed class DocumentIngestService(
         string fileName,
         string mimeType,
         DocumentType documentType,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(fileStream);
@@ -131,7 +136,7 @@ public sealed class DocumentIngestService(
         {
             var textLayerResult = pdfTextLayerExtractor.TryExtract(buffered, fileName);
             if (textLayerResult is not null)
-                return await IngestAsync(textLayerResult, fileName, documentType, ct);
+                return await IngestAsync(textLayerResult, fileName, documentType, scope, ct);
 
             // 打印件（文字层为空）：重置流并降级到 Azure DI
             logger.LogInformation(
@@ -161,6 +166,6 @@ public sealed class DocumentIngestService(
             extractedText = await visionExtractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
         }
 
-        return await IngestAsync(extractedText, fileName, documentType, ct);
+return await IngestAsync(extractedText, fileName, documentType, scope, ct);
     }
 }

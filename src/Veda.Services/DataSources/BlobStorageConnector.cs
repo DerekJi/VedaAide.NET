@@ -100,7 +100,7 @@ public sealed class BlobStorageConnector(
 
                     using var stream = new MemoryStream(bytes);
                     var result = await documentIngestor.IngestFileAsync(
-                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct);
+                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct: ct);
 
                     await syncStateStore.UpsertAsync(Name, blobName, contentHash, result.DocumentId, ct);
                     filesProcessed++;
@@ -129,7 +129,7 @@ public sealed class BlobStorageConnector(
 
                     logger.LogDebug("BlobStorageConnector: ingesting '{Blob}' as {Type}", blobName, docType);
 
-                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
+                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct: ct);
                     await syncStateStore.UpsertAsync(Name, blobName, contentHash, result.DocumentId, ct);
                     filesProcessed++;
                     chunksStored += result.ChunksStored;

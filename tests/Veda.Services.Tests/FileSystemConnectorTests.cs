@@ -27,8 +27,8 @@ public class FileSystemConnectorTests
         Directory.CreateDirectory(_tempDir);
 
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string _, string name, DocumentType _, CancellationToken _) =>
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, string name, DocumentType _, KnowledgeScope? _, CancellationToken _) =>
                 new IngestResult(Guid.NewGuid().ToString(), name, 1));
 
         // Default: no previous sync record — every file is treated as new
@@ -66,7 +66,7 @@ public class FileSystemConnectorTests
         var result = await sut.SyncAsync();
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         result.FilesProcessed.Should().Be(0);
         result.ChunksStored.Should().Be(0);
@@ -79,7 +79,7 @@ public class FileSystemConnectorTests
         var result = await sut.SyncAsync();
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         result.FilesProcessed.Should().Be(0);
     }
@@ -103,7 +103,7 @@ public class FileSystemConnectorTests
         var result = await Build().SyncAsync();
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2));
         result.FilesProcessed.Should().Be(2);
         result.ChunksStored.Should().Be(2);
@@ -117,7 +117,7 @@ public class FileSystemConnectorTests
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "bad.txt"), "fail");
 
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), "bad.txt", It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), "bad.txt", It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("embedding failed"));
 
         var result = await Build().SyncAsync();
@@ -136,7 +136,7 @@ public class FileSystemConnectorTests
         var result = await Build(extensions: [".txt"]).SyncAsync();
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         result.FilesProcessed.Should().Be(1);
     }
@@ -160,7 +160,7 @@ public class FileSystemConnectorTests
         var result = await Build().SyncAsync();
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         result.FilesProcessed.Should().Be(0);
     }
@@ -180,7 +180,7 @@ public class FileSystemConnectorTests
         var result = await Build().SyncAsync();
 
         _documentIngestor.Verify(d => d.IngestAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         result.FilesProcessed.Should().Be(1);
     }
