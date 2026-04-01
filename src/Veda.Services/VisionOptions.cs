@@ -20,13 +20,7 @@ public sealed class VisionOptions
     public string? OllamaModel { get; set; }
 
     /// <summary>
-    /// Override the Vision provider independently from the main LlmProvider.
-    /// "Ollama" | "AzureOpenAI". When null, follows the main LlmProvider (backward-compatible).
-    /// </summary>
-    public string? ModelProvider { get; set; }
-
-    /// <summary>
-    /// Azure OpenAI chat deployment to use for Vision when ModelProvider=AzureOpenAI.
+    /// Azure OpenAI chat deployment to use for Vision.
     /// Defaults to "gpt-4o-mini".
     /// </summary>
     public string ChatDeployment { get; set; } = "gpt-4o-mini";
