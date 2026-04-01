@@ -1,0 +1,41 @@
+<div class="sidebar" [class.collapsed]="collapsed()">
+  <div class="sidebar-header">
+    <button class="btn-new-chat" (click)="newSession()" [title]="collapsed() ? 'New Chat' : ''">
+      <span class="icon">+</span>
+      @if (!collapsed()) { <span>New Chat</span> }
+    </button>
+    <button class="btn-collapse" (click)="toggleCollapse()" [title]="collapsed() ? 'Expand' : 'Collapse'">
+      {{ collapsed() ? '»' : '«' }}
+    </button>
+  </div>
+
+  @if (!collapsed()) {
+    <div class="session-list">
+      @for (group of groupedSessions(); track group.label) {
+        <div class="session-group">
+          <span class="group-label">{{ group.label }}</span>
+          @for (s of group.sessions; track s.id) {
+            <div
+              class="session-item"
+              [class.active]="s.id === chatSession.activeId()"
+              (click)="switchSession(s.id)"
+              [title]="s.title"
+            >
+              <span class="session-title">{{ s.title }}</span>
+              <button
+                class="btn-delete"
+                (click)="deleteSession(s.id, $event)"
+                title="Delete"
+                aria-label="Delete session"
+              >✕</button>
+            </div>
+          }
+        </div>
+      }
+
+      @if (groupedSessions().length === 0) {
+        <p class="no-sessions">No conversations yet</p>
+      }
+    </div>
+  }
+</div>

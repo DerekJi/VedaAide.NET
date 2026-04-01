@@ -1,16 +1,19 @@
-<div class="chat-layout">
-  <div class="chat-header">
-    <h1 class="page-title">Chat</h1>
-  </div>
+<div class="chat-page">
+  <app-chat-sidebar (aboutToSwitch)="abortStream()" />
+
+  <div class="chat-layout">
+    <div class="chat-header">
+      <h1 class="page-title">{{ chatSession.activeSession()?.title ?? 'Chat' }}</h1>
+    </div>
 
   <div class="messages-area" #messagesArea>
-    @if (messages().length === 0) {
+    @if (chatSession.messages().length === 0) {
       <div class="empty-state">
         <p>Ask anything about your ingested documents.</p>
       </div>
     }
 
-    @for (msg of messages(); track $index) {
+    @for (msg of chatSession.messages(); track msg.id) {
       <div class="message" [class]="'message-' + msg.role">
         <div class="bubble">
           <p class="text" [class.streaming]="msg.streaming">{{ msg.text }}@if (msg.streaming) {<span class="cursor">▌</span>}</p>
@@ -42,7 +45,7 @@
               }
             </div>
             <app-feedback-bar
-              [sessionId]="sessionId"
+              [sessionId]="chatSession.activeId()"
               [query]="msg.query ?? ''"
               [chunkIds]="getChunkIds(msg)"
               [lang]="msg.lang ?? 'zh'"
@@ -68,4 +71,5 @@
       @else { Ask }
     </button>
   </div>
+</div>
 </div>

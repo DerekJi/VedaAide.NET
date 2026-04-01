@@ -1,14 +1,26 @@
+// ── Two-column page wrapper ───────────────────────────────────────────────────
+
+.chat-page {
+  display: flex;
+  height: calc(100vh - 4rem);
+  overflow: hidden;
+}
+
+// ── Main chat column ──────────────────────────────────────────────────────────
+
 .chat-layout {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 4rem);
+  flex: 1;
+  min-width: 0;     // prevent flex children from overflowing
+  height: 100%;
 }
 
 .chat-header {
   margin-bottom: 1rem;
 }
 
-.page-title { font-size: 1.5rem; font-weight: 700; }
+.page-title { font-size: 1.5rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .messages-area {
   flex: 1;

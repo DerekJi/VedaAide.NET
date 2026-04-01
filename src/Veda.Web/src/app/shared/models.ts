@@ -1,5 +1,27 @@
 /** API response and request models matching backend DTOs */
 
+import type { ChatLang } from './chat-labels';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  streaming?: boolean;
+  sources?: SourceReference[];
+  confidence?: number;
+  isHallucination?: boolean;
+  sourcesExpanded?: boolean;
+  query?: string;       // the question that produced this assistant answer
+  lang?: ChatLang;      // detected language of the answer
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;    // Unix milliseconds
+  messages: ChatMessage[];
+}
+
 export interface IngestRequest {
   content: string;
   documentName: string;
