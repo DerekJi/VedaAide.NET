@@ -65,7 +65,7 @@ public static class ServiceCollectionExtensions
             kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
 
             // Vision: use a dedicated multimodal model (e.g. qwen3-vl:8b); falls back to main ChatModel if not set
-            var visionModel = cfg["Veda:Vision:Model"];
+            var visionModel = cfg["Veda:Vision:OllamaModel"];
             if (!string.IsNullOrWhiteSpace(visionModel))
             {
                 // Use a longer-timeout HttpClient: VL models under VRAM pressure can exceed
@@ -157,7 +157,7 @@ public static class ServiceCollectionExtensions
         {
             ModelProvider  = cfg["Veda:Vision:ModelProvider"],
             ChatDeployment = cfg["Veda:Vision:ChatDeployment"] ?? "gpt-4o-mini",
-            Model          = cfg["Veda:Vision:Model"],
+            OllamaModel    = cfg["Veda:Vision:OllamaModel"],
             TimeoutSeconds = int.TryParse(cfg["Veda:Vision:TimeoutSeconds"], out var vt) ? vt : 300
         };
         var visionProvider = visionOpts.ModelProvider;
@@ -200,7 +200,7 @@ public static class ServiceCollectionExtensions
             if (!llmProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase)) return;
 
             var ollamaEndpoint = cfg["Veda:OllamaEndpoint"] ?? "http://localhost:11434";
-            var visionModel    = visionOpts.Model;
+            var visionModel    = visionOpts.OllamaModel;
 
             if (string.IsNullOrWhiteSpace(visionModel)) return;
 

@@ -13,11 +13,11 @@ public sealed class VisionOptions
     public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// Name of the dedicated vision model (Ollama mode only, e.g. qwen3-vl:8b).
+    /// Name of the dedicated Ollama vision model (e.g. qwen3-vl:8b).
     /// Leave empty to reuse the main ChatModel.
     /// Ignored when ModelProvider=AzureOpenAI.
     /// </summary>
-    public string? Model { get; set; }
+    public string? OllamaModel { get; set; }
 
     /// <summary>
     /// Override the Vision provider independently from the main LlmProvider.

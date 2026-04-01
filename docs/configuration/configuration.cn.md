@@ -453,7 +453,11 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
       "ApiKey": ""
     },
     "Vision": {
-      "Enabled": false
+      "Enabled": false,
+      "ModelProvider": "",
+      "ChatDeployment": "gpt-4o-mini",
+      "OllamaModel": "",
+      "TimeoutSeconds": 300
     }
   }
 }
@@ -463,7 +467,11 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
 |------|------|--------|------|
 | `DocumentIntelligence:Endpoint` | string | `""` | Azure AI Document Intelligence 端点（Bicep 自动注入）。留空则跳过 OCR 摄取流程 |
 | `DocumentIntelligence:ApiKey` | string | `""` | Document Intelligence API Key。**留空则使用 Managed Identity**（云端推荐） |
-| `Vision:Enabled` | bool | `false` | 是否启用 Vision 模型（GPT-4o-mini）处理 `RichMedia` 类型文件。Azure OpenAI 环境由 Bicep 自动设为 `true`；本地 Ollama 保持 `false` |
+| `Vision:Enabled` | bool | `false` | 是否启用 Vision 模型处理 `RichMedia` 类型文件 |
+| `Vision:ModelProvider` | string | `""` | Vision 独立 Provider：`"AzureOpenAI"` 或 `"Ollama"`。**留空则继承 `LlmProvider`** |
+| `Vision:ChatDeployment` | string | `"gpt-4o-mini"` | `ModelProvider=AzureOpenAI` 时使用的 Azure 部署名 |
+| `Vision:OllamaModel` | string | `""` | `ModelProvider=Ollama` 时使用的视觉模型名（如 `qwen3-vl:8b`）。留空则复用主 `ChatModel` |
+| `Vision:TimeoutSeconds` | int | `300` | Ollama 视觉推理 HTTP 超时秒数（视觉模型负载较重时需适当延长） |
 
 **文件上传端点：**
 
