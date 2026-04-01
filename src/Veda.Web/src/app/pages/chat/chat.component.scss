@@ -145,6 +145,23 @@
 .badge-warn { background: #fef3c7; color: #92400e; }
 .confidence { color: var(--color-text-muted); }
 
+.btn-copy {
+  margin-left: auto;
+  padding: .15rem .4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font-size: .75rem;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+
+  &:hover { background: var(--color-border); color: var(--color-text); }
+}
+
+.bubble:hover .btn-copy { opacity: 1; }
+
 .input-bar {
   display: flex;
   gap: .75rem;
