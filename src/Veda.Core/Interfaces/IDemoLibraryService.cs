@@ -1,6 +1,6 @@
 namespace Veda.Core.Interfaces;
 
-/// <summary>演示文档库条目（来自 Blob Storage demo-documents/ 前缀）。</summary>
+/// <summary>Demo library document entry.</summary>
 public record DemoDocument(
     string Name,
     string Description,
@@ -8,15 +8,17 @@ public record DemoDocument(
     string Extension);
 
 /// <summary>
-/// 演示文档库服务契约：列出预置示例文档，并支持一键 ingest 到知识库。
+/// Demo library service contract: lists available sample documents and supports one-click ingest into the knowledge base.
+/// Sources: Blob Storage demo-documents/ prefix (cloud/Azurite), or local FileSystem path (development fallback).
 /// </summary>
 public interface IDemoLibraryService
 {
-    /// <summary>列出 Blob Storage demo-documents/ 前缀下的所有可用示例文档。</summary>
+    /// <summary>Lists all available demo documents from the configured source.</summary>
     Task<IReadOnlyList<DemoDocument>> ListAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// 将指定示例文档从 Blob Storage 下载并 ingest 到知识库（scope=Public）。
+    /// Ingests the specified demo document into the knowledge base.
+    /// When scope is provided the document is stored under that user's partition; otherwise it is public.
     /// </summary>
-    Task<IngestResult> IngestAsync(string blobName, CancellationToken ct = default);
+    Task<IngestResult> IngestAsync(string documentName, KnowledgeScope? scope = null, CancellationToken ct = default);
 }

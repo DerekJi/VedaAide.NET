@@ -14,6 +14,7 @@ public interface IDocumentIngestor
         string content,
         string documentName,
         DocumentType documentType,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -29,5 +30,6 @@ public interface IDocumentIngestor
         string fileName,
         string mimeType,
         DocumentType documentType,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default);
 }

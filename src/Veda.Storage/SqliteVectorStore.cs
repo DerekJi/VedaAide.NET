@@ -27,8 +27,10 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         if (candidates.Count == 0) return;
 
         var incomingHashes = candidates.Select(x => x.Hash).ToList();
+        // 仅检查当前有效（未被 supersede）的 chunks 的哈希，避免被 superseded 的历史数据
+        // 阻止相同内容重新写入（例如文档重新上传时需要恢复活跃状态）。
         var existingHashes = await db.VectorChunks
-            .Where(x => incomingHashes.Contains(x.ContentHash))
+            .Where(x => incomingHashes.Contains(x.ContentHash) && x.SupersededAtTicks == 0)
             .Select(x => x.ContentHash)
             .ToHashSetAsync(ct);
 
@@ -172,6 +174,11 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         await db.VectorChunks.Where(x => x.DocumentId == documentId).ExecuteDeleteAsync(ct);
     }
 
+    public async Task<int> ClearAllAsync(CancellationToken ct = default)
+    {
+        return await db.VectorChunks.ExecuteDeleteAsync(ct);
+    }
+
     public async Task<IReadOnlyList<DocumentChunk>> GetCurrentChunksByDocumentNameAsync(
         string documentName, CancellationToken ct = default)
     {
@@ -241,10 +248,21 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         )).ToList();
     }
 
-    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(
+        KnowledgeScope? scope = null,
+        CancellationToken ct = default)
     {
-        var groups = await db.VectorChunks.AsNoTracking()
-            .Where(x => x.SupersededAtTicks == 0)
+        var query = db.VectorChunks.AsNoTracking()
+            .Where(x => x.SupersededAtTicks == 0);
+
+        // Filter by OwnerId when scope is provided — prevents cross-user document leakage.
+        if (scope?.OwnerId is not null)
+        {
+            var ownerTag = $"\"_scope_ownerId\":\"{scope.OwnerId}\"";
+            query = query.Where(x => x.MetadataJson.Contains(ownerTag));
+        }
+
+        var groups = await query
             .GroupBy(x => new { x.DocumentId, x.DocumentName, x.DocumentType })
             .Select(g => new
             {
@@ -328,7 +346,9 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
     {
         if (filterScope is null) return true;
         if (filterScope.Domain     is not null && !string.Equals(chunkScope?.Domain,     filterScope.Domain,     StringComparison.OrdinalIgnoreCase)) return false;
-        if (filterScope.OwnerId    is not null && !string.Equals(chunkScope?.OwnerId,    filterScope.OwnerId,    StringComparison.OrdinalIgnoreCase)) return false;
+        // Legacy data has no OwnerId in scope — treat as visible to all authenticated users (backward compat).
+        if (filterScope.OwnerId    is not null && chunkScope?.OwnerId    is not null
+            && !string.Equals(chunkScope.OwnerId,    filterScope.OwnerId,    StringComparison.OrdinalIgnoreCase)) return false;
         if (filterScope.SourceType is not null && !string.Equals(chunkScope?.SourceType, filterScope.SourceType, StringComparison.OrdinalIgnoreCase)) return false;
         if (filterScope.Visibility is not null)
         {

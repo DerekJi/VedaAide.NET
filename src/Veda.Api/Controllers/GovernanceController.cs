@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Veda.Core.Interfaces;
 
 namespace Veda.Api.Controllers;
@@ -7,6 +8,7 @@ namespace Veda.Api.Controllers;
 /// 管理共享组、文档授权共享、共识候选审核。
 /// </summary>
 [ApiController]
+[Authorize(Policy = "AdminOnly")]
 [Route("api/governance")]
 public sealed class GovernanceController(
     IKnowledgeGovernanceService governanceService,

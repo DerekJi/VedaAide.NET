@@ -3,6 +3,8 @@ namespace Veda.Services;
 /// <summary>
 /// 文档摄取服务（SRP：只负责摄取流程）。
 /// 依赖：IDocumentProcessor、IEmbeddingService、IVectorStore、IFileExtractor（两个实现）。
+/// 文字层 PDF 直通提取：PdfTextLayerExtractor 优先，扫描件降级到 Azure DI。
+/// Azure DI 配额超限时自动降级到 Vision 模型（QuotaExceededException fallback）。
 /// </summary>
 public sealed class DocumentIngestService(
     IDocumentProcessor processor,
@@ -15,6 +17,7 @@ public sealed class DocumentIngestService(
     IOptions<VedaOptions> vedaOptions,
     DocumentIntelligenceFileExtractor docIntelExtractor,
     VisionModelFileExtractor visionExtractor,
+    PdfTextLayerExtractor pdfTextLayerExtractor,
     ILogger<DocumentIngestService> logger) : IDocumentIngestor
 {
     private const int LogSnippetLength = 50;
@@ -23,6 +26,7 @@ public sealed class DocumentIngestService(
         string content,
         string documentName,
         DocumentType documentType,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
@@ -56,6 +60,9 @@ public sealed class DocumentIngestService(
         foreach (var chunk in chunks)
         {
             chunk.Version = version;
+            // 写入 OwnerId scope，确保文档按用户隔离
+            if (scope?.OwnerId is not null)
+                chunk.Metadata["_scope_ownerId"] = scope.OwnerId;
             var aliasTags = await semanticEnhancer.GetAliasTagsAsync(chunk.Content, ct);
             if (aliasTags.Count > 0)
                 chunk.Metadata["aliasTags"] = string.Join(",", aliasTags);
@@ -89,7 +96,9 @@ public sealed class DocumentIngestService(
         // 版本化：先标记旧版本 chunks 为已取代，再写入新 chunks。
         // 顺序必须先标记后写入：若先 UpsertBatch 再标记，则 WHERE SupersededAtTicks==0
         // 会同时命中刚写入的新 chunk，导致新 chunk 被立刻标记为已取代。
-        if (oldDocumentId is not null)
+        // 仅当有新 chunks 需要写入时才执行 supersede：若所有块均被去重跳过，
+        // 保留原有 chunks 不变，避免文档从列表中消失。
+        if (oldDocumentId is not null && deduped.Count > 0)
             await vectorStore.MarkDocumentSupersededAsync(documentName, documentId, ct);
 
         if (deduped.Count > 0)
@@ -110,11 +119,33 @@ public sealed class DocumentIngestService(
         string fileName,
         string mimeType,
         DocumentType documentType,
+        KnowledgeScope? scope = null,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(fileStream);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(mimeType);
+
+        // 缓冲 fileStream：允许 Azure DI 配额超限时将同一流交给 Vision 降级处理
+        using var buffered = new MemoryStream();
+        await fileStream.CopyToAsync(buffered, ct);
+        buffered.Position = 0;
+
+        string extractedText;
+
+        // PDF 文字层直通：纯文字 PDF 跳过 OCR 管线
+        if (mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            var textLayerResult = pdfTextLayerExtractor.TryExtract(buffered, fileName);
+            if (textLayerResult is not null)
+                return await IngestAsync(textLayerResult, fileName, documentType, scope, ct);
+
+            // 打印件（文字层为空）：重置流并降级到 Azure DI
+            logger.LogInformation(
+                "PdfTextLayerExtractor: '{Name}' is a scanned PDF, falling back to Document Intelligence",
+                fileName);
+            buffered.Position = 0;
+        }
 
         // 路由：RichMedia → Vision 模型；其余 → Document Intelligence
         IFileExtractor extractor = documentType == DocumentType.RichMedia
@@ -125,7 +156,18 @@ public sealed class DocumentIngestService(
             "File ingestion '{Name}' ({MimeType}) as {Type} via {Extractor}",
             fileName, mimeType, documentType, extractor.GetType().Name);
 
-        var extractedText = await extractor.ExtractAsync(fileStream, fileName, mimeType, documentType, ct);
-        return await IngestAsync(extractedText, fileName, documentType, ct);
+        try
+        {
+            extractedText = await extractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
+        }
+        catch (QuotaExceededException) when (!ReferenceEquals(extractor, visionExtractor))
+        {
+            logger.LogWarning(
+                "Azure DI quota exceeded, falling back to Vision model for '{Name}'", fileName);
+            buffered.Position = 0;
+            extractedText = await visionExtractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
+        }
+
+return await IngestAsync(extractedText, fileName, documentType, scope, ct);
     }
 }

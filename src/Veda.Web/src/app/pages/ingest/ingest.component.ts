@@ -36,7 +36,7 @@ export class IngestComponent {
   // Shared history (notes + documents)
   entries = signal<IngestEntry[]>([]);
 
-  readonly documentTypes = ['', 'Specification', 'Report', 'BillInvoice', 'Other'];
+  readonly documentTypes = ['', 'Specification', 'Report', 'BillInvoice', 'Identity', 'Other'];
 
   saveNote(): void {
     const text = this.noteText().trim();

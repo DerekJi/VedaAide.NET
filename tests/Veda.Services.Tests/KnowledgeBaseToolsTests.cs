@@ -116,7 +116,7 @@ public class KnowledgeBaseToolsTests
     {
         var docId = Guid.NewGuid().ToString();
         _vectorStore
-            .Setup(v => v.GetAllDocumentsAsync(It.IsAny<CancellationToken>()))
+            .Setup(v => v.GetAllDocumentsAsync(It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(
             [
                 new DocumentSummary(docId, "report.txt", DocumentType.Report, 2),
@@ -137,7 +137,7 @@ public class KnowledgeBaseToolsTests
     public async Task ListDocuments_EmptyStore_ShouldReturnEmptyJsonArray()
     {
         _vectorStore
-            .Setup(v => v.GetAllDocumentsAsync(It.IsAny<CancellationToken>()))
+            .Setup(v => v.GetAllDocumentsAsync(It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var json = await _sut.ListDocuments();

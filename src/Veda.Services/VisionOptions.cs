@@ -7,8 +7,23 @@ namespace Veda.Services;
 public sealed class VisionOptions
 {
     /// <summary>
-    /// 是否启用 Vision 提取通道。
-    /// AzureOpenAI 环境下建议 true；Ollama 本地开发保持 false（Ollama 不支持图片输入）。
+    /// Whether to enable the Vision extraction pipeline.
+    /// Supported by AzureOpenAI (gpt-4o-mini) and multimodal Ollama models (e.g. qwen3-vl:8b).
     /// </summary>
     public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    /// Name of the dedicated vision model (Ollama mode only, e.g. qwen3-vl:8b).
+    /// Leave empty to reuse the main ChatModel.
+    /// Ignored when LlmProvider=AzureOpenAI (gpt-4o-mini is natively multimodal).
+    /// </summary>
+    public string? Model { get; set; }
+
+    /// <summary>
+    /// Ollama HTTP request timeout for vision inference, in seconds.
+    /// Vision models (especially VL models running under VRAM pressure) can take longer than
+    /// the default 100 s HttpClient timeout. Default: 300 s (5 minutes).
+    /// Ignored when LlmProvider=AzureOpenAI.
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 300;
 }

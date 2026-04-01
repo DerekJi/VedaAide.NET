@@ -164,10 +164,10 @@ public sealed class QueryService(
             structuredFinding = parser.TryParse(answer, results);
         }
 
-        // 防幻觉第一层：回答 Embedding 与向量库相似度校验。
-        var answerEmbedding = await embeddingService.GenerateEmbeddingAsync(answer, ct);
-        var answerCheck = await vectorStore.SearchAsync(answerEmbedding, topK: 1, minSimilarity: 0f, ct: ct);
-        var maxAnswerSimilarity = answerCheck.Count > 0 ? answerCheck[0].Similarity : 0f;
+        // 防幻觉第一层：基于检索到的 source chunks 与 query 的相似度。
+        // 答案 re-embedding 方式存在语义漂移问题（长文本 embedding 与短 chunk 天然相似度低），
+        // 改为使用已有的 sources 最大相似度作为信号，语义更准确且无额外 LLM 调用。
+        var maxAnswerSimilarity = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
         var isHallucination = maxAnswerSimilarity < options.Value.HallucinationSimilarityThreshold;
 
         // 防幻觉第二层（可选）：LLM 自我校验。
@@ -397,11 +397,9 @@ public sealed class QueryService(
             yield return new RagStreamChunk { Type = "token", Token = token };
         }
 
-        // 防幻觉校验（复用非流式逻辑）
+        // 防幻觉校验：使用 sources 最大相似度，与非流式逻辑保持一致。
         var answer = fullAnswer.ToString();
-        var answerEmbedding = await embeddingService.GenerateEmbeddingAsync(answer, ct);
-        var answerCheck = await vectorStore.SearchAsync(answerEmbedding, topK: 1, minSimilarity: 0f, ct: ct);
-        var maxSimilarity = answerCheck.Count > 0 ? answerCheck[0].Similarity : 0f;
+        var maxSimilarity = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
         var isHallucination = maxSimilarity < options.Value.HallucinationSimilarityThreshold;
 
         if (!isHallucination && options.Value.EnableSelfCheckGuard)

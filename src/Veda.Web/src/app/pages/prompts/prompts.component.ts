@@ -9,6 +9,8 @@ const DOC_TYPE_LABELS: Record<number, string> = {
   1: 'Specification',
   2: 'Report',
   3: 'Other',
+  4: 'Rich Media',
+  5: 'Identity',
 };
 
 @Component({
@@ -38,6 +40,8 @@ export class PromptsComponent implements OnInit {
     { value: '1', label: 'Specification' },
     { value: '2', label: 'Report' },
     { value: '3', label: 'Other' },
+    { value: '4', label: 'Rich Media' },
+    { value: '5', label: 'Identity' },
   ];
 
   ngOnInit(): void {

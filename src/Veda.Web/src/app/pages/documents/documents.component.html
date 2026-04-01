@@ -2,37 +2,40 @@
   <h1 class="page-title">Documents</h1>
 
   <!-- Demo Library Panel -->
-  <app-demo-library-panel />
+  <app-demo-library-panel
+    [ingestedNames]="ingestedNameSet()"
+    (ingestionComplete)="loadDocuments()"
+  />
 
   <!-- Ingested Documents List -->
   <div class="card">
     <div class="list-header">
-      <h2 class="list-title">已 Ingest 的文档</h2>
+      <h2 class="list-title">Ingested Documents</h2>
       <button
         class="btn btn-danger-outline"
         [disabled]="clearingAll() || documents().length === 0"
         (click)="requestClearAll()"
-      >全部清空</button>
+      >Clear All</button>
     </div>
 
     @if (confirmClearAll()) {
       <div class="confirm-bar">
-        <span class="confirm-text">⚠ 此操作不可恢复，确认清空全部数据？</span>
-        <button class="btn btn-danger btn-sm" (click)="clearAll()" [disabled]="clearingAll()">确认清空</button>
-        <button class="btn btn-secondary btn-sm" (click)="cancelClearAll()">取消</button>
+        <span class="confirm-text">⚠ This action cannot be undone. Confirm clearing all data?</span>
+        <button class="btn btn-danger btn-sm" (click)="clearAll()" [disabled]="clearingAll()">Confirm</button>
+        <button class="btn btn-secondary btn-sm" (click)="cancelClearAll()">Cancel</button>
       </div>
     }
 
     @if (loading()) {
-      <p class="loading-text">加载中…</p>
+      <p class="loading-text">Loading…</p>
     } @else if (documents().length === 0) {
-      <p class="empty-text">暂无已 Ingest 的文档。</p>
+      <p class="empty-text">No ingested documents yet.</p>
     } @else {
       <table class="table">
         <thead>
           <tr>
-            <th>文档名称</th>
-            <th>类型</th>
+            <th>Document Name</th>
+            <th>Type</th>
             <th>Chunks</th>
             <th></th>
           </tr>
@@ -53,7 +56,7 @@
                   [disabled]="deletingId() === doc.documentId"
                   (click)="deleteDocument(doc)"
                 >
-                  {{ deletingId() === doc.documentId ? '删除中…' : '删除' }}
+                  {{ deletingId() === doc.documentId ? 'Deleting…' : 'Delete' }}
                 </button>
               </td>
             </tr>
@@ -61,7 +64,7 @@
               <tr class="chunks-row">
                 <td colspan="4">
                   @if (chunksLoading()) {
-                    <p class="loading-text">加载 chunks…</p>
+                    <p class="loading-text">Loading chunks…</p>
                   } @else {
                     <div class="chunks-list">
                       @for (chunk of chunks(); track chunk.chunkIndex) {

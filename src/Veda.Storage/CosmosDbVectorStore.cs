@@ -42,9 +42,10 @@ public sealed class CosmosDbVectorStore : IVectorStore
 
         if (candidates.Count == 0) return;
 
-        // Check for existing content hashes to avoid near-duplicate storage
+        // 仅检查当前有效（未被 supersede）的 chunks 的哈希，避免被 superseded 的历史数据
+        // 阻止相同内容重新写入（例如文档重新上传时需要恢复活跃状态）。
         var hashesJson = JsonSerializer.Serialize(candidates.Select(c => (object)c.Hash).ToList());
-        var checkSql = $"SELECT VALUE c.contentHash FROM c WHERE ARRAY_CONTAINS({hashesJson}, c.contentHash, false)";
+        var checkSql = $"SELECT VALUE c.contentHash FROM c WHERE c.supersededAtTicks = 0 AND ARRAY_CONTAINS({hashesJson}, c.contentHash, false)";
         var checkQuery = new QueryDefinition(checkSql);
 
         var existingHashes = new HashSet<string>(StringComparer.Ordinal);
@@ -107,8 +108,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
             ? " WHERE " + string.Join(" AND ", conditions)
             : string.Empty;
 
-        // VectorDistance with cosine returns distance in [0,2]: smaller = more similar
-        // ORDER BY ASC gives most-similar results first (DiskANN ANN search)
+        // VectorDistance with cosine returns similarity in [-1,1]: larger = more similar.
+        // Cosmos DB always sorts most-similar first; specifying ASC or DESC is not allowed.
         var sql = $"""
             SELECT TOP {candidateCount}
                 c.id, c.documentId, c.documentName, c.documentType,
@@ -132,8 +133,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
             var page = await feed.ReadNextAsync(ct);
             foreach (var item in page)
             {
-                // Convert cosine distance → similarity: similarity ≈ 1 - distance (for normalized vectors)
-                var similarity = 1.0f - (float)item.Distance;
+                // VectorDistance cosine returns similarity directly in [-1,1]; higher = more similar
+                var similarity = (float)item.Distance;
                 if (similarity < minSimilarity) continue;
 
                 results.Add((ToChunk(item), similarity));
@@ -257,6 +258,30 @@ public sealed class CosmosDbVectorStore : IVectorStore
         _logger.LogDebug("CosmosDbVectorStore: deleted all chunks for documentId={DocumentId}", documentId);
     }
 
+    public async Task<int> ClearAllAsync(CancellationToken ct = default)
+    {
+        // CosmosDB 不支持 TRUNCATE；必须逐条查询后删除。
+        // 跨分区查询 SELECT c.id, c.documentId，然后按 partitionKey 逐条删除。
+        var queryDef = new QueryDefinition("SELECT c.id, c.documentId FROM c");
+        var feed = _container.GetItemQueryIterator<CosmosIdOnly>(queryDef);
+
+        var deleted = 0;
+        while (feed.HasMoreResults)
+        {
+            var page = await feed.ReadNextAsync(ct);
+            foreach (var item in page)
+            {
+                ct.ThrowIfCancellationRequested();
+                await _container.DeleteItemAsync<CosmosChunkDocument>(
+                    item.Id, new PartitionKey(item.DocumentId), cancellationToken: ct);
+                deleted++;
+            }
+        }
+
+        _logger.LogWarning("CosmosDbVectorStore: cleared {Count} chunks", deleted);
+        return deleted;
+    }
+
     public async Task<IReadOnlyList<DocumentChunk>> GetCurrentChunksByDocumentNameAsync(
         string documentName, CancellationToken ct = default)
     {
@@ -351,11 +376,24 @@ public sealed class CosmosDbVectorStore : IVectorStore
             .ToList();
     }
 
-    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(
+        KnowledgeScope? scope = null,
+        CancellationToken ct = default)
     {
-        // 仅查询 documentId/documentName/documentType，不加载 content 和 embedding
-        var queryDef = new QueryDefinition(
-            "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0");
+        // Build query — filter by _scope_ownerId when scope is provided.
+        string sql;
+        QueryDefinition queryDef;
+        if (scope?.OwnerId is not null)
+        {
+            // Include legacy documents (no _scope_ownerId) for backward compatibility.
+            sql = "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0 AND (NOT IS_DEFINED(c.metadata._scope_ownerId) OR c.metadata._scope_ownerId = @ownerId)";
+            queryDef = new QueryDefinition(sql).WithParameter("@ownerId", scope.OwnerId);
+        }
+        else
+        {
+            sql = "SELECT c.documentId, c.documentName, c.documentType FROM c WHERE c.supersededAtTicks = 0";
+            queryDef = new QueryDefinition(sql);
+        }
 
         var rows = new List<CosmosDocRow>();
         var feed = _container.GetItemQueryIterator<CosmosDocRow>(queryDef);
@@ -443,7 +481,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
     {
         if (scope is null) return;
         if (scope.Domain     is not null) conditions.Add("c.metadata[\"_scope_domain\"] = @scopeDomain");
-        if (scope.OwnerId    is not null) conditions.Add("c.metadata[\"_scope_ownerId\"] = @scopeOwnerId");
+        // Legacy data has no _scope_ownerId — treat as visible to all authenticated users (backward compat).
+        if (scope.OwnerId    is not null) conditions.Add("(NOT IS_DEFINED(c.metadata[\"_scope_ownerId\"]) OR c.metadata[\"_scope_ownerId\"] = @scopeOwnerId)");
         if (scope.SourceType is not null) conditions.Add("c.metadata[\"_scope_sourceType\"] = @scopeSourceType");
         if (scope.Visibility is not null)
         {

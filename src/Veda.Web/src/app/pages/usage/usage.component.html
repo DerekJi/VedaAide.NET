@@ -1,0 +1,81 @@
+<div class="usage-layout">
+  <h1 class="page-title">🔢 Token Usage</h1>
+
+  @if (loading()) {
+    <p class="loading">Loading…</p>
+  } @else if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else if (summary(); as s) {
+    <div class="periods">
+
+      <!-- This month -->
+      <section class="period-card">
+        <h2 class="period-title">
+          This Month
+          <span class="total-badge">{{ s.thisMonth.totalTokens | number }} tokens</span>
+        </h2>
+        @if (periodIsEmpty(s.thisMonth)) {
+          <p class="empty">No usage this month</p>
+        } @else {
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Type</th>
+                <th class="num">Input</th>
+                <th class="num">Output</th>
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of s.thisMonth.byModel; track row.modelName + row.operationType) {
+                <tr>
+                  <td class="model-name">{{ row.modelName }}</td>
+                  <td><span class="op-badge op-{{ row.operationType.toLowerCase() }}">{{ row.operationType }}</span></td>
+                  <td class="num">{{ row.promptTokens | number }}</td>
+                  <td class="num">{{ row.completionTokens | number }}</td>
+                  <td class="num total">{{ row.totalTokens | number }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+      <!-- All time -->
+      <section class="period-card">
+        <h2 class="period-title">
+          All Time
+          <span class="total-badge">{{ s.allTime.totalTokens | number }} tokens</span>
+        </h2>
+        @if (periodIsEmpty(s.allTime)) {
+          <p class="empty">No usage recorded yet</p>
+        } @else {
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Type</th>
+                <th class="num">Input</th>
+                <th class="num">Output</th>
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of s.allTime.byModel; track row.modelName + row.operationType) {
+                <tr>
+                  <td class="model-name">{{ row.modelName }}</td>
+                  <td><span class="op-badge op-{{ row.operationType.toLowerCase() }}">{{ row.operationType }}</span></td>
+                  <td class="num">{{ row.promptTokens | number }}</td>
+                  <td class="num">{{ row.completionTokens | number }}</td>
+                  <td class="num total">{{ row.totalTokens | number }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+    </div>
+  }
+</div>

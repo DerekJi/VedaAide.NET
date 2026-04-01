@@ -1,12 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Veda.Api.Models;
 
 namespace Veda.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class DocumentsController(
     IDocumentIngestor ingestor,
     IVectorStore      vectorStore,
+    ICurrentUserService currentUser,
     ILogger<DocumentsController> logger) : ControllerBase
 {
     private static readonly HashSet<string> AllowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -15,12 +18,15 @@ public class DocumentsController(
         "image/tiff", "image/bmp", "application/pdf"
     };
 
-    /// <summary>列出已 Ingest 的所有文档摘要（文档级汇总，含 chunk 数量）。</summary>
+    /// <summary>列出当前用户已 Ingest 的文档（按 OwnerId 隔离）。</summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ListDocuments(CancellationToken ct)
     {
-        var docs = await vectorStore.GetAllDocumentsAsync(ct);
+        var scope = currentUser.UserId is not null
+            ? new KnowledgeScope(OwnerId: currentUser.UserId)
+            : null;
+        var docs = await vectorStore.GetAllDocumentsAsync(scope: scope, ct: ct);
         return Ok(docs);
     }
 
@@ -48,7 +54,10 @@ public class DocumentsController(
     public async Task<IActionResult> Ingest([FromBody] IngestRequest request, CancellationToken ct)
     {
         var docType = DocumentTypeParser.ParseOrDefault(request.DocumentType);
-        var result = await ingestor.IngestAsync(request.Content, request.DocumentName, docType, ct);
+        var scope   = currentUser.UserId is not null
+            ? new KnowledgeScope(OwnerId: currentUser.UserId)
+            : null;
+        var result = await ingestor.IngestAsync(request.Content, request.DocumentName, docType, scope, ct);
         logger.LogInformation("Ingested {Count} chunks from '{Name}'", result.ChunksStored, result.DocumentName);
         return StatusCode(StatusCodes.Status201Created, result);
     }
@@ -81,9 +90,12 @@ public class DocumentsController(
             : documentName;
         var docType = DocumentTypeParser.ParseOrDefault(
             documentType, DocumentTypeParser.InferFromName(name));
+        var scope   = currentUser.UserId is not null
+            ? new KnowledgeScope(OwnerId: currentUser.UserId)
+            : null;
 
         await using var stream = file.OpenReadStream();
-        var result = await ingestor.IngestFileAsync(stream, name, file.ContentType, docType, ct);
+        var result = await ingestor.IngestFileAsync(stream, name, file.ContentType, docType, scope, ct);
 
         logger.LogInformation(
             "File upload ingested {Count} chunks from '{Name}' (type={Type})",

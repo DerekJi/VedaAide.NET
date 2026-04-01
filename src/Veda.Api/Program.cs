@@ -81,12 +81,29 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
+            // For CIAM, the OIDC metadata is served under the domain-based URL.
+            // The token 'iss' claim uses tenantId format, so we disable issuer
+            // validation and rely on audience + signing key validation instead.
             options.Authority = !string.IsNullOrWhiteSpace(entraDomain)
-                ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"   // CIAM
-                : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/"; // Standard Entra
+                ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"
+                : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/";
             options.Audience  = entraAudience;
+            // Disable claim type remapping so CIAM claims (oid, sub, name, roles)
+            // are preserved verbatim from the JWT rather than being mapped to
+            // the long System.Security.Claims URI form.
+            options.MapInboundClaims = false;
+            options.TokenValidationParameters.ValidateIssuer = false;
             options.TokenValidationParameters.ValidateIssuerSigningKey = true;
             options.TokenValidationParameters.NameClaimType = "name";
+            // Accept both bare ClientId and api://ClientId audience formats,
+            // since CIAM access tokens carry the plain GUID as 'aud'.
+            options.TokenValidationParameters.ValidAudiences =
+            [
+                entraAudience,
+                $"api://{entraAudience}",
+                entraClientId!,
+                $"api://{entraClientId}"
+            ];
         });
 }
 else
@@ -94,7 +111,20 @@ else
     // No Entra ID config: register no-op auth so UseAuthentication() doesn't throw.
     builder.Services.AddAuthentication().AddJwtBearer();
 }
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // AdminOnly: JWT roles claim 包含 "Admin"（Entra ID App Roles），
+    // 或 oid/sub claim 在 AzureAd:AdminOids 白名单中（适合 CIAM token 无 roles claim 的场景）。
+    var adminOids = cfg.GetSection("AzureAd:AdminOids").Get<string[]>() ?? [];
+    options.AddPolicy("AdminOnly", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(ctx =>
+            ctx.User.IsInRole("Admin")
+            || (ctx.User.FindFirst("oid")?.Value is string oid
+                && adminOids.Contains(oid, StringComparer.OrdinalIgnoreCase))
+            || (ctx.User.FindFirst("sub")?.Value is string sub
+                && adminOids.Contains(sub, StringComparer.OrdinalIgnoreCase))));
+});
 
 // ── Health Checks ─────────────────────────────────────────────────────────────
 var healthChecks = builder.Services.AddHealthChecks();
