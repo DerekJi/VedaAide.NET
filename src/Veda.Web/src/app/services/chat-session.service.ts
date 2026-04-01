@@ -40,6 +40,12 @@ export class ChatSessionService {
 
   // ── Public API ───────────────────────────────────────────────────────────────
 
+  /** Flush live messages + persist without finalizing. Use when aborting a stream. */
+  saveProgress(): void {
+    this.flushCurrentMessages();
+    this.persist();
+  }
+
   /** Create a new empty session and make it active. Returns new session id. */
   newSession(): string {
     this.flushCurrentMessages();
@@ -47,7 +53,7 @@ export class ChatSessionService {
     this._activeId.set(id);
     this._messages.set([]);
     this.persist();
-    this.syncCreateSession(id, 'New Chat');
+    // Empty sessions are not synced to backend — backend creation happens on first finalizeMessage
     return id;
   }
 
@@ -77,7 +83,6 @@ export class ChatSessionService {
       const newId = this.createSessionEntry();
       this._activeId.set(newId);
       this.persist();
-      this.syncCreateSession(newId, 'New Chat');
       return;
     }
 
@@ -131,10 +136,24 @@ export class ChatSessionService {
     this.flushCurrentMessages();
     this.persist();
 
-    // Sync the last assistant message to the backend
-    const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant' && !m.streaming);
-    if (lastAssistant) {
-      this.syncAppendMessage(this._activeId(), lastAssistant);
+    // Sync to backend.
+    // assistantCount === 1 means this is the first exchange: create the backend session
+    // with all messages. assistantCount > 1 means the backend session already exists
+    // (its id was written back by the first syncMessagesToBackend): append only the
+    // new user+assistant pair.
+    const completedMsgs = msgs.filter(m => !m.streaming);
+    const sessionId = this._activeId();
+    const syncedAssistants = completedMsgs.filter(m => m.role === 'assistant').length;
+    if (syncedAssistants === 1) {
+      this.syncMessagesToBackend(sessionId, completedMsgs);
+    } else if (syncedAssistants > 1) {
+      const allUsers      = completedMsgs.filter(m => m.role === 'user');
+      const allAssistants = completedMsgs.filter(m => m.role === 'assistant');
+      const newPair = [
+        allUsers[allUsers.length - 1],
+        allAssistants[allAssistants.length - 1]
+      ].filter(Boolean) as ChatMessage[];
+      this.syncAppendSubsequentMessages(sessionId, newPair);
     }
   }
 
@@ -211,7 +230,6 @@ export class ChatSessionService {
       if (!remoteSessions || remoteSessions.length === 0) return;
 
       const local = this._sessions();
-      // Merge: remote is source-of-truth for metadata; preserve local messages for sessions not yet in remote
       const merged: ChatSession[] = remoteSessions.map(r => {
         const existing = local.find(s => s.id === r.sessionId);
         return {
@@ -230,36 +248,75 @@ export class ChatSessionService {
     }).catch(() => { /* offline — localStorage remains */ });
   }
 
-  private syncCreateSession(localId: string, title: string): void {
-    // The local UUID is already used as the session id; backend creates with a new id.
-    // We record the backend id in local storage once known.
-    firstValueFrom(this.api.createChatSession(title)).then(r => {
-      // Update local session id to match backend id
+  /**
+   * Sync completed messages to the backend.
+   * Creates the session if it doesn't exist yet (identified by the local UUID that won't
+   * match any backend session), then appends all messages in order.
+   * This ensures user messages AND assistant messages both reach the backend,
+   * and avoids the race condition where syncAppendMessage fires before the session exists.
+   */
+  private syncMessagesToBackend(localSessionId: string, completedMsgs: ChatMessage[]): void {
+    if (completedMsgs.length === 0) return;
+
+    // Determine title for the session from first user message
+    const title = completedMsgs.find(m => m.role === 'user')?.text.slice(0, 30) ?? 'New Chat';
+
+    this.api.createChatSession(title).toPromise().then(r => {
+      if (!r) return;
+      const backendId = r.sessionId;
+
+      // Update local state to use backend id
       this._sessions.update(sessions =>
-        sessions.map(s => s.id === localId ? { ...s, id: r.sessionId, title: r.title } : s)
+        sessions.map(s => s.id === localSessionId ? { ...s, id: backendId, title: r.title } : s)
       );
-      if (this._activeId() === localId) this._activeId.set(r.sessionId);
+      if (this._activeId() === localSessionId) this._activeId.set(backendId);
       this.persist();
-    }).catch(() => { /* offline — local id stays */ });
+
+      // Append all completed messages sequentially
+      return completedMsgs.reduce((chain, msg) =>
+        chain.then(() =>
+          this.api.appendChatMessage(backendId, {
+            role:            msg.role,
+            content:         msg.text,
+            confidence:      msg.confidence,
+            isHallucination: msg.isHallucination ?? false,
+            sources:         msg.sources?.map(s => ({
+              documentName: s.documentName,
+              chunkContent: s.chunkContent,
+              similarity:   s.similarity,
+              chunkId:      s.chunkId,
+              documentId:   s.documentId
+            }))
+          }).toPromise()
+        ),
+        Promise.resolve<unknown>(undefined)
+      );
+    }).catch(() => { /* offline */ });
+  }
+
+  /** Append subsequent messages to an already-created backend session. */
+  private syncAppendSubsequentMessages(backendSessionId: string, msgs: ChatMessage[]): void {
+    msgs.reduce((chain, msg) =>
+      chain.then(() =>
+        this.api.appendChatMessage(backendSessionId, {
+          role:            msg.role,
+          content:         msg.text,
+          confidence:      msg.confidence,
+          isHallucination: msg.isHallucination ?? false,
+          sources:         msg.sources?.map(s => ({
+            documentName: s.documentName,
+            chunkContent: s.chunkContent,
+            similarity:   s.similarity,
+            chunkId:      s.chunkId,
+            documentId:   s.documentId
+          }))
+        }).toPromise()
+      ),
+      Promise.resolve<unknown>(undefined)
+    ).catch(() => { /* offline */ });
   }
 
   private syncDeleteSession(id: string): void {
     firstValueFrom(this.api.deleteChatSession(id)).catch(() => { /* offline */ });
-  }
-
-  private syncAppendMessage(sessionId: string, msg: ChatMessage): void {
-    firstValueFrom(this.api.appendChatMessage(sessionId, {
-      role:            msg.role,
-      content:         msg.text,
-      confidence:      msg.confidence,
-      isHallucination: msg.isHallucination ?? false,
-      sources:         msg.sources?.map(s => ({
-        documentName: s.documentName,
-        chunkContent: s.chunkContent,
-        similarity:   s.similarity,
-        chunkId:      s.chunkId,
-        documentId:   s.documentId
-      }))
-    })).catch(() => { /* offline */ });
   }
 }

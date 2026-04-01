@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, OnDestroy, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, effect, ElementRef, inject, OnDestroy, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { ChatStreamService } from '../../services/chat-stream.service';
@@ -26,9 +26,16 @@ export class ChatComponent implements OnInit, OnDestroy {
   question = signal('');
   busy     = signal(false);
 
-  private lastQuery      = '';
   private streamSub?: Subscription;
   private copyListener?: (e: Event) => void;
+
+  constructor() {
+    // Auto-scroll to bottom whenever the message list changes
+    effect(() => {
+      this.chatSession.messages();
+      setTimeout(() => this.scrollToBottom(), 0);
+    });
+  }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -48,6 +55,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   abortStream(): void {
     this.streamSub?.unsubscribe();
     this.streamSub = undefined;
+    this.chatSession.saveProgress();  // flush partial messages so they survive session switch
     this.busy.set(false);
   }
 
@@ -64,7 +72,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.chatSession.addMessage(userMsg);
     this.question.set('');
     this.busy.set(true);
-    this.lastQuery = q;
 
     const assistantMsg: ChatMessage = {
       id:        crypto.randomUUID(),
@@ -145,6 +152,11 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
+
+  private scrollToBottom(): void {
+    const el = this.messagesArea?.nativeElement;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
 
   private reportLastSourcesAs(type: 'ResultAccepted' | 'ResultRejected'): void {
     const msgs = this.chatSession.messages();
