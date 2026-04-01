@@ -1,55 +1,54 @@
 import { Component, ElementRef, inject, OnDestroy, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { ChatStreamService } from '../../services/chat-stream.service';
+import { ChatSessionService } from '../../services/chat-session.service';
 import { FeedbackService } from '../../services/feedback.service';
-import { RagStreamChunk, SourceReference } from '../../shared/models';
+import { ChatMessage, RagStreamChunk } from '../../shared/models';
 import { FeedbackBarComponent } from '../../shared/components/feedback-bar/feedback-bar.component';
-import { CHAT_LABELS, ChatLang, detectChatLang } from '../../shared/chat-labels';
-
-interface Message {
-  role: 'user' | 'assistant';
-  text: string;
-  streaming?: boolean;
-  sources?: SourceReference[];
-  confidence?: number;
-  isHallucination?: boolean;
-  sourcesExpanded?: boolean;
-  query?: string;        // the question that produced this assistant answer
-  lang?: ChatLang;       // detected language of the answer
-}
+import { ChatSidebarComponent } from '../../shared/components/chat-sidebar/chat-sidebar.component';
+import { CHAT_LABELS, detectChatLang } from '../../shared/chat-labels';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [FormsModule, FeedbackBarComponent],
+  imports: [FormsModule, FeedbackBarComponent, ChatSidebarComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss'
 })
 export class ChatComponent implements OnInit, OnDestroy {
   @ViewChild('messagesArea') messagesArea?: ElementRef<HTMLElement>;
 
-  private readonly stream   = inject(ChatStreamService);
-  private readonly feedback = inject(FeedbackService);
-
-  readonly sessionId = crypto.randomUUID();
+  private readonly stream      = inject(ChatStreamService);
+  private readonly feedback    = inject(FeedbackService);
+  protected readonly chatSession = inject(ChatSessionService);
 
   question = signal('');
-  messages = signal<Message[]>([]);
   busy     = signal(false);
 
-  private lastQuery     = '';
+  private lastQuery      = '';
+  private streamSub?: Subscription;
   private copyListener?: (e: Event) => void;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    // 隐式反馈：用户复制文本 → ResultAccepted
+    // Implicit feedback: user copies text → ResultAccepted
     this.copyListener = () => this.reportLastSourcesAs('ResultAccepted');
     document.addEventListener('copy', this.copyListener);
   }
 
   ngOnDestroy(): void {
     if (this.copyListener) document.removeEventListener('copy', this.copyListener);
+    this.abortStream();
+  }
+
+  // ── Stream abort (called by sidebar before session switch) ───────────────────
+
+  abortStream(): void {
+    this.streamSub?.unsubscribe();
+    this.streamSub = undefined;
+    this.busy.set(false);
   }
 
   // ── Public API ───────────────────────────────────────────────────────────────
@@ -58,43 +57,57 @@ export class ChatComponent implements OnInit, OnDestroy {
     const q = this.question().trim();
     if (!q || this.busy()) return;
 
-    // 隐式反馈：追问 → 上一轮来源 ResultAccepted
+    // Implicit feedback: follow-up question → previous sources ResultAccepted
     this.reportLastSourcesAs('ResultAccepted');
 
-    this.messages.update(m => [...m, { role: 'user', text: q }]);
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', text: q };
+    this.chatSession.addMessage(userMsg);
     this.question.set('');
     this.busy.set(true);
     this.lastQuery = q;
 
-    const assistant: Message = {
-      role: 'assistant',
-      text: '',
+    const assistantMsg: ChatMessage = {
+      id:        crypto.randomUUID(),
+      role:      'assistant',
+      text:      '',
       streaming: true,
-      query: q
+      query:     q
     };
-    this.messages.update(m => [...m, assistant]);
+    this.chatSession.addMessage(assistantMsg);
 
-    this.stream.stream(q).subscribe({
+    let streamingText = '';
+
+    this.streamSub = this.stream.stream(q).subscribe({
       next: (chunk: RagStreamChunk) => {
         if (chunk.type === 'sources') {
-          assistant.sources = chunk.sources;
+          this.chatSession.refreshLastMessage(msg => ({ ...msg, sources: chunk.sources }));
         } else if (chunk.type === 'token') {
-          assistant.text += chunk.token ?? '';
+          streamingText += chunk.token ?? '';
+          this.chatSession.refreshLastMessage(msg => ({ ...msg, text: streamingText }));
         } else if (chunk.type === 'done') {
-          assistant.streaming   = false;
-          assistant.confidence  = chunk.answerConfidence;
-          assistant.isHallucination = chunk.isHallucination;
-          assistant.lang        = detectChatLang(assistant.text);
+          this.chatSession.refreshLastMessage(msg => ({
+            ...msg,
+            streaming:       false,
+            confidence:      chunk.answerConfidence,
+            isHallucination: chunk.isHallucination,
+            lang:            detectChatLang(streamingText)
+          }));
         }
-        this.messages.update(m => [...m]);
       },
       error: () => {
-        assistant.text    += '\n\n[Connection error — please retry]';
-        assistant.streaming = false;
+        this.chatSession.refreshLastMessage(msg => ({
+          ...msg,
+          text:      msg.text + '\n\n[Connection error — please retry]',
+          streaming: false
+        }));
         this.busy.set(false);
-        this.messages.update(m => [...m]);
+        this.streamSub = undefined;
       },
-      complete: () => this.busy.set(false)
+      complete: () => {
+        this.busy.set(false);
+        this.streamSub = undefined;
+        this.chatSession.finalizeMessage();
+      }
     });
   }
 
@@ -107,35 +120,34 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleSources(msg: Message): void {
-    msg.sourcesExpanded = !msg.sourcesExpanded;
-    this.messages.update(m => [...m]);
+  toggleSources(msg: ChatMessage): void {
+    this.chatSession.updateMessage(msg.id, m => ({ ...m, sourcesExpanded: !m.sourcesExpanded }));
   }
 
-  getChunkIds(msg: Message): string[] {
+  getChunkIds(msg: ChatMessage): string[] {
     return (msg.sources ?? []).map(s => s.chunkId).filter((id): id is string => !!id);
   }
 
-  labelsFor(msg: Message) {
+  labelsFor(msg: ChatMessage) {
     return CHAT_LABELS[msg.lang ?? 'zh'];
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
   private reportLastSourcesAs(type: 'ResultAccepted' | 'ResultRejected'): void {
-    const msgs = this.messages();
+    const msgs = this.chatSession.messages();
     const last  = [...msgs].reverse().find(m => m.role === 'assistant' && !m.streaming);
     if (!last?.sources?.length) return;
 
     last.sources.forEach(src => {
       if (src.chunkId) {
         this.feedback.record({
-          userId:           'anonymous',
+          userId:            'anonymous',
           type,
-          sessionId:        this.sessionId,
-          relatedChunkId:   src.chunkId,
+          sessionId:         this.chatSession.activeId(),
+          relatedChunkId:    src.chunkId,
           relatedDocumentId: src.documentId ?? undefined,
-          query:            last.query
+          query:             last.query
         });
       }
     });
