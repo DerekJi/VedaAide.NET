@@ -420,21 +420,21 @@ public class ChatMessageEntity
 ```json
 "Vision": {
   "Enabled": true,
-  "ModelProvider": "AzureOpenAI",   // 新增：Ollama（默认）| AzureOpenAI
-  "Model": "qwen2.5vl:3b",          // Ollama 时使用；AzureOpenAI 时忽略
-  "ChatDeployment": "gpt-4o-mini",  // 新增：AzureOpenAI 时的部署名，默认 gpt-4o-mini
-  "TimeoutSeconds": 180
+  "OllamaModel": "",               // Ollama VL 模型名（如 qwen3-vl:8b）；非空则优先使用
+  "ChatDeployment": "gpt-4o-mini", // AzureOpenAI 视觉部署名
+  "TimeoutSeconds": 300
 }
 ```
 
-**优先级规则（向后兼容）：**
+**优先级规则（无需显式 ModelProvider，由数据决定）：**
 
-| `Veda:Vision:ModelProvider` | `Veda:LlmProvider` | 实际 Vision 服务 |
+| `Vision:OllamaModel` | `AzureOpenAI:Endpoint` | 实际 Vision 服务 |
 |---|---|---|
-| 未配置 或 `Ollama` | Ollama | 本地 Ollama VL 模型（当前行为） |
-| 未配置 或 `AzureOpenAI` | AzureOpenAI | 复用主 Chat AzureOpenAI 服务（当前行为） |
-| `AzureOpenAI` | **Ollama** | **新增**：独立构建 AzureOpenAI 视觉客户端 |
-| `Ollama` | AzureOpenAI | **新增**：主 Chat 走 Azure，但 Vision 强制走本地 Ollama |
+| 非空 | 任意 | Ollama VL 模型（独立 HttpClient，含超时配置） |
+| 空 | 非空 | AzureOpenAI `ChatDeployment`（与主 LlmProvider 无关） |
+| 空 | 空 | fallback：复用主 Chat 服务 |
+
+典型场景：dev 环境 `LlmProvider=Ollama`，`OllamaModel` 留空，`AzureOpenAI:Endpoint` 填入 → Vision 自动走 AzureOpenAI，无需任何额外 Provider 标记。
 
 ### A.3 代码变更
 
@@ -444,9 +444,8 @@ public class ChatMessageEntity
 public sealed class VisionOptions
 {
     public bool    Enabled        { get; set; } = false;
-    public string? OllamaModel    { get; set; }            // Ollama VL 模型名
-    public string? ModelProvider  { get; set; }            // 新增："Ollama" | "AzureOpenAI"
-    public string  ChatDeployment { get; set; } = "gpt-4o-mini";  // 新增（AzureOpenAI 部署名）
+    public string? OllamaModel    { get; set; }            // Ollama VL 模型名（非空则使用 Ollama）
+    public string  ChatDeployment { get; set; } = "gpt-4o-mini";  // AzureOpenAI 部署名
     public int     TimeoutSeconds { get; set; } = 300;
 }
 ```
@@ -454,23 +453,20 @@ public sealed class VisionOptions
 #### A.3.2 ServiceCollectionExtensions 路由逻辑
 
 ```
-visionProvider = cfg["Veda:Vision:ModelProvider"] ?? llmProvider
+ollamaModel = cfg["Veda:Vision:OllamaModel"]
 
-if visionProvider == "AzureOpenAI":
-    endpoint   = cfg["Veda:AzureOpenAI:Endpoint"]   (必须)
-    apiKey     = cfg["Veda:AzureOpenAI:ApiKey"]      (可为空，走 Managed Identity)
+if ollamaModel 非空:
+    → 独立 HttpClient（TimeoutSeconds）
+    → AddOllamaChatCompletion(ollamaModel, httpClient)
+    → AddKeyedSingleton<IChatCompletionService>("vision", ...)
+
+elif cfg["Veda:AzureOpenAI:Endpoint"] 非空:
     deployment = cfg["Veda:Vision:ChatDeployment"] ?? "gpt-4o-mini"
     → 构建 AzureOpenAIClient → AddAzureOpenAIChatCompletion(deployment)
     → AddKeyedSingleton<IChatCompletionService>("vision", ...)
 
-elif visionProvider == "Ollama":
-    visionModel = cfg["Veda:Vision:OllamaModel"]
-    if visionModel 非空:
-        → 独立 HttpClient（TimeoutSeconds）
-        → AddOllamaChatCompletion(visionModel, httpClient)
-        → AddKeyedSingleton<IChatCompletionService>("vision", ...)
-    else:
-        → fallback 到主 Chat 服务（AddKeyedTransient）
+else:
+    → fallback 到主 Chat 服务（AddKeyedTransient）
 ```
 
 完整伪代码（实现时替换 ServiceCollectionExtensions 中 Vision 注册段）：
