@@ -28,6 +28,40 @@ public record QueryRequest(
     string? ScopeOwnerId = null,
     string? UserId = null);
 
+// ── Chat session API models ───────────────────────────────────────────────────
+
+public record CreateSessionRequest(string? Title);
+
+public record AppendMessageRequest(
+    [Required] string Role,
+    [Required, MinLength(1), MaxLength(10_000)] string Content,
+    float? Confidence,
+    bool IsHallucination,
+    IReadOnlyList<ChatSourceRefDto>? Sources);
+
+public record ChatSourceRefDto(
+    string DocumentName,
+    string ChunkContent,
+    float Similarity,
+    string? ChunkId,
+    string? DocumentId);
+
+public record SessionResponse(
+    string SessionId,
+    string Title,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public record MessageResponse(
+    string MessageId,
+    string SessionId,
+    string Role,
+    string Content,
+    float? Confidence,
+    bool IsHallucination,
+    IReadOnlyList<ChatSourceRefDto> Sources,
+    DateTimeOffset CreatedAt);
+
 public record SavePromptRequest(
     [Required, MinLength(1), MaxLength(200)] string Name,
     [Required, MinLength(1), MaxLength(50)]  string Version,

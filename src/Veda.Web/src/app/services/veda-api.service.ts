@@ -6,6 +6,7 @@ import {
   EvalQuestion, EvaluationReport, IngestRequest, IngestResult,
   PromptTemplate, QueryRequest, QueryResponse,
   RunEvaluationRequest, SaveEvalQuestionRequest, SavePromptRequest,
+  SessionResponse, MessageResponse, AppendMessageRequest,
 } from '../shared/models';
 
 @Injectable({ providedIn: 'root' })
@@ -83,5 +84,27 @@ export class VedaApiService {
 
   deleteEvalReport(runId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/evaluation/reports/${runId}`);
+  }
+
+  // ── Chat sessions ──────────────────────────────────────────────────────────
+
+  createChatSession(title?: string): Observable<SessionResponse> {
+    return this.http.post<SessionResponse>(`${this.base}/chat/sessions`, { title });
+  }
+
+  listChatSessions(): Observable<SessionResponse[]> {
+    return this.http.get<SessionResponse[]>(`${this.base}/chat/sessions`);
+  }
+
+  deleteChatSession(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/chat/sessions/${id}`);
+  }
+
+  getChatMessages(sessionId: string): Observable<MessageResponse[]> {
+    return this.http.get<MessageResponse[]>(`${this.base}/chat/sessions/${sessionId}/messages`);
+  }
+
+  appendChatMessage(sessionId: string, req: AppendMessageRequest): Observable<MessageResponse> {
+    return this.http.post<MessageResponse>(`${this.base}/chat/sessions/${sessionId}/messages`, req);
   }
 }

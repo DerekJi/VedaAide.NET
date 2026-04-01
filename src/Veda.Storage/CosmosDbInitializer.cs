@@ -83,6 +83,14 @@ public sealed class CosmosDbInitializer(
         };
         await db.CreateContainerIfNotExistsAsync(tokenUsagesProps, cancellationToken: ct);
 
+        // ── ChatSessions container (Partition Key = /userId, user-isolated) ──
+        var chatSessionsProps = new ContainerProperties
+        {
+            Id = opts.ChatSessionsContainerName,
+            PartitionKeyPath = "/userId"
+        };
+        await db.CreateContainerIfNotExistsAsync(chatSessionsProps, cancellationToken: ct);
+
         logger.LogInformation("CosmosDbInitializer: ready");
     }
 }

@@ -26,6 +26,9 @@ public sealed class CosmosDbOptions
     /// <summary>Token usage log container name, default TokenUsages.</summary>
     public string TokenUsagesContainerName { get; set; } = "TokenUsages";
 
+    /// <summary>Chat sessions container name, default ChatSessions.</summary>
+    public string ChatSessionsContainerName { get; set; } = "ChatSessions";
+
     /// <summary>
     /// Embedding 向量维度。必须与实际使用的 Embedding 模型一致：
     /// bge-m3 = 1024，text-embedding-3-small = 1536。
