@@ -17,24 +17,17 @@
 
           @if (msg.sources && msg.sources.length > 0) {
             <div class="sources">
-              <p class="sources-label">📎 参考来源（{{ msg.sources.length }} 处）</p>
+              <button class="sources-header" (click)="toggleSources(msg)" [attr.aria-expanded]="msg.sourcesExpanded ?? false">
+                <span>{{ labelsFor(msg).sources(msg.sources.length) }}</span>
+                <span class="sources-chevron">{{ (msg.sourcesExpanded) ? '▲' : '▼' }}</span>
+              </button>
+              @if (msg.sourcesExpanded) {
               @for (src of msg.sources; track $index) {
                 <div class="source-item">
-                  <button
-                    class="source-toggle"
-                    (click)="toggleSource(msg, $index)"
-                    [attr.aria-expanded]="isSourceExpanded(msg, $index)"
-                  >
-                    <span class="toggle-icon">{{ isSourceExpanded(msg, $index) ? '▼' : '▶' }}</span>
-                    <span class="source-name">{{ src.documentName }}</span>
-                    <span class="source-sim">{{ (src.similarity * 100).toFixed(0) }}%</span>
-                  </button>
-                  @if (isSourceExpanded(msg, $index)) {
-                    <p class="source-snippet expanded">{{ src.chunkContent }}</p>
-                  } @else {
-                    <p class="source-snippet">{{ src.chunkContent }}</p>
-                  }
+                  <span class="source-name">{{ src.documentName }}</span>
+                  <span class="source-sim">{{ (src.similarity * 100).toFixed(0) }}%</span>
                 </div>
+              }
               }
             </div>
           }
@@ -42,7 +35,7 @@
           @if (!msg.streaming && msg.role === 'assistant') {
             <div class="meta">
               @if (msg.isHallucination) {
-                <span class="badge badge-warn">⚠ Possible hallucination</span>
+                <span class="badge badge-warn">{{ labelsFor(msg).hallucination }}</span>
               }
               @if (msg.confidence != null) {
                 <span class="confidence">Confidence: {{ (msg.confidence * 100).toFixed(0) }}%</span>
@@ -52,6 +45,7 @@
               [sessionId]="sessionId"
               [query]="msg.query ?? ''"
               [chunkIds]="getChunkIds(msg)"
+              [lang]="msg.lang ?? 'zh'"
             />
           }
         </div>

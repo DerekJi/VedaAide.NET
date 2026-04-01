@@ -12,4 +12,7 @@ public interface ICurrentUserService
 
     /// <summary>是否已通过身份验证。</summary>
     bool IsAuthenticated { get; }
+
+    /// <summary>是否拥有管理员角色（JWT roles claim 包含 "Admin"）。</summary>
+    bool IsAdmin { get; }
 }

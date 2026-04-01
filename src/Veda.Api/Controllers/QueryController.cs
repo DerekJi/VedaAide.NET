@@ -1,14 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Veda.Api.Models;
 
 namespace Veda.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class QueryController(IQueryService queryService) : ControllerBase
 {
     /// <summary>
     /// 问答：向量检索 → LLM 生成 → 返回答案及来源。
-    /// userId 优先从 JWT Token 提取；未登录时退回请求体中的值（零售兼容期）。
+    /// userId 从 JWT Token 提取（可信），不接受请求体中的 userId 以防跨用户数据访问。
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(RagQueryResponse), StatusCodes.Status200OK)]
@@ -18,8 +20,7 @@ public class QueryController(IQueryService queryService) : ControllerBase
         [FromServices] ICurrentUserService currentUser,
         CancellationToken ct)
     {
-        // JWT 认证后 userId 来自 Token（可信）；未登录时 fallback 到请求体（兼容旧前端）
-        var userId = currentUser.UserId ?? request.UserId;
+        var userId = currentUser.UserId;
 
         var ragRequest = new RagQueryRequest
         {
@@ -33,9 +34,7 @@ public class QueryController(IQueryService queryService) : ControllerBase
             StructuredOutput = request.StructuredOutput,
             Scope = userId is not null
                 ? new KnowledgeScope(OwnerId: userId)
-                : (request.ScopeDomain is not null || request.ScopeOwnerId is not null)
-                    ? new KnowledgeScope(Domain: request.ScopeDomain, OwnerId: request.ScopeOwnerId)
-                    : null,
+                : null,
             UserId = userId
         };
 

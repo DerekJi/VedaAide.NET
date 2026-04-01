@@ -30,6 +30,7 @@ import { AuthService } from './services/auth.service';
               <span class="nav-icon">📥</span> Ingest
             </a>
           </li>
+          @if (auth.isAdmin()) {
           <li>
             <a routerLink="/prompts" routerLinkActive="active">
               <span class="nav-icon">✏️</span> Prompts
@@ -38,6 +39,12 @@ import { AuthService } from './services/auth.service';
           <li>
             <a routerLink="/evaluation" routerLinkActive="active">
               <span class="nav-icon">📊</span> Evaluation
+            </a>
+          </li>
+          }
+          <li>
+            <a routerLink="/usage" routerLinkActive="active">
+              <span class="nav-icon">🔢</span> Usage
             </a>
           </li>
         </ul>

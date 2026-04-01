@@ -4,6 +4,7 @@ using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace Veda.Services;
 
@@ -52,20 +53,53 @@ public static class ServiceCollectionExtensions
                 ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
             kernelBuilder.AddAzureOpenAIChatCompletion(deployment, azureChatClient);
+
+            // Vision: gpt-4o-mini is multimodal — reuse the main chat service
+            services.AddKeyedTransient<IChatCompletionService>("vision",
+                (sp, _) => sp.GetRequiredService<IChatCompletionService>());
         }
         else
         {
             var ollamaEndpoint = cfg["Veda:OllamaEndpoint"] ?? "http://localhost:11434";
             var chatModel      = cfg["Veda:ChatModel"]      ?? "qwen3:8b";
             kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+
+            // Vision: use a dedicated multimodal model (e.g. qwen3-vl:8b); falls back to main ChatModel if not set
+            var visionModel = cfg["Veda:Vision:Model"];
+            if (!string.IsNullOrWhiteSpace(visionModel))
+            {
+                // Use a longer-timeout HttpClient: VL models under VRAM pressure can exceed
+                // the default 100 s HttpClient.Timeout when running in CPU/GPU split mode.
+                var visionTimeoutSec = int.TryParse(cfg["Veda:Vision:TimeoutSeconds"], out var t) ? t : 300;
+                var visionHttpClient = new System.Net.Http.HttpClient
+                {
+                    BaseAddress = new Uri(ollamaEndpoint.TrimEnd('/') + "/"),
+                    Timeout     = TimeSpan.FromSeconds(visionTimeoutSec)
+                };
+                // Build a separate Kernel to avoid directly instantiating the [Experimental] connector class
+                var visionKernel = Kernel.CreateBuilder()
+                    .AddOllamaChatCompletion(visionModel, visionHttpClient)
+                    .Build();
+                services.AddKeyedSingleton<IChatCompletionService>("vision",
+                    visionKernel.GetRequiredService<IChatCompletionService>());
+            }
+            else
+            {
+                services.AddKeyedTransient<IChatCompletionService>("vision",
+                    (sp, _) => sp.GetRequiredService<IChatCompletionService>());
+            }
         }
 
         services.AddScoped<IEmbeddingService, EmbeddingService>();
         services.AddScoped<IDocumentProcessor, TextDocumentProcessor>();
 
         // DIP 适配器：将 SK 的 IChatCompletionService 包装为领域接口 IChatService
-        services.AddScoped<IChatService, OllamaChatService>();
-
+        // optional ITokenUsageRepository + ICurrentUserService 由 DI 自动注入
+        services.AddScoped<IChatService>(sp =>
+            new OllamaChatService(
+                sp.GetRequiredService<IChatCompletionService>(),
+                sp.GetService<ITokenUsageRepository>(),
+                sp.GetService<ICurrentUserService>()));
         // LLM Router: 根据 QueryMode 分发到 simple / advanced 服务
         services.AddScoped<ILlmRouter, LlmRouterService>();
 
@@ -77,8 +111,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IQueryService, QueryService>();
 
         // 多模态文件提取器（文件上传管线）
+        services.AddSingleton<AzureDiQuotaState>();  // 跨请求持久化配额超限状态
         services.AddScoped<DocumentIntelligenceFileExtractor>();
         services.AddScoped<VisionModelFileExtractor>();
+        services.AddScoped<PdfTextLayerExtractor>();
 
         // 混合检索（双通道 RRF 融合）
         services.AddScoped<IHybridRetriever, HybridRetriever>();

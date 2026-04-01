@@ -25,7 +25,7 @@ public class IngestToolsTests
     public async Task IngestDocument_ValidInput_ShouldReturnJsonWithDocumentId()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("doc-123", "test.txt", 7));
 
         var json = await _sut.IngestDocument("some content", "test.txt");
@@ -54,7 +54,7 @@ public class IngestToolsTests
     public async Task IngestDocument_ValidDocumentType_ShouldPassParsedTypeToIngestor()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("d", "spec.txt", 1));
 
         await _sut.IngestDocument("content", "spec.txt", "Specification");
@@ -62,14 +62,14 @@ public class IngestToolsTests
         _documentIngestor.Verify(d => d.IngestAsync(
             It.IsAny<string>(), It.IsAny<string>(),
             DocumentType.Specification,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
     public async Task IngestDocument_InvalidDocumentType_ShouldFallbackToOther()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("d", "file.txt", 1));
 
         await _sut.IngestDocument("content", "file.txt", "SomethingUnknown");
@@ -77,14 +77,14 @@ public class IngestToolsTests
         _documentIngestor.Verify(d => d.IngestAsync(
             It.IsAny<string>(), It.IsAny<string>(),
             DocumentType.Other,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
     public async Task IngestDocument_DefaultDocumentType_ShouldUseOther()
     {
         _documentIngestor
-            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<CancellationToken>()))
+            .Setup(d => d.IngestAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IngestResult("d", "notes.txt", 2));
 
         await _sut.IngestDocument("content", "notes.txt"); // documentType defaults to "Other"
@@ -92,6 +92,6 @@ public class IngestToolsTests
         _documentIngestor.Verify(d => d.IngestAsync(
             It.IsAny<string>(), It.IsAny<string>(),
             DocumentType.Other,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

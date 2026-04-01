@@ -7,8 +7,10 @@ namespace Veda.Services.DataSources;
 /// MCP Client 实现之一：从本地文件系统目录批量摄取文档到 VedaAide 知识库。
 /// 配置节：<c>Veda:DataSources:FileSystem</c>
 /// 通过 <see cref="ISyncStateStore"/> 跟踪内容哈希，跳过内容未变更的文件。
-/// 支持文本文件（.txt / .md）和二进制文件（PDF / 图片），分别路由至
-/// <see cref="IDocumentIngestor.IngestAsync"/> 和 <see cref="IDocumentIngestor.IngestFileAsync"/>。
+/// 支持三类文件：
+/// - 文本文件（.txt / .md）→ <see cref="IDocumentIngestor.IngestAsync"/>
+/// - 邮件文件（.eml / .msg）→ <see cref="EmailTextExtractor"/> 提取后 → <see cref="IDocumentIngestor.IngestAsync"/>
+/// - 二进制文件（PDF / 图片）→ <see cref="IDocumentIngestor.IngestFileAsync"/>
 /// </summary>
 public sealed class FileSystemConnector(
     IDocumentIngestor                       documentIngestor,
@@ -60,9 +62,31 @@ public sealed class FileSystemConnector(
                 var ext          = System.IO.Path.GetExtension(filePath);
                 var documentName = System.IO.Path.GetFileName(filePath);
                 var docType      = DocumentTypeParser.InferFromName(documentName);
-                var isBinary     = FileTypeHelper.IsBinary(ext);
+                var isEmail      = FileTypeHelper.IsEmail(ext);
+                var isBinary     = !isEmail && FileTypeHelper.IsBinary(ext);
 
-                if (isBinary)
+                if (isEmail)
+                {
+                    var bytes       = await File.ReadAllBytesAsync(filePath, ct);
+                    var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+                    var knownHash = await syncStateStore.GetContentHashAsync(Name, filePath, ct);
+                    if (knownHash == contentHash)
+                    {
+                        filesSkipped++;
+                        logger.LogDebug("FileSystemConnector: skipping unchanged email '{File}'", filePath);
+                        continue;
+                    }
+
+                    logger.LogDebug("FileSystemConnector: extracting email '{File}'", documentName);
+
+                    var emailText = await EmailTextExtractor.ExtractAsync(filePath, ext, ct);
+                    var result    = await documentIngestor.IngestAsync(emailText, documentName, docType, ct: ct);
+                    await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
+                    filesProcessed++;
+                    chunksStored += result.ChunksStored;
+                }
+                else if (isBinary)
                 {
                     var bytes       = await File.ReadAllBytesAsync(filePath, ct);
                     var contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
@@ -79,7 +103,7 @@ public sealed class FileSystemConnector(
 
                     using var stream = new MemoryStream(bytes);
                     var result = await documentIngestor.IngestFileAsync(
-                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct);
+                        stream, documentName, FileTypeHelper.GetMimeType(ext), docType, ct: ct);
 
                     await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
                     filesProcessed++;
@@ -100,7 +124,7 @@ public sealed class FileSystemConnector(
 
                     logger.LogDebug("FileSystemConnector: ingesting '{File}' as {Type}", documentName, docType);
 
-                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct);
+                    var result = await documentIngestor.IngestAsync(content, documentName, docType, ct: ct);
                     await syncStateStore.UpsertAsync(Name, filePath, contentHash, result.DocumentId, ct);
                     filesProcessed++;
                     chunksStored += result.ChunksStored;

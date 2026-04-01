@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Veda.Api.Models;
 using Veda.Services;
@@ -11,6 +12,7 @@ namespace Veda.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/querystream")]
+[Authorize]
 public class QueryStreamController(IQueryService queryService, IOptions<RagOptions> ragOptions) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions =
