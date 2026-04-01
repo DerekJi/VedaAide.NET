@@ -184,4 +184,93 @@ public class FileSystemConnectorTests
             Times.Once);
         result.FilesProcessed.Should().Be(1);
     }
+
+    // ── Email (.eml) ──────────────────────────────────────────────────────
+
+    [Test]
+    public async Task SyncAsync_WithEmlFile_ShouldExtractTextAndIngest()
+    {
+        const string emlContent = """
+            MIME-Version: 1.0
+            Date: Tue, 01 Apr 2026 10:00:00 +0000
+            Subject: Q1 Review Meeting
+            From: alice@example.com
+            To: bob@example.com
+            Content-Type: text/plain; charset=utf-8
+
+            Hi Bob, please review the attached Q1 report before Friday.
+            """;
+
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "review.eml"), emlContent);
+
+        var result = await Build(extensions: [".eml"]).SyncAsync();
+
+        _documentIngestor.Verify(d => d.IngestAsync(
+            It.Is<string>(text => text.Contains("Q1 Review Meeting") && text.Contains("alice@example.com")),
+            "review.eml",
+            It.IsAny<DocumentType>(),
+            It.IsAny<KnowledgeScope?>(),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+        result.FilesProcessed.Should().Be(1);
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task SyncAsync_WithEmlFile_HtmlOnlyBody_ShouldStripTagsAndIngest()
+    {
+        const string emlContent = """
+            MIME-Version: 1.0
+            Date: Tue, 01 Apr 2026 11:00:00 +0000
+            Subject: HTML Email
+            From: sender@example.com
+            To: recipient@example.com
+            Content-Type: text/html; charset=utf-8
+
+            <html><body><p>Hello <b>World</b></p><script>alert(1)</script></body></html>
+            """;
+
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "html.eml"), emlContent);
+
+        var result = await Build(extensions: [".eml"]).SyncAsync();
+
+        _documentIngestor.Verify(d => d.IngestAsync(
+            It.Is<string>(text => text.Contains("Hello") && text.Contains("World") && !text.Contains("<b>") && !text.Contains("alert")),
+            "html.eml",
+            It.IsAny<DocumentType>(),
+            It.IsAny<KnowledgeScope?>(),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+        result.FilesProcessed.Should().Be(1);
+    }
+
+    [Test]
+    public async Task SyncAsync_WithUnchangedEmlFile_ShouldSkip()
+    {
+        const string emlContent = """
+            MIME-Version: 1.0
+            Subject: Skip Me
+            From: a@b.com
+            To: c@d.com
+            Content-Type: text/plain
+
+            body
+            """;
+
+        var filePath = Path.Combine(_tempDir, "skip.eml");
+        var bytes    = System.Text.Encoding.UTF8.GetBytes(emlContent);
+        await File.WriteAllBytesAsync(filePath, bytes);
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+
+        _syncStateStore
+            .Setup(s => s.GetContentHashAsync("FileSystem", filePath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(hash);
+
+        var result = await Build(extensions: [".eml"]).SyncAsync();
+
+        _documentIngestor.Verify(d => d.IngestAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DocumentType>(), It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        result.FilesProcessed.Should().Be(0);
+    }
 }

@@ -39,9 +39,8 @@ public class DocumentIntelligenceFileExtractor(
         }
 
         if (!options.Value.IsConfigured)
-            throw new InvalidOperationException(
-                "Azure AI Document Intelligence is not configured. " +
-                "Set Veda:DocumentIntelligence:Endpoint in appsettings or environment variables.");
+            throw new QuotaExceededException(
+                "Azure AI Document Intelligence is not configured. Falling back to Vision model.");
 
         var modelId = documentType switch
         {

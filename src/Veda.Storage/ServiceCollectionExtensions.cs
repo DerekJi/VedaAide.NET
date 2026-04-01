@@ -59,8 +59,10 @@ public static class ServiceCollectionExtensions
                 AccountKey            = accountKey,
                 DatabaseName          = cfg["Veda:CosmosDb:DatabaseName"]          ?? "VedaAide",
                 ChunksContainerName   = cfg["Veda:CosmosDb:ChunksContainerName"]   ?? "VectorChunks",
-                CacheContainerName    = cfg["Veda:CosmosDb:CacheContainerName"]    ?? "SemanticCache",
-                EmbeddingDimensions   = int.TryParse(cfg["Veda:CosmosDb:EmbeddingDimensions"], out var dims) ? dims : 1024
+                CacheContainerName      = cfg["Veda:CosmosDb:CacheContainerName"]      ?? "SemanticCache",
+                BehaviorsContainerName  = cfg["Veda:CosmosDb:BehaviorsContainerName"]  ?? "UserBehaviors",
+                TokenUsagesContainerName = cfg["Veda:CosmosDb:TokenUsagesContainerName"] ?? "TokenUsages",
+                EmbeddingDimensions     = int.TryParse(cfg["Veda:CosmosDb:EmbeddingDimensions"], out var dims) ? dims : 1024
             };
 
             var cacheOpts = BuildCacheOptions(cfg);
@@ -70,6 +72,8 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(cacheOpts);
             services.AddScoped<IVectorStore, CosmosDbVectorStore>();
             services.AddScoped<ISemanticCache, CosmosDbSemanticCache>();
+            services.AddScoped<IUserMemoryStore, CosmosDbUserMemoryStore>();
+            services.AddScoped<ITokenUsageRepository, CosmosDbTokenUsageRepository>();
             services.AddSingleton<CosmosDbInitializer>();
         }
         else
@@ -78,14 +82,12 @@ public static class ServiceCollectionExtensions
             services.AddSingleton(cacheOpts);
             services.AddScoped<IVectorStore, SqliteVectorStore>();
             services.AddScoped<ISemanticCache, SqliteSemanticCache>();
+            services.AddScoped<IUserMemoryStore, UserMemoryStore>();
+            services.AddScoped<ITokenUsageRepository, TokenUsageRepository>();
         }
 
-        // Sprint 4: 反馈学习 + 知识治理（始终 SQLite，无 CosmosDB 变体）
-        services.AddScoped<IUserMemoryStore, UserMemoryStore>();
+        // Knowledge governance (sharing groups, document permissions, consensus candidates) — always SQLite
         services.AddScoped<IKnowledgeGovernanceService, KnowledgeGovernanceService>();
-
-        // Stage 6: Token 消耗记录
-        services.AddScoped<ITokenUsageRepository, TokenUsageRepository>();
 
         return services;
     }

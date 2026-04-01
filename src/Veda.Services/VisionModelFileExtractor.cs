@@ -1,15 +1,18 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace Veda.Services;
 
 /// <summary>
-/// 基于 GPT-4o-mini Vision 的文件内容提取实现。
-/// 专用于 <see cref="DocumentType.RichMedia"/>：含几何图形、手写批注、符号标注等复杂图文内容。
-/// 仅在 <c>Veda:Vision:Enabled = true</c> 且 LlmProvider 为 AzureOpenAI 时有效。
+/// Multimodal Vision file content extractor.
+/// Used for scanned document OCR (fallback when Azure DI is not configured or quota exceeded)
+/// and for RichMedia document type.
+/// Supports AzureOpenAI (gpt-4o-mini) and multimodal Ollama models (e.g. qwen3-vl:8b).
+/// Requires <c>Veda:Vision:Enabled = true</c> in configuration.
 /// </summary>
 public sealed class VisionModelFileExtractor(
-    IChatCompletionService chatCompletion,
+    [FromKeyedServices("vision")] IChatCompletionService visionChat,
     IOptions<VisionOptions> options,
     ILogger<VisionModelFileExtractor> logger) : IFileExtractor
 {
@@ -22,8 +25,7 @@ public sealed class VisionModelFileExtractor(
     {
         if (!options.Value.Enabled)
             throw new InvalidOperationException(
-                "Vision extraction is not enabled. Set Veda:Vision:Enabled = true " +
-                "(requires Veda:LlmProvider = AzureOpenAI with a vision-capable model such as gpt-4o-mini).");
+                "Vision extraction is not enabled. Set Veda:Vision:Enabled = true.");
 
         using var ms = new MemoryStream();
         await fileStream.CopyToAsync(ms, ct);
@@ -40,7 +42,7 @@ public sealed class VisionModelFileExtractor(
             new ImageContent(BinaryData.FromBytes(imageBytes), mimeType)
         });
 
-        var results = await chatCompletion.GetChatMessageContentsAsync(chatHistory, cancellationToken: ct);
+        var results = await visionChat.GetChatMessageContentsAsync(chatHistory, cancellationToken: ct);
         var text = string.Concat(results.Select(r => r.Content));
 
         logger.LogInformation(
