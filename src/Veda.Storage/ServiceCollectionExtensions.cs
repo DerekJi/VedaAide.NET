@@ -61,8 +61,9 @@ public static class ServiceCollectionExtensions
                 ChunksContainerName   = cfg["Veda:CosmosDb:ChunksContainerName"]   ?? "VectorChunks",
                 CacheContainerName      = cfg["Veda:CosmosDb:CacheContainerName"]      ?? "SemanticCache",
                 BehaviorsContainerName  = cfg["Veda:CosmosDb:BehaviorsContainerName"]  ?? "UserBehaviors",
-                TokenUsagesContainerName = cfg["Veda:CosmosDb:TokenUsagesContainerName"] ?? "TokenUsages",
-                EmbeddingDimensions     = int.TryParse(cfg["Veda:CosmosDb:EmbeddingDimensions"], out var dims) ? dims : 1024
+                TokenUsagesContainerName    = cfg["Veda:CosmosDb:TokenUsagesContainerName"]    ?? "TokenUsages",
+                ChatSessionsContainerName   = cfg["Veda:CosmosDb:ChatSessionsContainerName"]   ?? "ChatSessions",
+                EmbeddingDimensions         = int.TryParse(cfg["Veda:CosmosDb:EmbeddingDimensions"], out var dims) ? dims : 1024
             };
 
             var cacheOpts = BuildCacheOptions(cfg);
