@@ -169,3 +169,39 @@ export interface RunEvaluationRequest {
   questionIds?: string[];
   chatModelOverride?: string;
 }
+
+// ── Chat session backend DTOs (Phase 2) ──────────────────────────────────────
+
+export interface SessionResponse {
+  sessionId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageSourceDto {
+  documentName: string;
+  chunkContent: string;
+  similarity: number;
+  chunkId?: string;
+  documentId?: string;
+}
+
+export interface MessageResponse {
+  messageId: string;
+  sessionId: string;
+  role: string;
+  content: string;
+  confidence?: number;
+  isHallucination: boolean;
+  sources: MessageSourceDto[];
+  createdAt: string;
+}
+
+export interface AppendMessageRequest {
+  role: string;
+  content: string;
+  confidence?: number;
+  isHallucination?: boolean;
+  sources?: MessageSourceDto[];
+}
