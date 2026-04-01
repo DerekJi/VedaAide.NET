@@ -14,10 +14,11 @@ public sealed class PdfTextLayerExtractor(ILogger<PdfTextLayerExtractor> logger)
 {
     /// <summary>
     /// 每页字符数阈值，低于此值视为扫描件。
-    /// 100 为经验值：大多数扫描件在文字层提取时得到 0–20 字符（噪点），
-    /// 而文字型 PDF 通常每页 300+ 字符。
+    /// 20 为经验值：真正的扫描件在文字层提取时得到 0–5 字符（噪点），
+    /// 而稀疏文字型 PDF（如证书、单页通知）可能只有 50–100 字符，应走文字路径。
+    /// 原值 100 会误判证书类稀疏文字 PDF 为扫描件，导致不必要地触发 Vision 模型。
     /// </summary>
-    private const int MinCharsPerPage = 100;
+    private const int MinCharsPerPage = 20;
 
     /// <summary>
     /// 尝试从 PDF 文字层提取文本。

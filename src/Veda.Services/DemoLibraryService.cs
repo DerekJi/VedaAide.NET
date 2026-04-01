@@ -6,22 +6,41 @@ using Veda.Services.DataSources;
 namespace Veda.Services;
 
 /// <summary>
-/// 演示文档库：从 Blob Storage demo-documents/ 前缀读取预置示例文档，
-/// 支持一键 ingest 给招聘方体验问答效果（零上传摩擦）。
-/// 未配置 Blob Storage 时返回空列表（优雅降级）。
+/// Demo document library service.
+/// Primary source: Blob Storage demo-documents/ prefix (cloud or Azurite).
+/// Fallback source: local FileSystem path (when Blob Storage is not configured — development mode).
+/// Returns an empty list when neither source is available; never throws.
 /// </summary>
 public sealed class DemoLibraryService(
-    IDocumentIngestor                     documentIngestor,
-    IOptions<BlobStorageConnectorOptions> options,
-    ILogger<DemoLibraryService>           logger) : IDemoLibraryService
+    IDocumentIngestor                          documentIngestor,
+    IOptions<BlobStorageConnectorOptions>      blobOptions,
+    IOptions<FileSystemConnectorOptions>       fsOptions,
+    ILogger<DemoLibraryService>                logger) : IDemoLibraryService
 {
     private const string DemoPrefix = "demo-documents/";
 
     public async Task<IReadOnlyList<DemoDocument>> ListAsync(CancellationToken ct = default)
     {
         var container = TryBuildClient();
-        if (container is null) return [];
+        if (container is not null)
+            return await ListFromBlobAsync(container, ct);
 
+        return ListFromFileSystem();
+    }
+
+    public async Task<IngestResult> IngestAsync(string documentName, KnowledgeScope? scope = null, CancellationToken ct = default)
+    {
+        var container = TryBuildClient();
+        if (container is not null)
+            return await IngestFromBlobAsync(container, documentName, scope, ct);
+
+        return await IngestFromFileSystemAsync(documentName, scope, ct);
+    }
+
+    // ── Blob Storage source ───────────────────────────────────────────────────
+
+    private async Task<IReadOnlyList<DemoDocument>> ListFromBlobAsync(BlobContainerClient container, CancellationToken ct)
+    {
         try
         {
             var results = new List<DemoDocument>();
@@ -44,29 +63,20 @@ public sealed class DemoLibraryService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "DemoLibraryService: failed to list demo documents");
+            logger.LogWarning(ex, "DemoLibraryService: failed to list demo documents from Blob Storage");
             return [];
         }
     }
 
-    public async Task<IngestResult> IngestAsync(string blobName, KnowledgeScope? scope = null, CancellationToken ct = default)
+    private async Task<IngestResult> IngestFromBlobAsync(
+        BlobContainerClient container, string blobName, KnowledgeScope? scope, CancellationToken ct)
     {
-        var container = TryBuildClient()
-            ?? throw new InvalidOperationException("Blob Storage is not configured.");
-
-        var blobPath = $"{DemoPrefix}{blobName}";
+        var blobPath   = $"{DemoPrefix}{blobName}";
         var blobClient = container.GetBlobClient(blobPath);
+        var ext        = Path.GetExtension(blobName).ToLowerInvariant();
+        var mimeType   = ResolveMimeType(ext);
 
-        var ext      = Path.GetExtension(blobName).ToLowerInvariant();
-        var mimeType = ext switch
-        {
-            ".pdf"  => "application/pdf",
-            ".png"  => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            _       => "text/plain"
-        };
-
-        logger.LogInformation("DemoLibraryService: ingesting '{Blob}'", blobPath);
+        logger.LogInformation("DemoLibraryService: ingesting '{Blob}' from Blob Storage", blobPath);
 
         if (mimeType == "text/plain")
         {
@@ -76,14 +86,78 @@ public sealed class DemoLibraryService(
         }
         else
         {
-            var response = await blobClient.OpenReadAsync(cancellationToken: ct);
-            return await documentIngestor.IngestFileAsync(response, blobName, mimeType, DocumentType.Other, scope, ct);
+            var stream = await blobClient.OpenReadAsync(cancellationToken: ct);
+            return await documentIngestor.IngestFileAsync(stream, blobName, mimeType, DocumentType.Other, scope, ct);
         }
     }
 
+    // ── FileSystem fallback source ────────────────────────────────────────────
+
+    private IReadOnlyList<DemoDocument> ListFromFileSystem()
+    {
+        var opts = fsOptions.Value;
+        if (!opts.Enabled || string.IsNullOrWhiteSpace(opts.Path) || !Directory.Exists(opts.Path))
+            return [];
+
+        try
+        {
+            var extensions = new HashSet<string>(
+                opts.Extensions.Select(e => e.ToLowerInvariant()),
+                StringComparer.OrdinalIgnoreCase);
+
+            return Directory
+                .EnumerateFiles(opts.Path)
+                .Where(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                .Select(f => new FileInfo(f))
+                .Select(fi => new DemoDocument(
+                    Name:        fi.Name,
+                    Description: string.Empty,
+                    SizeBytes:   fi.Length,
+                    Extension:   fi.Extension.TrimStart('.')))
+                .OrderBy(d => d.Name)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "DemoLibraryService: failed to list demo documents from FileSystem");
+            return [];
+        }
+    }
+
+    private async Task<IngestResult> IngestFromFileSystemAsync(
+        string fileName, KnowledgeScope? scope, CancellationToken ct)
+    {
+        var opts = fsOptions.Value;
+        if (!opts.Enabled || string.IsNullOrWhiteSpace(opts.Path))
+            throw new InvalidOperationException("Neither Blob Storage nor FileSystem is configured.");
+
+        var filePath = Path.Combine(opts.Path, fileName);
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"Demo file not found: {fileName}", filePath);
+
+        var ext      = Path.GetExtension(fileName).ToLowerInvariant();
+        var mimeType = ResolveMimeType(ext);
+
+        logger.LogInformation("DemoLibraryService: ingesting '{File}' from FileSystem", filePath);
+
+        if (mimeType == "text/plain")
+        {
+            var content = await File.ReadAllTextAsync(filePath, ct);
+            return await documentIngestor.IngestAsync(content, fileName, DocumentType.Other, scope, ct);
+        }
+        else
+        {
+            var stream = File.OpenRead(filePath);
+            await using (stream.ConfigureAwait(false))
+                return await documentIngestor.IngestFileAsync(stream, fileName, mimeType, DocumentType.Other, scope, ct);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private BlobContainerClient? TryBuildClient()
     {
-        var opts = options.Value;
+        var opts = blobOptions.Value;
         if (!opts.Enabled || string.IsNullOrWhiteSpace(opts.ContainerName)) return null;
 
         try
@@ -93,7 +167,8 @@ public sealed class DemoLibraryService(
 
             if (!string.IsNullOrWhiteSpace(opts.AccountUrl))
             {
-                var service = new BlobServiceClient(new Uri(opts.AccountUrl.TrimEnd('/')), new DefaultAzureCredential());
+                var service = new BlobServiceClient(
+                    new Uri(opts.AccountUrl.TrimEnd('/')), new DefaultAzureCredential());
                 return service.GetBlobContainerClient(opts.ContainerName);
             }
         }
@@ -103,4 +178,14 @@ public sealed class DemoLibraryService(
         }
         return null;
     }
+
+    private static string ResolveMimeType(string ext) => ext switch
+    {
+        ".pdf"             => "application/pdf",
+        ".png"             => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".webp"            => "image/webp",
+        ".tiff" or ".bmp" => "image/tiff",
+        _                  => "text/plain"
+    };
 }

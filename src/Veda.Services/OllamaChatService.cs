@@ -1,3 +1,4 @@
+using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel.ChatCompletion;
 using System.Runtime.CompilerServices;
 using Veda.Core.Interfaces;
@@ -59,13 +60,23 @@ public sealed class OllamaChatService(
         if (!metadata.TryGetValue("Usage", out var usageObj) || usageObj is null) return Task.CompletedTask;
 
         int prompt = 0, completion = 0;
-        try
+        // M.E.AI path (Ollama SK connector wraps IChatClient → response.Usage is UsageDetails with long? properties)
+        if (usageObj is UsageDetails ud)
         {
-            dynamic u = usageObj;
-            try { prompt     = (int)u.InputTokenCount; }  catch { try { prompt     = (int)u.PromptTokenCount;    } catch { } }
-            try { completion = (int)u.OutputTokenCount; } catch { try { completion = (int)u.CompletionTokenCount; } catch { } }
+            prompt     = (int)(ud.InputTokenCount  ?? 0);
+            completion = (int)(ud.OutputTokenCount ?? 0);
         }
-        catch { return Task.CompletedTask; }
+        else
+        {
+            // Azure OpenAI native SK connector path (CompletionsUsage with int PromptTokens/CompletionTokens)
+            try
+            {
+                dynamic u = usageObj;
+                try { prompt     = (int)u.InputTokenCount; }  catch { try { prompt     = (int)u.PromptTokenCount;    } catch { } }
+                try { completion = (int)u.OutputTokenCount; } catch { try { completion = (int)u.CompletionTokenCount; } catch { } }
+            }
+            catch { return Task.CompletedTask; }
+        }
 
         if (prompt == 0 && completion == 0) return Task.CompletedTask;
 

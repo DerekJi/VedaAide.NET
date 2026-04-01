@@ -22,8 +22,8 @@ public sealed class CosmosDbInitializer(
         var opts = options;
 
         logger.LogInformation(
-            "CosmosDbInitializer: ensuring database '{Db}' and containers '{Chunks}', '{Cache}' exist",
-            opts.DatabaseName, opts.ChunksContainerName, opts.CacheContainerName);
+            "CosmosDbInitializer: ensuring database '{Db}' and containers '{Chunks}', '{Cache}', '{Behaviors}', '{Tokens}' exist",
+            opts.DatabaseName, opts.ChunksContainerName, opts.CacheContainerName, opts.BehaviorsContainerName, opts.TokenUsagesContainerName);
 
         // Create database (throughput = null → Serverless)
         var dbResponse = await client.CreateDatabaseIfNotExistsAsync(
@@ -66,6 +66,22 @@ public sealed class CosmosDbInitializer(
             DefaultTimeToLive = -1   // enable TTL; per-item _ttl controls actual expiry
         };
         await db.CreateContainerIfNotExistsAsync(cacheProps, cancellationToken: ct);
+
+        // ── UserBehaviors container (user feedback events, Partition Key = /userId) ──
+        var behaviorsProps = new ContainerProperties
+        {
+            Id = opts.BehaviorsContainerName,
+            PartitionKeyPath = "/userId"
+        };
+        await db.CreateContainerIfNotExistsAsync(behaviorsProps, cancellationToken: ct);
+
+        // ── TokenUsages container (AI token consumption log, Partition Key = /userId) ──
+        var tokenUsagesProps = new ContainerProperties
+        {
+            Id = opts.TokenUsagesContainerName,
+            PartitionKeyPath = "/userId"
+        };
+        await db.CreateContainerIfNotExistsAsync(tokenUsagesProps, cancellationToken: ct);
 
         logger.LogInformation("CosmosDbInitializer: ready");
     }
