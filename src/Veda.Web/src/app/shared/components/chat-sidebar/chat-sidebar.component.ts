@@ -1,4 +1,5 @@
 import { Component, computed, inject, Output, EventEmitter, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ChatSession } from '../../models';
 import { ChatSessionService } from '../../../services/chat-session.service';
 
@@ -10,7 +11,7 @@ interface SessionGroup {
 @Component({
   selector: 'app-chat-sidebar',
   standalone: true,
-  imports: [],
+  imports: [FormsModule],
   templateUrl: './chat-sidebar.component.html',
   styleUrl: './chat-sidebar.component.scss'
 })
@@ -21,9 +22,17 @@ export class ChatSidebarComponent {
   protected readonly chatSession = inject(ChatSessionService);
 
   readonly collapsed = signal<boolean>(this.loadCollapsed());
+  readonly searchQuery = signal<string>('');
+
+  /** Id of the session whose title is being edited. */
+  readonly editingId = signal<string | null>(null);
+  readonly editingTitle = signal<string>('');
 
   readonly groupedSessions = computed<SessionGroup[]>(() => {
-    const sessions = this.chatSession.sessions();
+    const q = this.searchQuery().toLowerCase().trim();
+    const sessions = q
+      ? this.chatSession.sessions().filter(s => s.title.toLowerCase().includes(q))
+      : this.chatSession.sessions();
     const now      = Date.now();
     const todayStart     = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
     const yesterdayStart = todayStart - 86_400_000;
@@ -70,6 +79,27 @@ export class ChatSidebarComponent {
     try {
       localStorage.setItem('veda_sidebar_collapsed', String(this.collapsed()));
     } catch { /* storage unavailable */ }
+  }
+
+  startEdit(s: ChatSession, event: MouseEvent): void {
+    event.stopPropagation();
+    this.editingId.set(s.id);
+    this.editingTitle.set(s.title);
+  }
+
+  confirmEdit(id: string): void {
+    const t = this.editingTitle().trim();
+    if (t) this.chatSession.setTitle(id, t);
+    this.editingId.set(null);
+  }
+
+  cancelEdit(): void {
+    this.editingId.set(null);
+  }
+
+  onEditKeyDown(event: KeyboardEvent, id: string): void {
+    if (event.key === 'Enter')  { event.preventDefault(); this.confirmEdit(id); }
+    if (event.key === 'Escape') { this.cancelEdit(); }
   }
 
   private loadCollapsed(): boolean {

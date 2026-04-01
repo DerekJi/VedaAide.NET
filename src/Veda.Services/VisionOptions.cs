@@ -15,15 +15,27 @@ public sealed class VisionOptions
     /// <summary>
     /// Name of the dedicated vision model (Ollama mode only, e.g. qwen3-vl:8b).
     /// Leave empty to reuse the main ChatModel.
-    /// Ignored when LlmProvider=AzureOpenAI (gpt-4o-mini is natively multimodal).
+    /// Ignored when ModelProvider=AzureOpenAI.
     /// </summary>
     public string? Model { get; set; }
+
+    /// <summary>
+    /// Override the Vision provider independently from the main LlmProvider.
+    /// "Ollama" | "AzureOpenAI". When null, follows the main LlmProvider (backward-compatible).
+    /// </summary>
+    public string? ModelProvider { get; set; }
+
+    /// <summary>
+    /// Azure OpenAI chat deployment to use for Vision when ModelProvider=AzureOpenAI.
+    /// Defaults to "gpt-4o-mini".
+    /// </summary>
+    public string ChatDeployment { get; set; } = "gpt-4o-mini";
 
     /// <summary>
     /// Ollama HTTP request timeout for vision inference, in seconds.
     /// Vision models (especially VL models running under VRAM pressure) can take longer than
     /// the default 100 s HttpClient timeout. Default: 300 s (5 minutes).
-    /// Ignored when LlmProvider=AzureOpenAI.
+    /// Ignored when ModelProvider=AzureOpenAI.
     /// </summary>
     public int TimeoutSeconds { get; set; } = 300;
 }

@@ -124,6 +124,18 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.chatSession.updateMessage(msg.id, m => ({ ...m, sourcesExpanded: !m.sourcesExpanded }));
   }
 
+  copyMessage(msg: ChatMessage): void {
+    navigator.clipboard.writeText(msg.text).catch(() => {
+      // Fallback for browsers without clipboard API
+      const ta = document.createElement('textarea');
+      ta.value = msg.text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  }
+
   getChunkIds(msg: ChatMessage): string[] {
     return (msg.sources ?? []).map(s => s.chunkId).filter((id): id is string => !!id);
   }

@@ -161,3 +161,35 @@
   color: var(--color-text-muted);
   text-align: center;
 }
+
+.search-bar {
+  padding: .4rem .5rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.search-input {
+  width: 100%;
+  padding: .3rem .5rem;
+  font-size: .8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg, #fff);
+  color: var(--color-text);
+  box-sizing: border-box;
+
+  &:focus { outline: none; border-color: var(--color-primary); }
+}
+
+.title-edit {
+  flex: 1;
+  padding: .1rem .25rem;
+  font-size: .82rem;
+  border: 1px solid var(--color-primary);
+  border-radius: 3px;
+  background: var(--color-bg, #fff);
+  color: var(--color-text);
+  min-width: 0;
+
+  &:focus { outline: none; }
+}

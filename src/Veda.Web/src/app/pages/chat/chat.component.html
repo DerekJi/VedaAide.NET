@@ -43,6 +43,7 @@
               @if (msg.confidence != null) {
                 <span class="confidence">Confidence: {{ (msg.confidence * 100).toFixed(0) }}%</span>
               }
+              <button class="btn-copy" (click)="copyMessage(msg)" title="Copy message">⎘</button>
             </div>
             <app-feedback-bar
               [sessionId]="chatSession.activeId()"
