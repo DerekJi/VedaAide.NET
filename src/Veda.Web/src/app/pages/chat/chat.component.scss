@@ -164,10 +164,56 @@
 
 .input-bar {
   display: flex;
-  gap: .75rem;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: .4rem;
   padding-top: .75rem;
   border-top: 1px solid var(--color-border);
+}
+
+.input-row {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-end;
+}
+
+.queue-info {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .75rem;
+  color: var(--color-text-muted);
+  padding: .2rem .25rem;
+}
+
+.queue-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 .35rem;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+// Queued user bubble — dimmed until processed
+.bubble-queued {
+  opacity: .55;
+}
+
+.queued-label {
+  font-size: .7rem;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  padding: .1rem .4rem;
+  font-weight: 600;
+  display: inline-block;
+  margin-bottom: .4rem;
 }
 
 .question-input {
@@ -198,5 +244,86 @@
   &:hover:not(:disabled) { background: var(--color-primary-dark); }
 }
 
+.btn-attach {
+  height: 40px;
+  min-width: 40px;
+  padding: .4rem .6rem;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  font-size: 1rem;
+  &:hover:not(:disabled) { background: var(--color-border); }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+// ── Ephemeral attachment chip ─────────────────────────────────────────────────
+
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 500;
+  max-width: 100%;
+  width: fit-content;
+
+  &--loading {
+    background: #f0f4ff;
+    color: #5a7ab5;
+    border: 1px dashed #b3c3e8;
+  }
+
+  &--error {
+    background: #fff1f0;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+  }
+
+  &--ready {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+  }
+}
+
+.attach-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attach-icon { flex-shrink: 0; }
+.attach-spinner { display: inline-block; animation: spin 1s linear infinite; }
+
+.attach-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .85rem;
+  line-height: 1;
+  color: inherit;
+  opacity: .7;
+  padding: 0 .1rem;
+  flex-shrink: 0;
+  &:hover { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 .send-btn { min-width: 60px; height: 40px; }

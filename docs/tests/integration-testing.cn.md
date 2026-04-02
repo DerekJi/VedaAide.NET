@@ -96,6 +96,24 @@ dotnet test tests/Veda.Services.Tests --filter "Category!=Integration"
 
 > **警告：** 生产环境严禁开启 `NoAuth=true`。
 
+**重要：NoAuth 对前端登录的影响**
+
+`NoAuth=true` 只作用于后端 API，与前端无关。两者是完全独立的机制：
+
+- **前端**：路由仍受 `MsalGuard` 保护，用户仍需通过 Entra ID 登录，`MsalInterceptor` 仍会在每个请求中附上真实的 Bearer Token。
+- **后端**：`DevBypassAuthHandler` 直接忽略请求中携带的任何 Token，强制将所有请求的身份覆盖为 `oid=dev-user`。
+
+换言之，即使前端已登录真实用户，该用户的身份也不会传递到后端——所有请求到后端后均以 `dev-user` 处理。
+
+| 场景 | 前端是否有 Token | 后端识别的用户 |
+|------|----------------|-------------|
+| `NoAuth=true` | 有（MSAL 附上） | `dev-user`（Token 被忽略） |
+| `NoAuth=true` | 无（curl/Postman）| `dev-user`（Token 被忽略） |
+| `NoAuth=false`（生产）| 有 | 真实 Entra 用户 |
+| `NoAuth=false`（生产）| 无 | 401 Unauthorized |
+
+`NoAuth` 的主要用途是允许 `curl`、Postman 等工具不携带 Token 直接访问 API，方便本地调试。
+
 ### 1. 启动 API
 
 ```bash

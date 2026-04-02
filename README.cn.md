@@ -144,6 +144,8 @@ VedaAide.NET/
 | `POST` | `/api/documents/upload` | 上传图片/PDF（多模态）到知识库 |
 | `POST` | `/api/query` | RAG 问答（返回答案 + 来源 + 幻觉标记、支持 structuredOutput） |
 | `GET` | `/api/querystream` | SSE 流式 RAG 问答 |
+| `POST` | `/api/querystream` | 带临时附件上下文的流式 RAG 问答（Context Augmentation） |
+| `POST` | `/api/context/extract` | 从上传文件提取文本（临时，不写数据库） |
 | `POST` | `/api/orchestrate/query` | Agent 编排问答 |
 | `POST` | `/api/orchestrate/ingest` | Agent 编排摄取 |
 | `POST` | `/api/datasources/sync` | 手动触发所有已启用数据源同步 |
@@ -205,7 +207,7 @@ dotnet test --collect:"XPlat Code Coverage"
 ./scripts/smoke-test.sh
 ```
 
-当前测试数量：**134 个测试**，全部通过。
+当前测试数量：**167 个测试**，全部通过。
 
 ---
 
@@ -335,9 +337,11 @@ API 运行时，在 `.vscode/mcp.json` 中添加：
 | 二期 Sprint 2 | LLM 双模式路由（DeepSeek Advanced）+ API 安全 + Admin 管理端点 | ✅ 已完成 |
 | 二期 Sprint 3 | 语义缓存（ISemanticCache，SQLite + CosmosDB 双后端） | ✅ 已完成 |
 | 二期 Sprint 4 | CI/CD（GitHub Actions）+ Bicep IaC + Managed Identity | ✅ 已完成 |
-| 阮段六 | AI 评估体系（忠实度、相关性、A/B 测试） | ✅ 已完成 |
+| 阶段六 | AI 评估体系（忠实度、相关性、A/B 测试） | ✅ 已完成 |
 | 三期 Sprint 1 | 知识作用域（KnowledgeScope）+ 混合检索双通道（RRF 融合） | ✅ 已完成 |
 | 三期 Sprint 2 | 富格式文档摄取（Document Intelligence OCR + Vision 多模态） | ✅ 已完成 |
 | 三期 Sprint 3 | 结构化推理输出 + 知识版本化 + 语义增强层（个人词库） | ✅ 已完成 |
 | 三期 Sprint 4 | 隐式反馈学习 + 多用户知识治理（四层隔离模型） | ✅ 已完成 |
 | 五期 | 用户身份认证（Azure Entra External ID CIAM）+ 全路由保护（MsalGuard）+ JWT 用户数据隔离 | ✅ 已完成 |
+| 六期 | 富格式文档提取质量提升（Certificate 类型、PDF 文字层、Azure DI 配额感知、Ollama Vision 提供商、Token 消耗统计、邮件摄取 EML/MSG、管理员角色隔离） | ✅ 已完成 |
+| 七期 Phase 4 | Context Augmentation（临时 RAG）：Chat 中上传文件/粘贴截图，提取文本不写数据库，直接注入 LLM Prompt | ✅ 已完成 |

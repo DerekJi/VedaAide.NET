@@ -380,6 +380,113 @@ public class ChatMessageEntity
 
 ---
 
+---
+
+### Phase 4：Context Augmentation（临时 RAG / Ephemeral RAG）
+
+**目标**：在 Chat 页允许用户上传文件或粘贴图片，提取文本后直接注入 LLM Prompt，不写入向量数据库，会话结束即丢弃。
+
+#### 背景与适用场景
+
+| 场景 | 说明 |
+|------|------|
+| 账单截图对比 | 粘贴图片，直问"这张发票多少钱" |
+| 临时参考文档 | 上传 PDF，只问一次，无需永久入库 |
+| 数据脱敏敏感文件 | 不希望内容持久化到数据库 |
+
+**技术路线**：前端上传文件 → `POST /api/context/extract` 提取文本（不写 DB）→ 文本存前端内存 → 提问时以 `extraContext` 字段随流式请求发送 → `QueryService` 将其拼入 Prompt。
+
+#### 4.1 DocumentType 推断（关键设计决策）
+
+临时上传场景中，**用户不选择 DocumentType**，服务端根据 MIME 类型自动推断：
+
+| MIME 类型 | 推断 DocumentType | 使用的提取器 |
+|-----------|------------------|-------------|
+| `image/*` | `RichMedia` | `VisionModelFileExtractor` |
+| `application/pdf` | `Other`（自动降级）| `PdfTextLayerExtractor` → Vision Fallback |
+| `text/plain` | `Other` | 直接读取流为字符串 |
+| 其他（DOCX、EML 等）| `Other` | `DocumentIntelligenceFileExtractor` → Vision Fallback |
+
+注：与持久化 ingest 相比，临时提取**不走 ChunkingOptions**，不分块，直接返回完整提取文本（受 context window 限制，超长时截断）。
+
+#### 4.2 新增端点
+
+```
+POST /api/context/extract
+  Content-Type: multipart/form-data
+  Body: file (IFormFile)
+  Response: { text: string, fileName: string }
+  说明：仅提取文本，不写数据库；返回提取结果给前端
+
+POST /api/querystream
+  Content-Type: application/json
+  Body: { question, extraContext?, topK?, minSimilarity?, dateFrom?, dateTo?, mode? }
+  Response: text/event-stream（与 GET 版本相同格式）
+  说明：携带 extraContext 时，将其注入 Prompt；与原 GET 端点并存
+```
+
+#### 4.3 QueryService 处理逻辑
+
+当 `request.EphemeralContext` 非空时：
+1. 正常执行向量检索（DB 知识与临时上下文可叠加）
+2. 在 `context` 字符串头部插入临时上下文块：
+   ```
+   [临时上传文件]
+   {ephemeralContext}
+   ---
+   [知识库检索结果]
+   ...
+   ```
+3. **跳过幻觉检测**：临时上下文无 embedding 相似度，强行判幻觉无意义
+
+#### 4.4 前端交互设计
+
+```
+┌── 侧边栏 ──┬──────────── 聊天主区域 ─────────────────┐
+│           │  消息气泡                               │
+│           │  ┌─────────────────────────────────┐  │
+│           │  │ [📎 report.pdf  ×]               │  │  ← 附件 chip
+│           │  │ [+ 添加文件]  [📋 粘贴图片]      │  │
+│           │  │ [textarea…]           [Ask]      │  │
+│           │  └─────────────────────────────────┘  │
+└───────────┴────────────────────────────────────────┘
+```
+
+- 支持点击「📎」按钮打开文件选择器（接受 PDF、图片、TXT）
+- 支持 `Ctrl+V` / `Cmd+V` 粘贴剪贴板图片（截图场景）
+- 附件以 chip 形式显示文件名，点 `×` 清除
+- 上传后显示 loading 状态（提取中…），提取完成后 chip 变绿色
+- 提取失败时 chip 变红，提示错误
+- **同一时刻只允许一个附件**（简化 context window 管理）
+
+#### 4.5 文件变更清单
+
+| 文件 | 变更说明 |
+|------|---------|
+| `Veda.Core/RagQueryRequest.cs` | 新增 `EphemeralContext` 属性 |
+| `Veda.Services/EphemeralContextExtractor.cs` | 新增：根据 MIME 自动提取，不写 DB |
+| `Veda.Services/QueryService.cs` | `QueryStreamAsync` / `QueryAsync` 注入 EphemeralContext |
+| `Veda.Services/ServiceCollectionExtensions.cs` | 注册 `EphemeralContextExtractor` |
+| `Veda.Api/Controllers/ContextController.cs` | 新增：`POST /api/context/extract` |
+| `Veda.Api/Controllers/QueryStreamController.cs` | 新增 POST action |
+| `Veda.Web/shared/models.ts` | 新增 `EphemeralAttachment`、`ContextExtractResponse` |
+| `Veda.Web/services/veda-api.service.ts` | 新增 `extractContextFile()` |
+| `Veda.Web/services/chat-stream.service.ts` | 新增 `streamWithContext()` POST |
+| `Veda.Web/pages/chat/chat.component.ts` | 附件状态、粘贴/上传逻辑、修改 ask() |
+| `Veda.Web/pages/chat/chat.component.html` | 附件 chip、文件按钮、粘贴区域 |
+| `Veda.Web/pages/chat/chat.component.scss` | 附件 chip 样式 |
+
+#### 4.6 验收标准
+
+- [x] 上传 PDF，提取文本后提问，回答基于 PDF 内容
+- [x] 粘贴截图，基于图片内容回答（依赖 Vision 模型启用）
+- [x] 上传后切换/删除附件，下一问题不携带旧附件
+- [x] 附件内容不出现在 `/api/documents` 列表
+- [x] 数据库中无新增 chunks
+- [x] 原 GET `/api/querystream`（无附件）行为不受影响
+
+---
+
 ## 7. 时间估算
 
 | Phase | 预估工作量 | 优先级 |
@@ -387,7 +494,8 @@ public class ChatMessageEntity
 | Phase 1：前端内存 + localStorage | 2–3 天 | P0 |
 | Phase 2：后端持久化 + 用户隔离 | 3–4 天 | P1 |
 | Phase 3：体验优化 | 2–3 天 | P2 |
-| **合计** | **7–10 天** | — |
+| Phase 4：Context Augmentation  | 1–2 天 | P1 |
+| **合计** | **8–12 天** | — |
 
 ---
 

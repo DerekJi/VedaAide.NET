@@ -15,7 +15,10 @@
 
     @for (msg of chatSession.messages(); track msg.id) {
       <div class="message" [class]="'message-' + msg.role">
-        <div class="bubble">
+        <div class="bubble" [class.bubble-queued]="msg.queued">
+          @if (msg.queued) {
+            <div class="queued-label">⏳ Queued</div>
+          }
           <p class="text" [class.streaming]="msg.streaming">{{ msg.text }}@if (msg.streaming) {<span class="cursor">▌</span>}</p>
 
           @if (msg.sources && msg.sources.length > 0) {
@@ -58,19 +61,57 @@
   </div>
 
   <div class="input-bar">
-    <textarea
-      class="question-input"
-      rows="2"
-      placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
-      [value]="question()"
-      (input)="question.set($any($event.target).value)"
-      (keydown)="onKeyDown($event)"
-      [disabled]="busy()"
-    ></textarea>
-    <button class="btn btn-primary send-btn" (click)="submit()" [disabled]="!question().trim() || busy()">
-      @if (busy()) { … }
-      @else { Ask }
-    </button>
+    @if (queueSize() > 0) {
+      <div class="queue-info">
+        <span class="queue-badge">{{ queueSize() }}</span>
+        {{ queueSize() === 1 ? 'message queued' : 'messages queued' }}
+      </div>
+    }
+
+    @if (attachLoading()) {
+      <div class="attach-chip attach-chip--loading">
+        <span class="attach-spinner">⏳</span> 提取中…
+      </div>
+    } @else if (attachError()) {
+      <div class="attach-chip attach-chip--error">
+        <span>⚠️ {{ attachError() }}</span>
+        <button class="attach-clear" (click)="clearAttachment()" title="清除">×</button>
+      </div>
+    } @else if (attachment()) {
+      <div class="attach-chip attach-chip--ready">
+        <span class="attach-icon">📎</span>
+        <span class="attach-name">{{ attachment()!.fileName }}</span>
+        <button class="attach-clear" (click)="clearAttachment()" title="清除附件">×</button>
+      </div>
+    }
+
+    <div class="input-row">
+      <!-- 隐藏文件选择器：接受 PDF、图片、文本等常见格式 -->
+      <input
+        #fileInput
+        type="file"
+        class="visually-hidden"
+        accept=".pdf,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif,.bmp,.docx,.eml"
+        (change)="onFileSelected($event)"
+      />
+      <button
+        class="btn btn-attach"
+        (click)="openFilePicker()"
+        [disabled]="attachLoading()"
+        title="上传临时参考文件（不入库）"
+      >📎</button>
+      <textarea
+        class="question-input"
+        rows="2"
+        placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
+        [value]="question()"
+        (input)="question.set($any($event.target).value)"
+        (keydown)="onKeyDown($event)"
+      ></textarea>
+      <button class="btn btn-primary send-btn" (click)="submit()" [disabled]="!question().trim() || attachLoading()">
+        Ask
+      </button>
+    </div>
   </div>
 </div>
 </div>

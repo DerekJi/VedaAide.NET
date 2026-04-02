@@ -2,11 +2,24 @@
 
 import type { ChatLang } from './chat-labels';
 
+/** 临时附件（Ephemeral RAG）：前端内存中存储，不持久化。 */
+export interface EphemeralAttachment {
+  fileName: string;
+  extractedText: string;
+}
+
+/** POST /api/context/extract 的响应体。 */
+export interface ContextExtractResponse {
+  text: string;
+  fileName: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   streaming?: boolean;
+  queued?: boolean;     // true while waiting in queue before being sent
   sources?: SourceReference[];
   confidence?: number;
   isHallucination?: boolean;
