@@ -2,10 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
-  ChunkPreview, DemoDocument, DocumentSummary,
+  ChunkPreview, ContextExtractResponse, DemoDocument, DocumentSummary,
   EvalQuestion, EvaluationReport, IngestRequest, IngestResult,
   PromptTemplate, QueryRequest, QueryResponse,
   RunEvaluationRequest, SaveEvalQuestionRequest, SavePromptRequest,
+  SessionResponse, MessageResponse, AppendMessageRequest,
 } from '../shared/models';
 
 @Injectable({ providedIn: 'root' })
@@ -15,6 +16,26 @@ export class VedaApiService {
 
   ingestDocument(req: IngestRequest): Observable<IngestResult> {
     return this.http.post<IngestResult>(`${this.base}/documents`, req);
+  }
+
+  uploadFile(file: File, documentName?: string, documentType?: string): Observable<IngestResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const qs = new URLSearchParams();
+    if (documentName) qs.set('documentName', documentName);
+    if (documentType) qs.set('documentType', documentType);
+    const params = qs.toString() ? `?${qs.toString()}` : '';
+    return this.http.post<IngestResult>(`${this.base}/documents/upload${params}`, formData);
+  }
+
+  /**
+   * 上传文件，仅提取文本，不写向量数据库（Ephemeral RAG / Context Augmentation）。
+   * 对应后端 POST /api/context/extract。
+   */
+  extractContextFile(file: File): Observable<ContextExtractResponse> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<ContextExtractResponse>(`${this.base}/context/extract`, formData);
   }
 
   query(req: QueryRequest): Observable<QueryResponse> {
@@ -37,8 +58,9 @@ export class VedaApiService {
     return this.http.get<DemoDocument[]>(`${this.base}/demo/documents`);
   }
 
-  ingestDemoDocument(name: string): Observable<IngestResult> {
-    return this.http.post<IngestResult>(`${this.base}/demo/documents/${encodeURIComponent(name)}/ingest`, {});
+  ingestDemoDocument(name: string, documentType?: string): Observable<IngestResult> {
+    const params = documentType ? `?documentType=${encodeURIComponent(documentType)}` : '';
+    return this.http.post<IngestResult>(`${this.base}/demo/documents/${encodeURIComponent(name)}/ingest${params}`, {});
   }
 
   // ── Prompts ────────────────────────────────────────────────────────────────
@@ -83,5 +105,27 @@ export class VedaApiService {
 
   deleteEvalReport(runId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/evaluation/reports/${runId}`);
+  }
+
+  // ── Chat sessions ──────────────────────────────────────────────────────────
+
+  createChatSession(title?: string): Observable<SessionResponse> {
+    return this.http.post<SessionResponse>(`${this.base}/chat/sessions`, { title });
+  }
+
+  listChatSessions(): Observable<SessionResponse[]> {
+    return this.http.get<SessionResponse[]>(`${this.base}/chat/sessions`);
+  }
+
+  deleteChatSession(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/chat/sessions/${id}`);
+  }
+
+  getChatMessages(sessionId: string): Observable<MessageResponse[]> {
+    return this.http.get<MessageResponse[]>(`${this.base}/chat/sessions/${sessionId}/messages`);
+  }
+
+  appendChatMessage(sessionId: string, req: AppendMessageRequest): Observable<MessageResponse> {
+    return this.http.post<MessageResponse>(`${this.base}/chat/sessions/${sessionId}/messages`, req);
   }
 }

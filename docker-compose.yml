@@ -54,11 +54,9 @@ services:
       - veda-db:/app/data
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__VedaDb: Data Source=/app/data/veda.db
-      Ollama__BaseUrl: http://ollama:11434
+      Veda__DbPath: /app/data/veda.db
+      Veda__OllamaEndpoint: http://ollama:11434
       Veda__EmbeddingModel: nomic-embed-text
-      Rag__TopK: "5"
-      Rag__SimilarityThreshold: "0.4"
     # Not exposed to the host – only reachable via veda-web's nginx proxy
     expose:
       - "8080"

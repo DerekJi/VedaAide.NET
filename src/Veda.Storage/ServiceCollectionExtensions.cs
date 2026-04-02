@@ -37,9 +37,9 @@ public static class ServiceCollectionExtensions
         var storageProvider = cfg["Veda:StorageProvider"] ?? "Sqlite";
         if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
         {
-            var endpoint = cfg["Veda:CosmosDb:Endpoint"]
-                ?? throw new InvalidOperationException("Veda:CosmosDb:Endpoint is required when StorageProvider=CosmosDb");
-            var accountKey = cfg["Veda:CosmosDb:AccountKey"];
+            var cosmosOpts = cfg.GetSection("Veda:CosmosDb").Get<CosmosDbOptions>() ?? new CosmosDbOptions();
+            if (string.IsNullOrWhiteSpace(cosmosOpts.Endpoint))
+                throw new InvalidOperationException("Veda:CosmosDb:Endpoint is required when StorageProvider=CosmosDb");
 
             var cosmosClientOptions = new CosmosClientOptions
             {
@@ -48,24 +48,11 @@ public static class ServiceCollectionExtensions
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 })
             };
-            var cosmosClient = string.IsNullOrWhiteSpace(accountKey)
-                ? new CosmosClient(endpoint, new DefaultAzureCredential(), cosmosClientOptions)
-                : new CosmosClient(endpoint, accountKey, cosmosClientOptions);
+            var cosmosClient = string.IsNullOrWhiteSpace(cosmosOpts.AccountKey)
+                ? new CosmosClient(cosmosOpts.Endpoint, new DefaultAzureCredential(), cosmosClientOptions)
+                : new CosmosClient(cosmosOpts.Endpoint, cosmosOpts.AccountKey, cosmosClientOptions);
 
-            // Build CosmosDbOptions from config manually (avoids IConfiguration binding extensions dependency)
-            var cosmosOpts = new CosmosDbOptions
-            {
-                Endpoint              = endpoint,
-                AccountKey            = accountKey,
-                DatabaseName          = cfg["Veda:CosmosDb:DatabaseName"]          ?? "VedaAide",
-                ChunksContainerName   = cfg["Veda:CosmosDb:ChunksContainerName"]   ?? "VectorChunks",
-                CacheContainerName      = cfg["Veda:CosmosDb:CacheContainerName"]      ?? "SemanticCache",
-                BehaviorsContainerName  = cfg["Veda:CosmosDb:BehaviorsContainerName"]  ?? "UserBehaviors",
-                TokenUsagesContainerName = cfg["Veda:CosmosDb:TokenUsagesContainerName"] ?? "TokenUsages",
-                EmbeddingDimensions     = int.TryParse(cfg["Veda:CosmosDb:EmbeddingDimensions"], out var dims) ? dims : 1024
-            };
-
-            var cacheOpts = BuildCacheOptions(cfg);
+            var cacheOpts = cfg.GetSection("Veda:SemanticCache").Get<SemanticCacheOptions>() ?? new SemanticCacheOptions();
 
             services.AddSingleton(cosmosClient);
             services.AddSingleton(cosmosOpts);
@@ -78,7 +65,7 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            var cacheOpts = BuildCacheOptions(cfg);
+            var cacheOpts = cfg.GetSection("Veda:SemanticCache").Get<SemanticCacheOptions>() ?? new SemanticCacheOptions();
             services.AddSingleton(cacheOpts);
             services.AddScoped<IVectorStore, SqliteVectorStore>();
             services.AddScoped<ISemanticCache, SqliteSemanticCache>();
@@ -89,16 +76,12 @@ public static class ServiceCollectionExtensions
         // Knowledge governance (sharing groups, document permissions, consensus candidates) — always SQLite
         services.AddScoped<IKnowledgeGovernanceService, KnowledgeGovernanceService>();
 
+        // Chat session persistence: CosmosDB when StorageProvider=CosmosDb, otherwise SQLite
+        if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IChatSessionRepository, CosmosDbChatSessionRepository>();
+        else
+            services.AddScoped<IChatSessionRepository, ChatSessionRepository>();
+
         return services;
     }
-
-    private static SemanticCacheOptions BuildCacheOptions(IConfiguration cfg) => new()
-    {
-        Enabled             = bool.TryParse(cfg["Veda:SemanticCache:Enabled"], out var en) && en,
-        SimilarityThreshold = float.TryParse(cfg["Veda:SemanticCache:SimilarityThreshold"],
-                                  System.Globalization.NumberStyles.Float,
-                                  System.Globalization.CultureInfo.InvariantCulture,
-                                  out var thr) ? thr : 0.95f,
-        TtlSeconds          = int.TryParse(cfg["Veda:SemanticCache:TtlSeconds"], out var ttl) ? ttl : 3600
-    };
 }

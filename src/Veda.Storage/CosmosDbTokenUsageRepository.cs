@@ -41,13 +41,22 @@ public sealed class CosmosDbTokenUsageRepository(
             .WithParameter("@u", userId);
 
         var rows = new List<TokenUsageDoc>();
-        var iter = Container.GetItemQueryIterator<TokenUsageDoc>(queryDef,
-            requestOptions: new QueryRequestOptions { PartitionKey = new PartitionKey(userId) });
-
-        while (iter.HasMoreResults)
+        try
         {
-            var page = await iter.ReadNextAsync(ct);
-            rows.AddRange(page);
+            var iter = Container.GetItemQueryIterator<TokenUsageDoc>(queryDef,
+                requestOptions: new QueryRequestOptions { PartitionKey = new PartitionKey(userId) });
+
+            while (iter.HasMoreResults)
+            {
+                var page = await iter.ReadNextAsync(ct);
+                rows.AddRange(page);
+            }
+        }
+        catch (CosmosException ex) when (ex.StatusCode is System.Net.HttpStatusCode.NotFound
+                                                        or System.Net.HttpStatusCode.ServiceUnavailable)
+        {
+            logger.LogWarning("TokenUsages container unavailable ({Status}) — returning empty usage summary", ex.StatusCode);
+            // Return empty summary rather than 500; container will be created by initializer on next startup
         }
 
         var monthStart = new DateTimeOffset(

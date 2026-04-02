@@ -275,20 +275,19 @@ public class QueryServiceTests
     [Test]
     public async Task QueryAsync_LowAnswerSimilarity_ShouldFlagHallucination()
     {
-        // Arrange: threshold = 0.5; answer check returns empty → maxSimilarity = 0 < 0.5
+        // Arrange: threshold = 0.5; retrieval returns a chunk with similarity 0.1 < 0.5
+        // The implementation uses the max source similarity (not a separate answer re-embedding call).
         var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0.5f });
         var sut = BuildSut(ragOptions);
 
-        var chunks = new List<(DocumentChunk, float)> { (MakeChunk("doc1", "relevant"), 0.9f) };
+        var chunks = new List<(DocumentChunk, float)> { (MakeChunk("doc1", "weak match"), 0.1f) };
         _embedding.Setup(e => e.GenerateEmbeddingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new float[3]);
-        // First call (RAG search): return chunks; second call (answer embedding check): return empty
-        _vectorStore.SetupSequence(v => v.SearchAsync(
+        _vectorStore.Setup(v => v.SearchAsync(
                 It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<float>(),
                 It.IsAny<DocumentType?>(), It.IsAny<DateTimeOffset?>(), It.IsAny<DateTimeOffset?>(),
                 It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(chunks)           // RAG retrieval
-            .ReturnsAsync(new List<(DocumentChunk, float)>());  // answer check → no match → hallucination
+            .ReturnsAsync(chunks);   // max similarity = 0.1 < threshold 0.5 → hallucination
         _chatService.Setup(c => c.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Fabricated answer.");
 

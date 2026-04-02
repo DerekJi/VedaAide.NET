@@ -18,4 +18,9 @@ public record RagQueryRequest
     public bool StructuredOutput        { get; init; } = false;
     /// <summary>当前用户 ID（可选）；提供后启用个性化反馈 boost。</summary>
     public string? UserId               { get; init; }
+    /// <summary>
+    /// 临时上下文（Ephemeral RAG）：前端上传文件提取的文本，直接注入 Prompt，不写数据库。
+    /// null 表示无临时附件。
+    /// </summary>
+    public string? EphemeralContext     { get; init; }
 }

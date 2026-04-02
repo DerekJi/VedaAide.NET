@@ -13,7 +13,6 @@ public sealed class DocumentIngestService(
     ISemanticCache semanticCache,
     ISemanticEnhancer semanticEnhancer,
     IDocumentDiffService documentDiffService,
-    IOptions<RagOptions> options,
     IOptions<VedaOptions> vedaOptions,
     DocumentIntelligenceFileExtractor docIntelExtractor,
     VisionModelFileExtractor visionExtractor,
@@ -78,7 +77,8 @@ public sealed class DocumentIngestService(
         }
 
         // 第二层去重：过滤与已存储内容向量相似度过高的块（语义近似重复）。
-        var dedupThreshold = options.Value.SimilarityDedupThreshold;
+        // Certificate 类型使用更低阈值（0.70），避免内容结构相近的证书互相误杀。
+        var dedupThreshold = ChunkingOptions.ForDocumentType(documentType).DedupThreshold;
         var deduped = new List<DocumentChunk>();
         foreach (var chunk in chunks)
         {
@@ -133,8 +133,10 @@ public sealed class DocumentIngestService(
 
         string extractedText;
 
-        // PDF 文字层直通：纯文字 PDF 跳过 OCR 管线
-        if (mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+        // PDF 文字层直通：纯文字 PDF 跳过 OCR 管线。
+        // Certificate 类型跳过 PdfPig（表格/排版复杂，GetWords 词序混乱），直走 Azure DI。
+        if (mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+            && documentType != DocumentType.Certificate)
         {
             var textLayerResult = pdfTextLayerExtractor.TryExtract(buffered, fileName);
             if (textLayerResult is not null)
@@ -160,14 +162,34 @@ public sealed class DocumentIngestService(
         {
             extractedText = await extractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
         }
-        catch (QuotaExceededException) when (!ReferenceEquals(extractor, visionExtractor))
+        catch (Exception ex) when (!ReferenceEquals(extractor, visionExtractor))
         {
-            logger.LogWarning(
-                "Azure DI quota exceeded, falling back to Vision model for '{Name}'", fileName);
+            var reason = ex is QuotaExceededException ? "quota exceeded" : $"{ex.GetType().Name}: {ex.Message}";
+            logger.LogWarning(ex, "Azure DI failed ({Reason}), falling back to Vision model for '{Name}'",
+                reason, fileName);
             buffered.Position = 0;
-            extractedText = await visionExtractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
+            try
+            {
+                extractedText = await visionExtractor.ExtractAsync(buffered, fileName, mimeType, documentType, ct);
+            }
+            catch (Exception vex)
+            {
+                // Vision not enabled, not configured, or the chat model doesn't support images.
+                logger.LogWarning(vex,
+                    "Vision extraction failed for '{Name}' ({ExType}); returning 0 chunks",
+                    fileName, vex.GetType().Name);
+                return new IngestResult(Guid.NewGuid().ToString(), fileName, 0);
+            }
         }
 
-return await IngestAsync(extractedText, fileName, documentType, scope, ct);
+        // Guard: DI or Vision may return empty text (blank/corrupted document)
+        if (string.IsNullOrWhiteSpace(extractedText))
+        {
+            logger.LogWarning(
+                "Extractor returned empty text for '{Name}'; returning 0 chunks", fileName);
+            return new IngestResult(Guid.NewGuid().ToString(), fileName, 0);
+        }
+
+        return await IngestAsync(extractedText, fileName, documentType, scope, ct);
     }
 }

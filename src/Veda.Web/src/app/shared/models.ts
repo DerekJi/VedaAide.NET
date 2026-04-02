@@ -1,5 +1,40 @@
 /** API response and request models matching backend DTOs */
 
+import type { ChatLang } from './chat-labels';
+
+/** 临时附件（Ephemeral RAG）：前端内存中存储，不持久化。 */
+export interface EphemeralAttachment {
+  fileName: string;
+  extractedText: string;
+}
+
+/** POST /api/context/extract 的响应体。 */
+export interface ContextExtractResponse {
+  text: string;
+  fileName: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  streaming?: boolean;
+  queued?: boolean;     // true while waiting in queue before being sent
+  sources?: SourceReference[];
+  confidence?: number;
+  isHallucination?: boolean;
+  sourcesExpanded?: boolean;
+  query?: string;       // the question that produced this assistant answer
+  lang?: ChatLang;      // detected language of the answer
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;    // Unix milliseconds
+  messages: ChatMessage[];
+}
+
 export interface IngestRequest {
   content: string;
   documentName: string;
@@ -146,4 +181,40 @@ export interface EvaluationReport {
 export interface RunEvaluationRequest {
   questionIds?: string[];
   chatModelOverride?: string;
+}
+
+// ── Chat session backend DTOs (Phase 2) ──────────────────────────────────────
+
+export interface SessionResponse {
+  sessionId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageSourceDto {
+  documentName: string;
+  chunkContent: string;
+  similarity: number;
+  chunkId?: string;
+  documentId?: string;
+}
+
+export interface MessageResponse {
+  messageId: string;
+  sessionId: string;
+  role: string;
+  content: string;
+  confidence?: number;
+  isHallucination: boolean;
+  sources: MessageSourceDto[];
+  createdAt: string;
+}
+
+export interface AppendMessageRequest {
+  role: string;
+  content: string;
+  confidence?: number;
+  isHallucination?: boolean;
+  sources?: MessageSourceDto[];
 }

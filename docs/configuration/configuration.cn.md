@@ -278,6 +278,9 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
       "DatabaseName": "VedaAide",
       "ChunksContainerName": "VectorChunks",
       "CacheContainerName": "SemanticCache",
+      "BehaviorsContainerName": "UserBehaviors",
+      "TokenUsagesContainerName": "TokenUsages",
+      "ChatSessionsContainerName": "ChatSessions",
       "EmbeddingDimensions": 1024
     }
   }
@@ -292,9 +295,12 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
 | `CosmosDb:DatabaseName` | string | `VedaAide` | CosmosDB 数据库名 |
 | `CosmosDb:ChunksContainerName` | string | `VectorChunks` | 向量块容器名（含 DiskANN 索引） |
 | `CosmosDb:CacheContainerName` | string | `SemanticCache` | 语义缓存容器名 |
+| `CosmosDb:BehaviorsContainerName` | string | `UserBehaviors` | 用户行为反馈容器名（Partition Key = `/userId`） |
+| `CosmosDb:TokenUsagesContainerName` | string | `TokenUsages` | Token 消耗记录容器名（Partition Key = `/userId`） |
+| `CosmosDb:ChatSessionsContainerName` | string | `ChatSessions` | 多会话持久化容器名（Partition Key = `/userId`） |
 | `CosmosDb:EmbeddingDimensions` | int | `1024` | Embedding 向量维度，须与模型一致（bge-m3=1024，text-embedding-3-small=1536） |
 
-> SQLite 元数据库（PromptTemplate / SyncState / Eval）始终使用 SQLite，不受此配置影响。
+> SQLite 元数据库（PromptTemplate / SyncState / Eval / 会话）始终使用 SQLite；CosmosDB 模式下向量、缓存、行为、Token 统计及会话均存入 CosmosDB，自动按 userId 隔离。
 
 ---
 
@@ -453,7 +459,10 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
       "ApiKey": ""
     },
     "Vision": {
-      "Enabled": false
+      "Enabled": true,
+      "OllamaModel": "",
+      "ChatDeployment": "gpt-4o-mini",
+      "TimeoutSeconds": 300
     }
   }
 }
@@ -463,7 +472,10 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
 |------|------|--------|------|
 | `DocumentIntelligence:Endpoint` | string | `""` | Azure AI Document Intelligence 端点（Bicep 自动注入）。留空则跳过 OCR 摄取流程 |
 | `DocumentIntelligence:ApiKey` | string | `""` | Document Intelligence API Key。**留空则使用 Managed Identity**（云端推荐） |
-| `Vision:Enabled` | bool | `false` | 是否启用 Vision 模型（GPT-4o-mini）处理 `RichMedia` 类型文件。Azure OpenAI 环境由 Bicep 自动设为 `true`；本地 Ollama 保持 `false` |
+| `Vision:Enabled` | bool | `true` | 是否启用 Vision 模型处理图片、扫描件 PDF 及临时文件提取 |
+| `Vision:OllamaModel` | string | `""` | Ollama 视觉模型名（如 `qwen3-vl:8b`）。**非空则优先使用 Ollama**；留空则自动尝试 AzureOpenAI |
+| `Vision:ChatDeployment` | string | `"gpt-4o-mini"` | AzureOpenAI 视觉部署名。`OllamaModel` 为空且 `AzureOpenAI:Endpoint` 已配置时生效 |
+| `Vision:TimeoutSeconds` | int | `300` | Vision 模型调用 HTTP 超时秒数（图片较大或硬件较慢时适当延长） |
 
 **文件上传端点：**
 
@@ -479,6 +491,8 @@ POST /api/documents/upload  (multipart/form-data)
 | DocumentType | 提取器 | 说明 |
 |---|---|---|
 | `BillInvoice` | DocumentIntelligenceFileExtractor | `prebuilt-invoice` 结构化发票提取 |
+| `Identity` | DocumentIntelligenceFileExtractor | `prebuilt-idDocument` 证件专用模型 |
+| `Certificate` | DocumentIntelligenceFileExtractor → Vision Fallback | 跳过 PdfPig（排版复杂），直接走 Azure DI / Vision OCR；去重阈值 0.70（宽松）|
 | 其他（非 RichMedia） | DocumentIntelligenceFileExtractor | `prebuilt-read` 通用 OCR |
 | `RichMedia` | VisionModelFileExtractor | GPT-4o-mini Vision，适用于几何图形/手写批注 |
 

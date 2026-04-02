@@ -44,26 +44,35 @@ public sealed class CosmosDbUserMemoryStore(
         if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(chunkId))
             return 1.0f;
 
-        var opts = new QueryRequestOptions { PartitionKey = new PartitionKey(userId) };
+        try
+        {
+            var opts = new QueryRequestOptions { PartitionKey = new PartitionKey(userId) };
 
-        var accepts = await CountAsync(
-            new QueryDefinition("SELECT VALUE COUNT(1) FROM c WHERE c.userId = @u AND c.relatedChunkId = @c AND c.type = @t")
-                .WithParameter("@u", userId)
-                .WithParameter("@c", chunkId)
-                .WithParameter("@t", (int)BehaviorType.ResultAccepted),
-            opts, ct);
+            var accepts = await CountAsync(
+                new QueryDefinition("SELECT VALUE COUNT(1) FROM c WHERE c.userId = @u AND c.relatedChunkId = @c AND c.type = @t")
+                    .WithParameter("@u", userId)
+                    .WithParameter("@c", chunkId)
+                    .WithParameter("@t", (int)BehaviorType.ResultAccepted),
+                opts, ct);
 
-        var rejects = await CountAsync(
-            new QueryDefinition("SELECT VALUE COUNT(1) FROM c WHERE c.userId = @u AND c.relatedChunkId = @c AND c.type = @t")
-                .WithParameter("@u", userId)
-                .WithParameter("@c", chunkId)
-                .WithParameter("@t", (int)BehaviorType.ResultRejected),
-            opts, ct);
+            var rejects = await CountAsync(
+                new QueryDefinition("SELECT VALUE COUNT(1) FROM c WHERE c.userId = @u AND c.relatedChunkId = @c AND c.type = @t")
+                    .WithParameter("@u", userId)
+                    .WithParameter("@c", chunkId)
+                    .WithParameter("@t", (int)BehaviorType.ResultRejected),
+                opts, ct);
 
-        if (accepts == 0 && rejects == 0) return 1.0f;
+            if (accepts == 0 && rejects == 0) return 1.0f;
 
-        var boost = 1.0f + (accepts * BoostPerAccept) - (rejects * PenaltyPerReject);
-        return Math.Clamp(boost, BoostFloor, BoostCap);
+            var boost = 1.0f + (accepts * BoostPerAccept) - (rejects * PenaltyPerReject);
+            return Math.Clamp(boost, BoostFloor, BoostCap);
+        }
+        catch (CosmosException ex) when (ex.StatusCode is System.Net.HttpStatusCode.NotFound
+                                                       or System.Net.HttpStatusCode.ServiceUnavailable)
+        {
+            logger.LogWarning("UserBehaviors container unavailable ({Status}) — returning neutral boost factor 1.0", ex.StatusCode);
+            return 1.0f;  // neutral: no boost, no penalty
+        }
     }
 
     public async Task<IReadOnlyDictionary<string, float>> GetTermPreferencesAsync(

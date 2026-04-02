@@ -1,31 +1,28 @@
 <div class="page">
   <h1 class="page-title">Ingest</h1>
 
+  <!-- ── Tab bar ──────────────────────────────────────────────────────────── -->
   <div class="tab-header" role="tablist">
     <button class="tab-btn" [class.active]="tab() === 'notes'"
-            (click)="tab.set('notes')" role="tab" aria-label="Notes tab">
-      📌 Notes
-    </button>
-    <button class="tab-btn" [class.active]="tab() === 'documents'"
-            (click)="tab.set('documents')" role="tab" aria-label="Documents tab">
-      📄 Documents
-    </button>
+            (click)="tab.set('notes')" role="tab">📌 Notes</button>
+    <button class="tab-btn" [class.active]="tab() === 'upload'"
+            (click)="tab.set('upload')" role="tab">📄 Upload</button>
+    <button class="tab-btn" [class.active]="tab() === 'library'"
+            (click)="tab.set('library')" role="tab">📚 Sample Library</button>
   </div>
 
+  <!-- ── Notes tab ─────────────────────────────────────────────────────────── -->
   @if (tab() === 'notes') {
     <div class="card">
       <h2>Quick Note</h2>
       <div class="form-group">
         <label class="form-label">Write something down</label>
-        <textarea
-          class="form-input note-input"
-          rows="3"
+        <textarea class="form-input note-input" rows="3"
           placeholder="e.g. Received water bill today, $319 (Enter to save, Shift+Enter for new line)"
           [value]="noteText()"
           (input)="noteText.set($any($event.target).value)"
           (keydown)="onNoteKeyDown($event)"
-          [disabled]="noteBusy()"
-        ></textarea>
+          [disabled]="noteBusy()"></textarea>
       </div>
       <button class="btn btn-primary" (click)="saveNote()"
               [disabled]="!noteText().trim() || noteBusy()">
@@ -34,16 +31,15 @@
     </div>
   }
 
-  @if (tab() === 'documents') {
+  <!-- ── Upload tab ────────────────────────────────────────────────────────── -->
+  @if (tab() === 'upload') {
     <div class="card">
-      <h2>Ingest New Document</h2>
-
+      <h2>Upload Document</h2>
       <div class="form-group">
-        <label class="form-label">Upload File</label>
-        <input type="file" accept=".txt,.md,.pdf" class="file-input"
-               (change)="onFileSelected($event)" />
+        <label class="form-label">File</label>
+        <input type="file" accept=".txt,.md,.pdf,.jpg,.jpeg,.png,.webp,.tiff,.bmp"
+               class="file-input" (change)="onFileSelected($event)" />
       </div>
-
       <div class="form-row">
         <div class="form-group flex-1">
           <label class="form-label">Document Name</label>
@@ -51,7 +47,6 @@
                  (input)="documentName.set($any($event.target).value)"
                  placeholder="my-document.txt" />
         </div>
-
         <div class="form-group">
           <label class="form-label">Type</label>
           <select class="form-input" [value]="documentType()"
@@ -62,45 +57,56 @@
           </select>
         </div>
       </div>
-
       @if (content()) {
         <div class="form-group">
           <label class="form-label">Preview (first 300 chars)</label>
           <pre class="content-preview">{{ content().slice(0, 300) }}{{ content().length > 300 ? '…' : '' }}</pre>
         </div>
+      } @else if (selectedFile()) {
+        <div class="form-group">
+          <p class="content-preview">Binary file: {{ selectedFile()!.name }} ({{ (selectedFile()!.size / 1024).toFixed(1) }} KB)</p>
+        </div>
       }
-
       <button class="btn btn-primary" (click)="ingestDocument()"
-              [disabled]="!content() || !documentName() || uploading()">
+              [disabled]="(!content() && !selectedFile()) || !documentName() || uploading()">
         {{ uploading() ? 'Ingesting…' : 'Ingest Document' }}
       </button>
     </div>
   }
 
+  <!-- ── Sample Library tab ────────────────────────────────────────────────── -->
+  @if (tab() === 'library') {
+    <app-demo-library-panel
+      [ingestedNames]="ingestedNameSet()"
+      (ingestionComplete)="loadDocuments()"
+    />
+  }
+
+  <!-- ── Ingest history ────────────────────────────────────────────────────── -->
   @if (entries().length > 0) {
     <div class="card">
       <h2>Ingest History</h2>
       <table class="table">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Chunks Stored</th>
-            <th>Document ID</th>
+            <th>Name</th><th>Type</th><th>Status</th><th>Chunks Stored</th><th>Document ID</th>
           </tr>
         </thead>
         <tbody>
           @for (entry of entries(); track entry.name) {
             <tr>
               <td>{{ entry.name }}</td>
+              <td><span class="type-badge">{{ entry.type === 'note' ? '📌 Note' : '📄 Doc' }}</span></td>
+              <td><span class="badge" [class]="'badge-' + entry.status">{{ entry.status }}</span></td>
               <td>
-                <span class="type-badge">{{ entry.type === 'note' ? '📌 Note' : '📄 Doc' }}</span>
+                @if (entry.result !== undefined) {
+                  @if (entry.result.chunksStored === 0) {
+                    <span class="badge badge-warn" title="No new chunks stored">0 ⚠</span>
+                  } @else {
+                    {{ entry.result.chunksStored }}
+                  }
+                } @else { — }
               </td>
-              <td>
-                <span class="badge" [class]="'badge-' + entry.status">{{ entry.status }}</span>
-              </td>
-              <td>{{ entry.result?.chunksStored ?? '—' }}</td>
               <td class="mono">{{ entry.result?.documentId ?? entry.error ?? '—' }}</td>
             </tr>
           }
@@ -108,4 +114,73 @@
       </table>
     </div>
   }
+
+  <!-- ── Ingested Documents ────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="list-header">
+      <h2 class="list-title">Ingested Documents</h2>
+      <button class="btn btn-danger-outline btn-sm"
+              [disabled]="clearingAll() || documents().length === 0"
+              (click)="requestClearAll()">Clear All</button>
+    </div>
+
+    @if (confirmClearAll()) {
+      <div class="confirm-bar">
+        <span class="confirm-text">⚠ This action cannot be undone. Confirm clearing all data?</span>
+        <button class="btn btn-danger btn-sm" (click)="clearAll()" [disabled]="clearingAll()">Confirm</button>
+        <button class="btn btn-secondary btn-sm" (click)="cancelClearAll()">Cancel</button>
+      </div>
+    }
+
+    @if (docsLoading()) {
+      <p class="loading-text">Loading…</p>
+    } @else if (documents().length === 0) {
+      <p class="empty-text">No ingested documents yet.</p>
+    } @else {
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Document Name</th><th>Type</th><th>Chunks</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (doc of documents(); track doc.documentId) {
+            <tr [class.active-row]="selectedDoc()?.documentId === doc.documentId">
+              <td>
+                <button class="doc-name-btn" (click)="viewChunks(doc)">{{ doc.documentName }}</button>
+              </td>
+              <td>{{ doc.documentType }}</td>
+              <td>{{ doc.chunkCount }}</td>
+              <td>
+                <button class="btn btn-danger-outline btn-sm"
+                        [disabled]="deletingId() === doc.documentId"
+                        (click)="deleteDocument(doc)">
+                  {{ deletingId() === doc.documentId ? 'Deleting…' : 'Delete' }}
+                </button>
+              </td>
+            </tr>
+            @if (selectedDoc()?.documentId === doc.documentId) {
+              <tr class="chunks-row">
+                <td colspan="4">
+                  @if (chunksLoading()) {
+                    <p class="loading-text">Loading chunks…</p>
+                  } @else {
+                    <div class="chunks-list">
+                      @for (chunk of chunks(); track chunk.chunkIndex) {
+                        <div class="chunk-item">
+                          <span class="chunk-index">#{{ chunk.chunkIndex }}</span>
+                          <pre class="chunk-content">{{ chunk.content }}</pre>
+                        </div>
+                      }
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    }
+  </div>
 </div>
+
