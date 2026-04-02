@@ -33,5 +33,5 @@ public sealed class CosmosDbOptions
     /// Embedding 向量维度。必须与实际使用的 Embedding 模型一致：
     /// bge-m3 = 1024，text-embedding-3-small = 1536。
     /// </summary>
-    public int EmbeddingDimensions { get; set; } = 1024;
+    public int EmbeddingDimensions { get; set; } = 1536;
 }
