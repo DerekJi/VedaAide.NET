@@ -219,7 +219,6 @@ public class DocumentIngestServiceFallbackTests
             semanticCache.Object,
             semanticEnhancer.Object,
             diffService.Object,
-            Options.Create(new RagOptions { SimilarityDedupThreshold = 1.1f }),
             Options.Create(new VedaOptions { EmbeddingModel = "test-model" }),
             docIntelExtractor,
             visionExtractor,

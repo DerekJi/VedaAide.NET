@@ -44,8 +44,7 @@ public class DocumentIngestServiceTests
             Options.Create(new VisionOptions { Enabled = false }),
             new Mock<ILogger<VisionModelFileExtractor>>().Object);
 
-        // Default: threshold = 1.1f → similarity never reaches it → no chunk is skipped as near-duplicate
-        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 1.1f });
+        // Default: no near-duplicate threshold pressure — SearchAsync returns empty
         var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
 
         _semanticEnhancer = new Mock<ISemanticEnhancer>();
@@ -76,7 +75,6 @@ public class DocumentIngestServiceTests
             _semanticCache.Object,
             _semanticEnhancer.Object,
             _documentDiffService.Object,
-            options,
             vedaOptions,
             _docIntelExtractor,
             _visionExtractor,
@@ -220,13 +218,11 @@ public class DocumentIngestServiceTests
             .ReturnsAsync(new List<(DocumentChunk, float)>())         // chunk1: not a duplicate
             .ReturnsAsync([(existingChunk, 0.97f)]);                   // chunk2: near-duplicate detected
 
-        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
-        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var semanticCache = new Mock<ISemanticCache>();
         semanticCache.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
             _vectorStore.Object, semanticCache.Object, _semanticEnhancer.Object, _documentDiffService.Object,
-            options, vedaOptions, _docIntelExtractor, _visionExtractor,
+            Options.Create(new VedaOptions { EmbeddingModel = "test-model" }), _docIntelExtractor, _visionExtractor,
             new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object), _logger.Object);
 
         // Act
@@ -255,13 +251,11 @@ public class DocumentIngestServiceTests
                 It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([(MakeChunk("existing"), 0.98f)]);
 
-        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
-        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var semanticCache2 = new Mock<ISemanticCache>();
         semanticCache2.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
             _vectorStore.Object, semanticCache2.Object, _semanticEnhancer.Object, _documentDiffService.Object,
-            options, vedaOptions, _docIntelExtractor, _visionExtractor,
+            Options.Create(new VedaOptions { EmbeddingModel = "test-model" }), _docIntelExtractor, _visionExtractor,
             new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object), _logger.Object);
 
         // Act
@@ -311,13 +305,11 @@ public class DocumentIngestServiceTests
                 It.IsAny<KnowledgeScope?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([(existingChunk, 0.99f)]);
 
-        var options = Options.Create(new RagOptions { SimilarityDedupThreshold = 0.95f });
-        var vedaOptions = Options.Create(new VedaOptions { EmbeddingModel = "test-model" });
         var semanticCache3 = new Mock<ISemanticCache>();
         semanticCache3.Setup(c => c.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sut = new DocumentIngestService(_processor.Object, _embedding.Object,
             _vectorStore.Object, semanticCache3.Object, _semanticEnhancer.Object, _documentDiffService.Object,
-            options, vedaOptions, _docIntelExtractor, _visionExtractor,
+            Options.Create(new VedaOptions { EmbeddingModel = "test-model" }), _docIntelExtractor, _visionExtractor,
             new PdfTextLayerExtractor(new Mock<ILogger<PdfTextLayerExtractor>>().Object), _logger.Object);
 
         // Act

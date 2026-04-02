@@ -111,3 +111,4 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+test-data/
