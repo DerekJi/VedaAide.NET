@@ -459,7 +459,7 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
       "ApiKey": ""
     },
     "Vision": {
-      "Enabled": false,
+      "Enabled": true,
       "OllamaModel": "",
       "ChatDeployment": "gpt-4o-mini",
       "TimeoutSeconds": 300
@@ -472,10 +472,10 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
 |------|------|--------|------|
 | `DocumentIntelligence:Endpoint` | string | `""` | Azure AI Document Intelligence 端点（Bicep 自动注入）。留空则跳过 OCR 摄取流程 |
 | `DocumentIntelligence:ApiKey` | string | `""` | Document Intelligence API Key。**留空则使用 Managed Identity**（云端推荐） |
-| `Vision:Enabled` | bool | `false` | 是否启用 Vision 模型处理 `RichMedia` 类型文件 |
+| `Vision:Enabled` | bool | `true` | 是否启用 Vision 模型处理图片、扫描件 PDF 及临时文件提取 |
 | `Vision:OllamaModel` | string | `""` | Ollama 视觉模型名（如 `qwen3-vl:8b`）。**非空则优先使用 Ollama**；留空则自动尝试 AzureOpenAI |
 | `Vision:ChatDeployment` | string | `"gpt-4o-mini"` | AzureOpenAI 视觉部署名。`OllamaModel` 为空且 `AzureOpenAI:Endpoint` 已配置时生效 |
-| `Vision:TimeoutSeconds` | int | `300` | Ollama 视觉推理 HTTP 超时秒数（视觉模型负载较重时需适当延长） |
+| `Vision:TimeoutSeconds` | int | `300` | Vision 模型调用 HTTP 超时秒数（图片较大或硬件较慢时适当延长） |
 
 **文件上传端点：**
 
@@ -491,6 +491,8 @@ POST /api/documents/upload  (multipart/form-data)
 | DocumentType | 提取器 | 说明 |
 |---|---|---|
 | `BillInvoice` | DocumentIntelligenceFileExtractor | `prebuilt-invoice` 结构化发票提取 |
+| `Identity` | DocumentIntelligenceFileExtractor | `prebuilt-idDocument` 证件专用模型 |
+| `Certificate` | DocumentIntelligenceFileExtractor → Vision Fallback | 跳过 PdfPig（排版复杂），直接走 Azure DI / Vision OCR；去重阈值 0.70（宽松）|
 | 其他（非 RichMedia） | DocumentIntelligenceFileExtractor | `prebuilt-read` 通用 OCR |
 | `RichMedia` | VisionModelFileExtractor | GPT-4o-mini Vision，适用于几何图形/手写批注 |
 

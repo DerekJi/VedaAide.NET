@@ -86,6 +86,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DocumentIntelligenceFileExtractor>();
         services.AddScoped<VisionModelFileExtractor>();
         services.AddScoped<PdfTextLayerExtractor>();
+        services.AddScoped<EphemeralContextExtractor>();
 
         // 混合检索（双通道 RRF 融合）
         services.AddScoped<IHybridRetriever, HybridRetriever>();

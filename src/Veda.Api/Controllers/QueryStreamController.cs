@@ -9,6 +9,7 @@ namespace Veda.Api.Controllers;
 /// <summary>
 /// SSE 流式问答端点：GET /api/querystream?question=...
 /// 前端通过 EventSource 订阅，依次收到 sources → token × N → done 三类事件。
+/// POST /api/querystream：携带临时附件上下文（Ephemeral RAG）时使用。
 /// </summary>
 [ApiController]
 [Route("api/querystream")]
@@ -61,6 +62,50 @@ public class QueryStreamController(IQueryService queryService, IOptions<RagOptio
                 : null
         };
 
+        await WriteStreamAsync(request, ct);
+    }
+
+    /// <summary>
+    /// 携带临时附件上下文的流式问答（Context Augmentation / Ephemeral RAG）。
+    /// 前端上传文件提取文本后，将提取结果放入 <see cref="QueryStreamRequest.ExtraContext"/> 字段随请求发送。
+    /// </summary>
+    [HttpPost]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task StreamWithContext([FromBody] QueryStreamRequest body, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(body.Question))
+        {
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        var currentUser = HttpContext.RequestServices.GetRequiredService<ICurrentUserService>();
+
+        Response.Headers.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+
+        var request = new RagQueryRequest
+        {
+            Question         = body.Question,
+            TopK             = body.TopK,
+            MinSimilarity    = body.MinSimilarity,
+            DateFrom         = body.DateFrom,
+            DateTo           = body.DateTo,
+            Mode             = body.Mode,
+            EphemeralContext = body.ExtraContext,
+            UserId           = currentUser.UserId,
+            Scope            = currentUser.UserId is not null
+                ? new KnowledgeScope(OwnerId: currentUser.UserId)
+                : null
+        };
+
+        await WriteStreamAsync(request, ct);
+    }
+
+    private async Task WriteStreamAsync(RagQueryRequest request, CancellationToken ct)
+    {
         await foreach (var chunk in queryService.QueryStreamAsync(request, ct))
         {
             var data = JsonSerializer.Serialize(chunk, JsonOptions);

@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
-  ChunkPreview, DemoDocument, DocumentSummary,
+  ChunkPreview, ContextExtractResponse, DemoDocument, DocumentSummary,
   EvalQuestion, EvaluationReport, IngestRequest, IngestResult,
   PromptTemplate, QueryRequest, QueryResponse,
   RunEvaluationRequest, SaveEvalQuestionRequest, SavePromptRequest,
@@ -26,6 +26,16 @@ export class VedaApiService {
     if (documentType) qs.set('documentType', documentType);
     const params = qs.toString() ? `?${qs.toString()}` : '';
     return this.http.post<IngestResult>(`${this.base}/documents/upload${params}`, formData);
+  }
+
+  /**
+   * 上传文件，仅提取文本，不写向量数据库（Ephemeral RAG / Context Augmentation）。
+   * 对应后端 POST /api/context/extract。
+   */
+  extractContextFile(file: File): Observable<ContextExtractResponse> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<ContextExtractResponse>(`${this.base}/context/extract`, formData);
   }
 
   query(req: QueryRequest): Observable<QueryResponse> {

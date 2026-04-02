@@ -13,6 +13,7 @@ This document covers all configurable fields in `appsettings.json`, environment 
 5. [Data Source: Auto Sync](#5-data-source-auto-sync)
 6. [Storage Backend](#6-storage-backend)
 7. [AI Provider](#7-ai-provider)
+   - [7.1 Vision Model Provider](#71-vision-model-provider)
 8. [DeepSeek Advanced Reasoning](#8-deepseek-advanced-reasoning)
 9. [API Security](#9-api-security)
 10. [Semantic Cache](#10-semantic-cache)
@@ -340,6 +341,51 @@ Section: `Veda:EmbeddingProvider` / `Veda:LlmProvider` / `Veda:AzureOpenAI`
 > **Managed Identity**: In Azure Container Apps, assign a User Assigned Identity to the app and grant it `Cognitive Services OpenAI User` role on the Azure OpenAI resource. Leave `ApiKey` empty.
 >
 > **Local dev with `az login`**: `DefaultAzureCredential` automatically picks up `az login` credentials locally — no key needed.
+
+### 7.1 Vision Model Provider
+
+Section: `Veda:Vision`
+
+```json
+{
+  "Veda": {
+    "Vision": {
+      "Enabled": true,
+      "OllamaModel": "",
+      "ChatDeployment": "gpt-4o-mini",
+      "TimeoutSeconds": 300
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Vision:Enabled` | bool | `true` | Enable Vision extraction for images and scanned PDFs |
+| `Vision:OllamaModel` | string | `""` | Ollama multimodal model name (e.g. `qwen2.5vl:3b`). **If non-empty, Vision uses Ollama regardless of `LlmProvider`** |
+| `Vision:ChatDeployment` | string | `gpt-4o-mini` | Azure OpenAI deployment name for Vision. Used when `OllamaModel` is empty and `AzureOpenAI:Endpoint` is configured |
+| `Vision:TimeoutSeconds` | int | `300` | HTTP timeout for Vision model calls (seconds). Increase for large images or slow hardware |
+
+**Provider selection priority (data-driven, no explicit flag needed):**
+
+| `Vision:OllamaModel` | `AzureOpenAI:Endpoint` | Effective Vision Provider |
+|---|---|---|
+| non-empty | any | Ollama multimodal (`OllamaModel`) |
+| empty | non-empty | Azure OpenAI (`Vision:ChatDeployment`) |
+| empty | empty | Fallback to main Chat LLM |
+
+**Typical configurations:**
+
+```jsonc
+// Local dev: Chat via Ollama, Vision via Azure OpenAI (recommended)
+"LlmProvider": "Ollama",
+"Vision": { "Enabled": true, "OllamaModel": "", "ChatDeployment": "gpt-4o-mini" }
+// Set Veda:AzureOpenAI:Endpoint + Veda:AzureOpenAI:ApiKey in User Secrets
+
+// All-local: both Chat and Vision via Ollama
+"LlmProvider": "Ollama",
+"Vision": { "Enabled": true, "OllamaModel": "qwen2.5vl:3b", "TimeoutSeconds": 180 }
+```
 
 ---
 

@@ -28,6 +28,16 @@ public record QueryRequest(
     string? ScopeOwnerId = null,
     string? UserId = null);
 
+/// <summary>携带临时附件上下文的流式问答请求（POST /api/querystream）。</summary>
+public record QueryStreamRequest(
+    [Required, MinLength(1)] string Question,
+    string? ExtraContext,
+    [Range(ApiConstraints.TopKMin, ApiConstraints.TopKMax)] int TopK = 5,
+    [Range(0.0, 1.0)] float MinSimilarity = RagDefaults.DefaultMinSimilarity,
+    DateTimeOffset? DateFrom = null,
+    DateTimeOffset? DateTo = null,
+    QueryMode Mode = QueryMode.Simple);
+
 // ── Chat session API models ───────────────────────────────────────────────────
 
 public record CreateSessionRequest(string? Title);
