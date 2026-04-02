@@ -23,6 +23,16 @@
       }
     </div>
 
+    <div class="type-row">
+      <label class="type-label">Type</label>
+      <select class="type-select" [value]="selectedDocType()"
+              (change)="selectedDocType.set($any($event.target).value)">
+        @for (t of documentTypes; track t) {
+          <option [value]="t">{{ t || '(auto-detect)' }}</option>
+        }
+      </select>
+    </div>
+
     <button
       class="btn btn-primary load-btn"
       [disabled]="!hasSelection || ingesting()"

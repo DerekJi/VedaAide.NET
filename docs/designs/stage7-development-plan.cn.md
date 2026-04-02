@@ -550,3 +550,139 @@ else:
 | `Veda.Services/VisionOptions.cs` | 新增 `OllamaModel`、`ChatDeployment` 属性（无 `ModelProvider`） |
 | `Veda.Services/ServiceCollectionExtensions.cs` | Vision 注册段改为三路数据驱动逻辑 |
 | `appsettings.json` | Vision 节含 `OllamaModel`、`ChatDeployment` 占位字段 |
+
+---
+
+## 附录 B：PDF 摄取质量修复 + Certificate 类型（已完成）
+
+> 实现日期：2026-04-02
+
+### B.1 背景
+
+本地测试发现三类 PDF 摄取问题：
+
+1. **相似内容证书互杀（ICAS Maths chunksStored=0）**：同结构多张 ICAS 证书的 embedding 余弦相似度 > 0.95，被全局去重误判为重复，后上传的证书全部跳过不入库。
+2. **表格型 PDF 内容提取失真（Piano 成绩单）**：PdfPig `GetWords()` 基于字符坐标重建词序，多列表格布局导致词序混乱，存入的 chunk 内容不完整。
+3. **去重阈值硬编码**：全局 `SimilarityDedupThreshold=0.95` 对稀疏文字证书类文档过于激进，需要按文档类型独立配置。
+
+### B.2 解决方案
+
+#### B.2.1 新增 `Certificate` DocumentType
+
+```csharp
+public enum DocumentType
+{
+    // ...现有类型...
+    Certificate,    // 证书/奖状 → 小颗粒 (256 token)，跳过 PdfPig，走 Azure DI / Vision
+    // ...
+}
+```
+
+适用范围：ICAS、AMEB、NAPLAN 等各类证书、奖状、成绩单。
+
+#### B.2.2 `ChunkingOptions` 增加 `DedupThreshold`
+
+```csharp
+public record ChunkingOptions(int TokenSize, int OverlapTokens, float DedupThreshold = 0.95f)
+{
+    public static ChunkingOptions ForDocumentType(DocumentType type) => type switch
+    {
+        DocumentType.Certificate => new(256, 32, DedupThreshold: 0.70f), // 宽松阈值
+        // ...其余类型保持 0.95f 默认值
+    };
+}
+```
+
+`Certificate` 使用 0.70 阈值，避免结构相近的证书（如同年多科 ICAS）互相误识别为重复。
+
+#### B.2.3 `DocumentIngestService` 去重逻辑
+
+- 去重阈值改从 `ChunkingOptions.ForDocumentType(documentType).DedupThreshold` 读取，不再依赖全局 `IOptions<RagOptions>`。
+- 同时移除了现已无用的 `IOptions<RagOptions>` 构造函数注入。
+
+#### B.2.4 `DocumentIngestService` 跳过 PdfPig
+
+```csharp
+// Certificate 类型直接跳过 PdfPig（表格/排版复杂，GetWords 词序混乱）
+if (mimeType == "application/pdf" && documentType != DocumentType.Certificate)
+{
+    var textLayerResult = pdfTextLayerExtractor.TryExtract(buffered, fileName);
+    if (textLayerResult is not null)
+        return await IngestAsync(textLayerResult, fileName, documentType, scope, ct);
+    buffered.Position = 0;
+}
+// → 降级 Azure DI prebuilt-read → Vision OCR（原有链路）
+```
+
+#### B.2.5 `DocumentTypeParser.InferFromName` 自动识别
+
+```csharp
+if (name.Contains("icas") || name.Contains("ameb") || name.Contains("cert") || name.Contains("award"))
+    return DocumentType.Certificate;
+```
+
+上传时文件名含 `icas`/`ameb`/`cert`/`award` 自动推断为 `Certificate`，无需手动选择。
+
+### B.3 文件变更清单
+
+| 文件 | 变更 |
+|------|------|
+| `Veda.Core/DocumentType.cs` | 新增 `Certificate` 枚举值 |
+| `Veda.Core/ChunkingOptions.cs` | 增加 `DedupThreshold` 属性；`Certificate` 设为 0.70f |
+| `Veda.Core/DocumentTypeParser.cs` | `InferFromName` 新增 icas/ameb/cert/award 关键词 |
+| `Veda.Services/DocumentIngestService.cs` | 去重阈值从 `ChunkingOptions` 读取；Certificate 跳过 PdfPig；移除 `IOptions<RagOptions>` 注入 |
+| `tests/Veda.Services.Tests/DocumentIngestServiceTests.cs` | 移除各测试中无用的 `RagOptions` 注入 |
+| `tests/Veda.Services.Tests/AzureDiQuotaTests.cs` | 同上 |
+
+---
+
+## 附录 C：Demo Library 及 Ingest 页面 UX 改进（已完成）
+
+> 实现日期：2026-04-02
+
+### C.1 Demo Library 支持手动指定文档类型
+
+**后端**：`IDemoLibraryService.IngestAsync` / `DemoLibraryService` / `DemoController` 增加可选 `documentType` 参数（query string），不传时由 `DocumentTypeParser.InferFromName` 自动推断（修复了原来硬编码 `DocumentType.Other` 的问题）。
+
+**前端**：`DemoLibraryPanelComponent` 在 "Load to My Knowledge Base" 按钮上方增加 Type 下拉框，选择后传给后端。
+
+### C.2 Ingest 与 Documents 页面合并
+
+将原本分离的 Ingest 和 Documents 两个页面合并为单一 Ingest 页面，布局如下：
+
+```
+┌ Tab bar ─────────────────────────────────────────┐
+│  📌 Notes  |  📄 Upload  |  📚 Sample Library     │
+└──────────────────────────────────────────────────┘
+  ↓ Tab 内容（切换显示）
+
+┌ Ingest History（有记录时显示）──────────────────── ┐
+└─────────────────────────────────────────────────── ┘
+
+┌ Ingested Documents（常驻）────────────────────────┐
+│  文档列表 + 删除 + 展开 chunks + Clear All         │
+└─────────────────────────────────────────────────── ┘
+```
+
+- 侧边栏移除 Documents 导航项，只保留 Ingest
+- `/documents` 路由和 `pages/documents/` 组件目录均已删除
+- Upload tab 中 Type 下拉包含 `Certificate` 新类型
+- Notes / Upload 成功后自动刷新 Ingested Documents 列表
+
+### C.3 文件变更清单
+
+| 文件 | 变更 |
+|------|------|
+| `Veda.Core/Interfaces/IDemoLibraryService.cs` | `IngestAsync` 增加 `DocumentType? documentType` 参数 |
+| `Veda.Services/DemoLibraryService.cs` | 传递 documentType；InferFromName 替代硬编码 Other |
+| `Veda.Api/Controllers/DemoController.cs` | 增加 `[FromQuery] string? documentType` |
+| `Veda.Web/src/app/services/veda-api.service.ts` | `ingestDemoDocument` 增加 `documentType?` 参数 |
+| `Veda.Web/.../demo-library-panel.component.ts` | 新增 Type 下拉 signal |
+| `Veda.Web/.../demo-library-panel.component.html` | 按钮上方加 Type 下拉 |
+| `Veda.Web/.../demo-library-panel.component.scss` | Type 选择器样式 |
+| `Veda.Web/.../ingest.component.ts` | 合并 Documents 逻辑；改为三 Tab（Notes/Upload/Library） |
+| `Veda.Web/.../ingest.component.html` | 重写为三 Tab + Ingest History + Ingested Documents |
+| `Veda.Web/.../ingest.component.scss` | 补充文档列表相关样式 |
+| `Veda.Web/src/app/app.component.ts` | 侧边栏移除 Documents 导航项 |
+| `Veda.Web/src/app/app.routes.ts` | 删除 `/documents` 路由 |
+| `Veda.Web/src/app/pages/documents/` | 整目录删除 |

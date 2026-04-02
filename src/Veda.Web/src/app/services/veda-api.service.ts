@@ -18,10 +18,13 @@ export class VedaApiService {
     return this.http.post<IngestResult>(`${this.base}/documents`, req);
   }
 
-  uploadFile(file: File, documentType?: string): Observable<IngestResult> {
+  uploadFile(file: File, documentName?: string, documentType?: string): Observable<IngestResult> {
     const formData = new FormData();
     formData.append('file', file, file.name);
-    const params = documentType ? `?documentType=${encodeURIComponent(documentType)}` : '';
+    const qs = new URLSearchParams();
+    if (documentName) qs.set('documentName', documentName);
+    if (documentType) qs.set('documentType', documentType);
+    const params = qs.toString() ? `?${qs.toString()}` : '';
     return this.http.post<IngestResult>(`${this.base}/documents/upload${params}`, formData);
   }
 
@@ -45,8 +48,9 @@ export class VedaApiService {
     return this.http.get<DemoDocument[]>(`${this.base}/demo/documents`);
   }
 
-  ingestDemoDocument(name: string): Observable<IngestResult> {
-    return this.http.post<IngestResult>(`${this.base}/demo/documents/${encodeURIComponent(name)}/ingest`, {});
+  ingestDemoDocument(name: string, documentType?: string): Observable<IngestResult> {
+    const params = documentType ? `?documentType=${encodeURIComponent(documentType)}` : '';
+    return this.http.post<IngestResult>(`${this.base}/demo/documents/${encodeURIComponent(name)}/ingest${params}`, {});
   }
 
   // ── Prompts ────────────────────────────────────────────────────────────────

@@ -30,20 +30,24 @@ public sealed class DemoController(
     [ProducesResponseType(typeof(IngestResult), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<IActionResult> IngestDemoDocument(string name, CancellationToken ct)
+    public async Task<IActionResult> IngestDemoDocument(
+        string name,
+        [FromQuery] string? documentType = null,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(name))
             return BadRequest(new { error = "Document name is required." });
 
-        var scope = currentUser.UserId is not null
+        var scope   = currentUser.UserId is not null
             ? new KnowledgeScope(OwnerId: currentUser.UserId)
             : null;
+        var docType = DocumentTypeParser.ParseOrNull(documentType);
 
         try
         {
-            var result = await demoLibrary.IngestAsync(name, scope, ct);
-            logger.LogInformation("Demo ingest: '{Name}' → {Count} chunks (owner={Owner})",
-                name, result.ChunksStored, currentUser.UserId);
+            var result = await demoLibrary.IngestAsync(name, scope, docType, ct);
+            logger.LogInformation("Demo ingest: '{Name}' ({Type}) → {Count} chunks (owner={Owner})",
+                name, docType, result.ChunksStored, currentUser.UserId);
             return StatusCode(StatusCodes.Status201Created, result);
         }
         catch (InvalidOperationException ex)

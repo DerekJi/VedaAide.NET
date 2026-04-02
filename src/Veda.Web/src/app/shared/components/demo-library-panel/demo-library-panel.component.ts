@@ -23,9 +23,12 @@ interface DemoEntry extends DemoDocument {
 export class DemoLibraryPanelComponent implements OnInit {
   private readonly api = inject(VedaApiService);
 
-  entries  = signal<DemoEntry[]>([]);
-  loading  = signal(false);
+  entries   = signal<DemoEntry[]>([]);
+  loading   = signal(false);
   ingesting = signal(false);
+
+  readonly documentTypes = ['', 'Specification', 'Report', 'BillInvoice', 'Identity', 'Certificate', 'Other'];
+  selectedDocType = signal('');
 
   /** Names of documents already present in the knowledge base — these rows are disabled. */
   readonly ingestedNames = input<ReadonlySet<string>>(new Set());
@@ -87,7 +90,7 @@ export class DemoLibraryPanelComponent implements OnInit {
       entry.status = 'ingesting';
       this.entries.update(e => [...e]);
 
-      this.api.ingestDemoDocument(entry.name).subscribe({
+      this.api.ingestDemoDocument(entry.name, this.selectedDocType() || undefined).subscribe({
         next: result => {
           entry.status = 'done';
           entry.result = result;
