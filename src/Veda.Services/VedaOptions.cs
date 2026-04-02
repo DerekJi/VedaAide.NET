@@ -5,19 +5,61 @@ namespace Veda.Services;
 /// </summary>
 public sealed class VedaOptions
 {
-    /// <summary>
-    /// 当前使用的 Embedding 模型名称（如 nomic-embed-text、bge-m3、text-embedding-3-small）。
-    /// 切换模型时，旧向量（EmbeddingModel 字段不匹配的行）需要重新摄取才能生效。
-    /// </summary>
+    /// <summary>当前使用的 Embedding 模型名称（如 nomic-embed-text、bge-m3、text-embedding-3-small）。</summary>
     public string EmbeddingModel { get; set; } = "bge-m3";
 
-    /// <summary>
-    /// Embedding 提供商："Ollama"（默认，本地）或 "AzureOpenAI"（云端）。
-    /// </summary>
+    /// <summary>Embedding 提供商："Ollama"（默认，本地）或 "AzureOpenAI"（云端）。</summary>
     public string EmbeddingProvider { get; set; } = "Ollama";
 
-    /// <summary>
-    /// LLM 提供商："Ollama"（默认，本地）或 "AzureOpenAI"（云端）。
-    /// </summary>
+    /// <summary>LLM 提供商："Ollama"（默认，本地）或 "AzureOpenAI"（云端）。</summary>
     public string LlmProvider { get; set; } = "Ollama";
+
+    /// <summary>存储提供商："Sqlite"（默认，本地开发）或 "CosmosDb"（云端部署）。</summary>
+    public string StorageProvider { get; set; } = "Sqlite";
+
+    /// <summary>Ollama 服务端点（含端口），如 http://localhost:11434。</summary>
+    public string OllamaEndpoint { get; set; } = "http://localhost:11434";
+
+    /// <summary>Ollama 对话模型名称，如 qwen3:8b。</summary>
+    public string ChatModel { get; set; } = "qwen3:8b";
+
+    /// <summary>SQLite 数据库文件路径。</summary>
+    public string DbPath { get; set; } = "veda.db";
+
+    /// <summary>Azure OpenAI 相关配置，绑定到 "Veda:AzureOpenAI" 节。</summary>
+    public AzureOpenAISettings AzureOpenAI { get; set; } = new();
+
+    /// <summary>Vision 模型配置，绑定到 "Veda:Vision" 节。</summary>
+    public VisionOptions Vision { get; set; } = new();
+
+    /// <summary>DeepSeek 模型配置，绑定到 "Veda:DeepSeek" 节。</summary>
+    public DeepSeekSettings DeepSeek { get; set; } = new();
+
+    /// <summary>API Key 安全配置，绑定到 "Veda:Security" 节。</summary>
+    public SecuritySettings Security { get; set; } = new();
+
+    // ── Nested settings classes ───────────────────────────────────────────────
+
+    public sealed class AzureOpenAISettings
+    {
+        public string? Endpoint            { get; set; }
+        public string? ApiKey              { get; set; }
+        public string  EmbeddingDeployment { get; set; } = "text-embedding-3-small";
+        public string  ChatDeployment      { get; set; } = "gpt-4o-mini";
+    }
+
+    public sealed class DeepSeekSettings
+    {
+        public string  BaseUrl   { get; set; } = "https://api.deepseek.com/v1";
+        public string? ApiKey    { get; set; }
+        public string  ChatModel { get; set; } = "deepseek-chat";
+    }
+
+    public sealed class SecuritySettings
+    {
+        public string? ApiKey          { get; set; }
+        public string? AdminApiKey     { get; set; }
+        public string  AllowedOrigins  { get; set; } = "*";
+    }
 }
+

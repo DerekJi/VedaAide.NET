@@ -69,13 +69,11 @@ builder.Services.AddScoped<ICurrentUserService, HttpContextCurrentUserService>()
 // ── JWT Bearer Authentication (Microsoft Entra ID) ──────────────────────────────────
 // Validates JWT tokens issued by the configured Entra ID tenant.
 // When AzureAd config is absent, operates in pass-through / anonymous mode.
-var entraInstance = cfg["AzureAd:Instance"] ?? "https://login.microsoftonline.com/";
-var entraDomain   = cfg["AzureAd:Domain"];   // CIAM: e.g. vedaaide.onmicrosoft.com
-var entraTenantId = cfg["AzureAd:TenantId"];
-var entraClientId = cfg["AzureAd:ClientId"];
-var entraAudience = cfg["AzureAd:Audience"] ?? entraClientId;
+builder.Services.Configure<AzureAdOptions>(cfg.GetSection("AzureAd"));
+var entra = cfg.GetSection("AzureAd").Get<AzureAdOptions>() ?? new AzureAdOptions();
+var entraAudience = entra.Audience ?? entra.ClientId;
 
-if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entraClientId))
+if (!string.IsNullOrWhiteSpace(entra.TenantId) && !string.IsNullOrWhiteSpace(entra.ClientId))
 {
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -84,9 +82,9 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
             // For CIAM, the OIDC metadata is served under the domain-based URL.
             // The token 'iss' claim uses tenantId format, so we disable issuer
             // validation and rely on audience + signing key validation instead.
-            options.Authority = !string.IsNullOrWhiteSpace(entraDomain)
-                ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"
-                : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/";
+            options.Authority = !string.IsNullOrWhiteSpace(entra.Domain)
+                ? $"{entra.Instance.TrimEnd('/')}/{entra.Domain}/v2.0/"
+                : $"{entra.Instance.TrimEnd('/')}/{entra.TenantId}/v2.0/";
             options.Audience  = entraAudience;
             // Disable claim type remapping so CIAM claims (oid, sub, name, roles)
             // are preserved verbatim from the JWT rather than being mapped to
@@ -101,8 +99,8 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
             [
                 entraAudience,
                 $"api://{entraAudience}",
-                entraClientId!,
-                $"api://{entraClientId}"
+                entra.ClientId!,
+                $"api://{entra.ClientId}"
             ];
         });
 }
@@ -115,7 +113,7 @@ builder.Services.AddAuthorization(options =>
 {
     // AdminOnly: JWT roles claim 包含 "Admin"（Entra ID App Roles），
     // 或 oid/sub claim 在 AzureAd:AdminOids 白名单中（适合 CIAM token 无 roles claim 的场景）。
-    var adminOids = cfg.GetSection("AzureAd:AdminOids").Get<string[]>() ?? [];
+    var adminOids = entra.AdminOids;
     options.AddPolicy("AdminOnly", policy => policy
         .RequireAuthenticatedUser()
         .RequireAssertion(ctx =>
@@ -128,11 +126,10 @@ builder.Services.AddAuthorization(options =>
 
 // ── Health Checks ─────────────────────────────────────────────────────────────
 var healthChecks = builder.Services.AddHealthChecks();
-var storageProvider  = cfg["Veda:StorageProvider"]   ?? "Sqlite";
-var embeddingProvider = cfg["Veda:EmbeddingProvider"] ?? "Ollama";
-if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
+var vedaOpts = cfg.GetSection("Veda").Get<VedaOptions>() ?? new VedaOptions();
+if (vedaOpts.StorageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
     healthChecks.AddCheck<Veda.Api.HealthChecks.CosmosDbHealthCheck>("cosmosdb");
-if (embeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
+if (vedaOpts.EmbeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
     healthChecks.AddCheck<Veda.Api.HealthChecks.AzureOpenAIConfigHealthCheck>("azure-openai");
 
 builder.Services.AddSwaggerGen(c =>
@@ -140,7 +137,8 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "VedaAide API", Version = "v1" });
 });
 // ── CORS ───────────────────────────────────────────────────────────────
-var allowedOrigins = (cfg["Veda:Security:AllowedOrigins"] ?? "*").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+var allowedOrigins = vedaOpts.Security.AllowedOrigins
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
     options.AddPolicy("VedaCorsPolicy", policy =>
     {
