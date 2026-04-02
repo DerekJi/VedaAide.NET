@@ -226,24 +226,56 @@ export class ChatSessionService {
   // ── Backend sync (fire-and-forget, localStorage is the fallback) ─────────────
 
   private syncFromBackend(): void {
-    firstValueFrom(this.api.listChatSessions()).then(remoteSessions => {
+    firstValueFrom(this.api.listChatSessions()).then(async remoteSessions => {
       if (!remoteSessions || remoteSessions.length === 0) return;
 
       const local = this._sessions();
+
+      // Build merged session list (metadata only first — messages loaded below)
       const merged: ChatSession[] = remoteSessions.map(r => {
         const existing = local.find(s => s.id === r.sessionId);
         return {
           id:        r.sessionId,
           title:     r.title,
           createdAt: new Date(r.createdAt).getTime(),
-          messages:  existing?.messages ?? []
+          messages:  existing?.messages ?? []  // keep local messages as placeholder
         };
       });
       this._sessions.set(merged);
-      if (merged.length > 0 && !merged.find(s => s.id === this._activeId())) {
-        this._activeId.set(merged[0].id);
-        this._messages.set([...merged[0].messages]);
+
+      // Determine the active session after merging
+      const currentActive = this._activeId();
+      const newActive = merged.find(s => s.id === currentActive) ? currentActive : merged[0].id;
+      if (newActive !== currentActive) {
+        this._activeId.set(newActive);
       }
+
+      // Load messages for the active session from the backend
+      // (other sessions are loaded lazily on switchSession)
+      if (newActive) {
+        try {
+          const remoteMsgs = await firstValueFrom(this.api.getChatMessages(newActive));
+          const chatMsgs: ChatMessage[] = remoteMsgs.map(m => ({
+            id:             m.messageId,
+            role:           m.role as 'user' | 'assistant',
+            text:           m.content,
+            confidence:     m.confidence,
+            isHallucination: m.isHallucination,
+            sources:        m.sources?.map(s => ({
+              documentName: s.documentName,
+              chunkContent: s.chunkContent,
+              similarity:   s.similarity,
+              chunkId:      s.chunkId,
+              documentId:   s.documentId
+            }))
+          }));
+          this._sessions.update(sessions =>
+            sessions.map(s => s.id === newActive ? { ...s, messages: chatMsgs } : s)
+          );
+          this._messages.set(chatMsgs);
+        } catch { /* offline — keep localStorage messages */ }
+      }
+
       this.persist();
     }).catch(() => { /* offline — localStorage remains */ });
   }

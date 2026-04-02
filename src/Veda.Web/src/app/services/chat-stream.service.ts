@@ -66,7 +66,7 @@ export class ChatStreamService {
               try {
                 const chunk: RagStreamChunk = JSON.parse(data);
                 observer.next(chunk);
-                if (chunk.type === 'done') { observer.complete(); reader.cancel(); return; }
+                if (chunk.type === 'done') { observer.complete(); return; }
               } catch {
                 observer.error(new Error('Failed to parse stream chunk'));
                 return;

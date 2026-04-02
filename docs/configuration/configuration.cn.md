@@ -278,6 +278,9 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
       "DatabaseName": "VedaAide",
       "ChunksContainerName": "VectorChunks",
       "CacheContainerName": "SemanticCache",
+      "BehaviorsContainerName": "UserBehaviors",
+      "TokenUsagesContainerName": "TokenUsages",
+      "ChatSessionsContainerName": "ChatSessions",
       "EmbeddingDimensions": 1024
     }
   }
@@ -292,9 +295,12 @@ BlobStorageConnector: sync complete — 5 ingested, 0 unchanged, 12 chunks, 0 er
 | `CosmosDb:DatabaseName` | string | `VedaAide` | CosmosDB 数据库名 |
 | `CosmosDb:ChunksContainerName` | string | `VectorChunks` | 向量块容器名（含 DiskANN 索引） |
 | `CosmosDb:CacheContainerName` | string | `SemanticCache` | 语义缓存容器名 |
+| `CosmosDb:BehaviorsContainerName` | string | `UserBehaviors` | 用户行为反馈容器名（Partition Key = `/userId`） |
+| `CosmosDb:TokenUsagesContainerName` | string | `TokenUsages` | Token 消耗记录容器名（Partition Key = `/userId`） |
+| `CosmosDb:ChatSessionsContainerName` | string | `ChatSessions` | 多会话持久化容器名（Partition Key = `/userId`） |
 | `CosmosDb:EmbeddingDimensions` | int | `1024` | Embedding 向量维度，须与模型一致（bge-m3=1024，text-embedding-3-small=1536） |
 
-> SQLite 元数据库（PromptTemplate / SyncState / Eval）始终使用 SQLite，不受此配置影响。
+> SQLite 元数据库（PromptTemplate / SyncState / Eval / 会话）始终使用 SQLite；CosmosDB 模式下向量、缓存、行为、Token 统计及会话均存入 CosmosDB，自动按 userId 隔离。
 
 ---
 
