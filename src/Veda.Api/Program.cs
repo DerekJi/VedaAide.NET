@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -73,7 +74,17 @@ builder.Services.Configure<AzureAdOptions>(cfg.GetSection("AzureAd"));
 var entra = cfg.GetSection("AzureAd").Get<AzureAdOptions>() ?? new AzureAdOptions();
 var entraAudience = entra.Audience ?? entra.ClientId;
 
-if (!string.IsNullOrWhiteSpace(entra.TenantId) && !string.IsNullOrWhiteSpace(entra.ClientId))
+// Development 专用无鉴权模式：Veda:DevMode:NoAuth=true 时绕过所有认证。
+// ⚠ 生产环境绝对禁止开启此选项。
+var isDevNoAuth = builder.Environment.IsDevelopment()
+    && cfg.GetValue<bool>("Veda:DevMode:NoAuth", false);
+
+if (isDevNoAuth)
+{
+    builder.Services.AddAuthentication(DevBypassAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevBypassAuthHandler>(DevBypassAuthHandler.SchemeName, null);
+}
+else if (!string.IsNullOrWhiteSpace(entra.TenantId) && !string.IsNullOrWhiteSpace(entra.ClientId))
 {
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
