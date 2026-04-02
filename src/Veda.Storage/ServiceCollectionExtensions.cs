@@ -76,8 +76,11 @@ public static class ServiceCollectionExtensions
         // Knowledge governance (sharing groups, document permissions, consensus candidates) — always SQLite
         services.AddScoped<IKnowledgeGovernanceService, KnowledgeGovernanceService>();
 
-        // Chat session persistence (always SQLite for metadata)
-        services.AddScoped<IChatSessionRepository, ChatSessionRepository>();
+        // Chat session persistence: CosmosDB when StorageProvider=CosmosDb, otherwise SQLite
+        if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IChatSessionRepository, CosmosDbChatSessionRepository>();
+        else
+            services.AddScoped<IChatSessionRepository, ChatSessionRepository>();
 
         return services;
     }

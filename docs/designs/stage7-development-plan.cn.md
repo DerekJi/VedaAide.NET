@@ -438,86 +438,35 @@ public class ChatMessageEntity
 
 ### A.3 代码变更
 
-#### A.3.1 VisionOptions 变更
+#### A.3.1 VisionOptions（已实现）
 
 ```csharp
 public sealed class VisionOptions
 {
     public bool    Enabled        { get; set; } = false;
-    public string? OllamaModel    { get; set; }            // Ollama VL 模型名（非空则使用 Ollama）
+    public string? OllamaModel    { get; set; }            // Ollama VL 模型名（非空则优先使用）
     public string  ChatDeployment { get; set; } = "gpt-4o-mini";  // AzureOpenAI 部署名
     public int     TimeoutSeconds { get; set; } = 300;
 }
 ```
 
-#### A.3.2 ServiceCollectionExtensions 路由逻辑
+**注意**：无 `ModelProvider` 字段。优先级完全由 `OllamaModel` 是否为空 + `AzureOpenAI:Endpoint` 是否配置决定（即 A.2 的数据驱动规则）。
+
+#### A.3.2 ServiceCollectionExtensions 路由逻辑（已实现）
 
 ```
-ollamaModel = cfg["Veda:Vision:OllamaModel"]
-
-if ollamaModel 非空:
+if Vision:OllamaModel 非空:
     → 独立 HttpClient（TimeoutSeconds）
     → AddOllamaChatCompletion(ollamaModel, httpClient)
     → AddKeyedSingleton<IChatCompletionService>("vision", ...)
 
-elif cfg["Veda:AzureOpenAI:Endpoint"] 非空:
-    deployment = cfg["Veda:Vision:ChatDeployment"] ?? "gpt-4o-mini"
+elif AzureOpenAI:Endpoint 非空:
+    deployment = Vision:ChatDeployment ?? "gpt-4o-mini"
     → 构建 AzureOpenAIClient → AddAzureOpenAIChatCompletion(deployment)
     → AddKeyedSingleton<IChatCompletionService>("vision", ...)
 
 else:
     → fallback 到主 Chat 服务（AddKeyedTransient）
-```
-
-完整伪代码（实现时替换 ServiceCollectionExtensions 中 Vision 注册段）：
-
-```csharp
-// ── Vision ──────────────────────────────────────────────────────────────────
-var visionOpts   = cfg.GetSection("Veda:Vision").Get<VisionOptions>() ?? new();
-var visionProvider = visionOpts.ModelProvider
-    ?? (llmProvider.Equals("AzureOpenAI", ...) ? "AzureOpenAI" : "Ollama");
-
-if (visionProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
-{
-    var endpoint   = cfg["Veda:AzureOpenAI:Endpoint"] ?? throw new InvalidOperationException("...");
-    var apiKey     = cfg["Veda:AzureOpenAI:ApiKey"];
-    var deployment = visionOpts.ChatDeployment;  // default "gpt-4o-mini"
-
-    var visionAzureClient = string.IsNullOrWhiteSpace(apiKey)
-        ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
-        : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
-
-    var visionKernel = Kernel.CreateBuilder()
-        .AddAzureOpenAIChatCompletion(deployment, visionAzureClient)
-        .Build();
-    services.AddKeyedSingleton<IChatCompletionService>("vision",
-        visionKernel.GetRequiredService<IChatCompletionService>());
-}
-else  // Ollama
-{
-    var ollamaEndpoint = cfg["Veda:OllamaEndpoint"] ?? "http://localhost:11434";
-    var visionModel    = visionOpts.Model;
-
-    if (!string.IsNullOrWhiteSpace(visionModel))
-    {
-        var visionHttpClient = new HttpClient
-        {
-            BaseAddress = new Uri(ollamaEndpoint.TrimEnd('/') + "/"),
-            Timeout     = TimeSpan.FromSeconds(visionOpts.TimeoutSeconds)
-        };
-        var visionKernel = Kernel.CreateBuilder()
-            .AddOllamaChatCompletion(visionModel, visionHttpClient)
-            .Build();
-        services.AddKeyedSingleton<IChatCompletionService>("vision",
-            visionKernel.GetRequiredService<IChatCompletionService>());
-    }
-    else
-    {
-        // 未指定 VL 模型，复用主 Chat 服务（可能不支持视觉，解析失败时有 fallback）
-        services.AddKeyedTransient<IChatCompletionService>("vision",
-            (sp, _) => sp.GetRequiredService<IChatCompletionService>());
-    }
-}
 ```
 
 ### A.4 典型配置示例
@@ -533,11 +482,13 @@ else  // Ollama
 },
 "Vision": {
   "Enabled": true,
-  "ModelProvider": "AzureOpenAI",
+  "OllamaModel": "",
   "ChatDeployment": "gpt-4o-mini",
   "TimeoutSeconds": 60
 }
 ```
+
+`OllamaModel` 为空且 `AzureOpenAI:Endpoint` 已填 → Vision 自动走 AzureOpenAI，无需额外字段。
 
 #### 场景 2：全本地（Chat + Vision 都走 Ollama）
 
@@ -546,8 +497,7 @@ else  // Ollama
 "ChatModel": "qwen3:8b",
 "Vision": {
   "Enabled": true,
-  "ModelProvider": "Ollama",
-  "Model": "qwen2.5vl:3b",
+  "OllamaModel": "qwen2.5vl:3b",
   "TimeoutSeconds": 180
 }
 ```
@@ -562,37 +512,41 @@ else  // Ollama
   "ChatDeployment": "gpt-4o-mini"
 },
 "Vision": {
-  "Enabled": true
-  // ModelProvider 不填，自动跟随 LlmProvider = AzureOpenAI
+  "Enabled": true,
+  "OllamaModel": "",
+  "ChatDeployment": "gpt-4o-mini"
 }
 ```
 
-### A.5 appsettings.Development.json 变更
+`OllamaModel` 为空、`AzureOpenAI:Endpoint` 非空 → Vision 走 AzureOpenAI。
 
-当前 Development 配置需增加 `ModelProvider` 字段，方便在本地随时切换：
+### A.5 appsettings.Development.json
+
+本地开发时若希望 Vision 走 Azure（高精度 OCR）而 Chat 走 Ollama（免费低延迟），只需：
 
 ```json
 "Vision": {
   "Enabled": true,
-  "ModelProvider": "Ollama",
-  "Model": "qwen2.5vl:3b",
-  "TimeoutSeconds": 180
+  "OllamaModel": "",
+  "ChatDeployment": "gpt-4o-mini",
+  "TimeoutSeconds": 60
 }
 ```
+
+并在 user-secrets 中配置 `Veda:AzureOpenAI:Endpoint` 与 `Veda:AzureOpenAI:ApiKey` 即可。
 
 ### A.6 测试补充
 
 | 测试用例 | 验证 |
 |---------|------|
-| `AddVedaAiServices_VisionAzure_LlmOllama_ShouldRegisterSeparateVisionClient` | `ModelProvider=AzureOpenAI` 时 "vision" 键不复用 Ollama chat |
-| `AddVedaAiServices_VisionOllama_LlmAzure_ShouldRegisterOllamaVisionClient` | `ModelProvider=Ollama` 时 "vision" 键使用 Ollama 连接 |
-| `VisionOptions_DefaultProvider_ShouldFollowLlmProvider` | 未配置 `ModelProvider` 时行为与原行为一致（向后兼容） |
+| `RegisterVisionService_OllamaModel_ShouldRegisterOllamaVisionClient` | `OllamaModel` 非空时 "vision" 键注册 Ollama 实现 |
+| `RegisterVisionService_AzureEndpoint_ShouldRegisterAzureVisionClient` | `OllamaModel` 为空、`AzureOpenAI:Endpoint` 非空时注册 Azure 实现 |
+| `RegisterVisionService_NeitherConfigured_ShouldFallbackToMainChat` | 两者均未配置时降级到主 Chat 服务 |
 
-### A.7 文件变更
+### A.7 文件变更（已完成）
 
 | 文件 | 变更 |
 |------|------|
-| `Veda.Services/VisionOptions.cs` | 新增 `ModelProvider`、`ChatDeployment` 属性 |
-| `Veda.Services/ServiceCollectionExtensions.cs` | Vision 注册段改为四路分发逻辑 |
-| `appsettings.json` | Vision 节增加 `ModelProvider`、`ChatDeployment` 占位字段 |
-| `appsettings.Development.json` | 按场景配置（开发默认仍走 Ollama） |
+| `Veda.Services/VisionOptions.cs` | 新增 `OllamaModel`、`ChatDeployment` 属性（无 `ModelProvider`） |
+| `Veda.Services/ServiceCollectionExtensions.cs` | Vision 注册段改为三路数据驱动逻辑 |
+| `appsettings.json` | Vision 节含 `OllamaModel`、`ChatDeployment` 占位字段 |

@@ -18,6 +18,13 @@ export class VedaApiService {
     return this.http.post<IngestResult>(`${this.base}/documents`, req);
   }
 
+  uploadFile(file: File, documentType?: string): Observable<IngestResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const params = documentType ? `?documentType=${encodeURIComponent(documentType)}` : '';
+    return this.http.post<IngestResult>(`${this.base}/documents/upload${params}`, formData);
+  }
+
   query(req: QueryRequest): Observable<QueryResponse> {
     return this.http.post<QueryResponse>(`${this.base}/query`, req);
   }

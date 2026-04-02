@@ -68,10 +68,14 @@
           <label class="form-label">Preview (first 300 chars)</label>
           <pre class="content-preview">{{ content().slice(0, 300) }}{{ content().length > 300 ? '…' : '' }}</pre>
         </div>
+      } @else if (selectedFile()) {
+        <div class="form-group">
+          <p class="content-preview">Binary file selected: {{ selectedFile()!.name }} ({{ (selectedFile()!.size / 1024).toFixed(1) }} KB) — will be sent via file upload.</p>
+        </div>
       }
 
       <button class="btn btn-primary" (click)="ingestDocument()"
-              [disabled]="!content() || !documentName() || uploading()">
+              [disabled]="(!content() && !selectedFile()) || !documentName() || uploading()">
         {{ uploading() ? 'Ingesting…' : 'Ingest Document' }}
       </button>
     </div>

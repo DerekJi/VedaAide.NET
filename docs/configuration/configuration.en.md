@@ -274,6 +274,9 @@ Section: `Veda:StorageProvider` / `Veda:CosmosDb`
       "DatabaseName": "VedaAide",
       "ChunksContainerName": "VectorChunks",
       "CacheContainerName": "SemanticCache",
+      "BehaviorsContainerName": "UserBehaviors",
+      "TokenUsagesContainerName": "TokenUsages",
+      "ChatSessionsContainerName": "ChatSessions",
       "EmbeddingDimensions": 1536
     }
   }
@@ -288,13 +291,19 @@ Section: `Veda:StorageProvider` / `Veda:CosmosDb`
 | `CosmosDb:DatabaseName` | string | `VedaAide` | CosmosDB database name |
 | `CosmosDb:ChunksContainerName` | string | `VectorChunks` | Container for vector chunks (with DiskANN index) |
 | `CosmosDb:CacheContainerName` | string | `SemanticCache` | Container for semantic cache entries |
+| `CosmosDb:BehaviorsContainerName` | string | `UserBehaviors` | Container for user behavior feedback events (Partition Key = `/userId`) |
+| `CosmosDb:TokenUsagesContainerName` | string | `TokenUsages` | Container for AI token usage records (Partition Key = `/userId`) |
+| `CosmosDb:ChatSessionsContainerName` | string | `ChatSessions` | Container for multi-session persistence (Partition Key = `/userId`) |
 | `CosmosDb:EmbeddingDimensions` | int | `1024` | Embedding vector dimensions — must match the model (bge-m3=1024, text-embedding-3-small=1536) |
 
-> SQLite metadata stores (PromptTemplate / SyncState / Eval) always use SQLite regardless of this setting.
+> SQLite metadata stores (PromptTemplate / SyncState / Eval) always use SQLite. In CosmosDB mode, vectors, semantic cache, user behaviors, token usage, and chat sessions are all stored in CosmosDB, automatically isolated per user by partition key.
 
 **CosmosDB container requirements:**
 - `VectorChunks`: partition key `/documentId`, DiskANN vector index on `/embedding` (Float32, Cosine, dimensions as configured), `/embedding/*` excluded from regular index
 - `SemanticCache`: partition key `/id`, TTL enabled (`DefaultTimeToLive = -1`)
+- `UserBehaviors`: partition key `/userId`
+- `TokenUsages`: partition key `/userId`
+- `ChatSessions`: partition key `/userId` (stores both session metadata and messages as separate documents via `type` field)
 
 On startup, `CosmosDbInitializer` automatically creates the containers if they do not exist (requires `Cosmos DB Built-in Data Contributor` role on the account).
 
