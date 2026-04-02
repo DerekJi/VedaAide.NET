@@ -186,27 +186,28 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── CosmosDB container initialisation (only when StorageProvider=CosmosDb) ───
-// Run in background so Kestrel starts serving requests immediately.
-// The CosmosDbHealthCheck will report Degraded until init completes.
+// Awaited synchronously so every container exists before Kestrel serves the first
+// request. Avoids race-condition 500s on api/chat/sessions, api/usage/summary
+// and api/querystream when containers don't yet exist after a fresh deployment.
 var cosmosInitializer = app.Services.GetService<Veda.Storage.CosmosDbInitializer>();
 if (cosmosInitializer is not null)
 {
     var appLogger = app.Services.GetRequiredService<ILogger<Program>>();
-    _ = Task.Run(async () =>
+    using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+    try
     {
-        using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
-        try
-        {
-            await cosmosInitializer.EnsureReadyAsync(initCts.Token);
-        }
-        catch (Exception ex)
-        {
-            appLogger.LogWarning(ex,
-                "CosmosDB initialisation failed (type={ExType}, msg={Msg}). " +
-                "Check Managed Identity role assignments and CosmosDB endpoint.",
-                ex.GetType().Name, ex.Message);
-        }
-    });
+        await cosmosInitializer.EnsureReadyAsync(initCts.Token);
+    }
+    catch (Exception ex)
+    {
+        // Non-fatal: log prominently and continue. Requests will fail at the CosmosDB
+        // call site with a descriptive error until the operator fixes the credentials.
+        appLogger.LogError(ex,
+            "CosmosDB initialisation failed (type={ExType}, msg={Msg}). " +
+            "All CosmosDB-backed endpoints will return 500 until this is resolved. " +
+            "Check Managed Identity role assignments and CosmosDB endpoint.",
+            ex.GetType().Name, ex.Message);
+    }
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
