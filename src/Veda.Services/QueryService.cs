@@ -74,7 +74,10 @@ public sealed class QueryService(
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
 
         // 先查语义缓存（命中则跳过向量检索和 LLM 调用）
-        var cachedAnswer = await semanticCache.GetAsync(queryEmbedding, ct);
+        // EphemeralContext 存在时跳过缓存：附件内容使同一问题产生不同答案，缓存会返回错误结果。
+        var cachedAnswer = string.IsNullOrWhiteSpace(request.EphemeralContext)
+            ? await semanticCache.GetAsync(queryEmbedding, ct)
+            : null;
         if (cachedAnswer is not null)
         {
             logger.LogInformation("Semantic cache hit for: {Question}", request.Question);
@@ -116,7 +119,8 @@ public sealed class QueryService(
                 ct: ct);
         }
 
-        if (candidates.Count == 0)
+        // 有 EphemeralContext 时即使向量库无命中也继续生成，附件内容本身即上下文。
+        if (candidates.Count == 0 && string.IsNullOrWhiteSpace(request.EphemeralContext))
             return new RagQueryResponse
             {
                 Answer = "I don't have enough information in the provided documents.",
@@ -124,7 +128,9 @@ public sealed class QueryService(
             };
 
         // 轻量重排：70% 向量相似度 + 30% 关键词覆盖率，取前 TopK 个。
-        var reranked = Rerank(candidates, request.Question, request.TopK);
+        var reranked = candidates.Count > 0
+            ? Rerank(candidates, request.Question, request.TopK)
+            : [];
 
         // 反馈 boost：对有正向历史反馈的 chunk 提升排名（无 userId 时跳过）
         IReadOnlyList<(DocumentChunk Chunk, float Similarity)> results;
@@ -140,6 +146,11 @@ public sealed class QueryService(
 
         var contextChunks = contextWindowBuilder.Build(results);
         var context = BuildContext(contextChunks);
+
+        // Ephemeral RAG：将临时上传内容前置注入 context
+        if (!string.IsNullOrWhiteSpace(request.EphemeralContext))
+            context = BuildEphemeralPrefix(request.EphemeralContext) + context;
+
         var systemPrompt = await BuildSystemPromptAsync(request.Question, ct);
 
         // 结构化输出模式：使用专用 Prompt 强制 LLM 按协议返回 JSON
@@ -164,27 +175,35 @@ public sealed class QueryService(
             structuredFinding = parser.TryParse(answer, results);
         }
 
-        // 防幻觉第一层：基于检索到的 source chunks 与 query 的相似度。
-        // 答案 re-embedding 方式存在语义漂移问题（长文本 embedding 与短 chunk 天然相似度低），
-        // 改为使用已有的 sources 最大相似度作为信号，语义更准确且无额外 LLM 调用。
-        var maxAnswerSimilarity = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
-        var isHallucination = maxAnswerSimilarity < options.Value.HallucinationSimilarityThreshold;
-
-        // 防幻觉第二层（可选）：LLM 自我校验。
-        if (!isHallucination && options.Value.EnableSelfCheckGuard)
+        // 防幻觉：携带 EphemeralContext 时跳过相似度检测（临时内容无向量评分）
+        bool isHallucination;
+        if (!string.IsNullOrWhiteSpace(request.EphemeralContext))
         {
-            var selfCheckPassed = await hallucinationGuard.VerifyAsync(answer, context, ct);
-            if (!selfCheckPassed)
-                isHallucination = true;
+            isHallucination = false;
+        }
+        else
+        {
+            // 防幻觉第一层：基于检索到的 source chunks 与 query 的相似度。
+            var maxAnswerSimilarity = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
+            isHallucination = maxAnswerSimilarity < options.Value.HallucinationSimilarityThreshold;
+
+            // 防幻觉第二层（可选）：LLM 自我校验。
+            if (!isHallucination && options.Value.EnableSelfCheckGuard)
+            {
+                var selfCheckPassed = await hallucinationGuard.VerifyAsync(answer, context, ct);
+                if (!selfCheckPassed)
+                    isHallucination = true;
+            }
         }
 
         if (isHallucination)
             logger.LogWarning("Potential hallucination detected for question: {Question}", request.Question);
 
-        // 非幻觉答案写入语义缓存
-        if (!isHallucination)
+        // 非幻觉答案写入语义缓存（EphemeralContext 不缓存，避免污染后续无附件请求）
+        if (!isHallucination && string.IsNullOrWhiteSpace(request.EphemeralContext))
             await semanticCache.SetAsync(queryEmbedding, answer, ct);
 
+        var confidence = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
         return new RagQueryResponse
         {
             Answer = answer,
@@ -199,7 +218,7 @@ public sealed class QueryService(
                 ChunkId      = r.Chunk.Id,
                 DocumentId   = r.Chunk.DocumentId
             }).ToList(),
-            AnswerConfidence = results.Max(r => r.Similarity),
+            AnswerConfidence = confidence,
             StructuredOutput = structuredFinding
         };
     }
@@ -303,7 +322,10 @@ public sealed class QueryService(
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
 
         // 先查语义缓存（命中则直接流式返回缓存答案）
-        var cachedAnswer = await semanticCache.GetAsync(queryEmbedding, ct);
+        // EphemeralContext 存在时跳过缓存：附件内容使同一问题产生不同答案，缓存会返回错误结果。
+        var cachedAnswer = string.IsNullOrWhiteSpace(request.EphemeralContext)
+            ? await semanticCache.GetAsync(queryEmbedding, ct)
+            : null;
         if (cachedAnswer is not null)
         {
             logger.LogInformation("Semantic cache hit (stream) for: {Question}", request.Question);
@@ -345,7 +367,8 @@ public sealed class QueryService(
                 ct: ct);
         }
 
-        if (candidates.Count == 0)
+        // 有 EphemeralContext 时即使向量库无命中也继续生成，附件内容本身即上下文。
+        if (candidates.Count == 0 && string.IsNullOrWhiteSpace(request.EphemeralContext))
         {
             yield return new RagStreamChunk { Type = "sources", Sources = [] };
             yield return new RagStreamChunk { Type = "token", Token = "I don't have enough information in the provided documents." };
@@ -353,7 +376,9 @@ public sealed class QueryService(
             yield break;
         }
 
-        var reranked = Rerank(candidates, request.Question, request.TopK);
+        var reranked = candidates.Count > 0
+            ? Rerank(candidates, request.Question, request.TopK)
+            : [];
 
         // 反馈 boost：对有正向历史反馈的 chunk 提升排名（无 userId 时跳过）
         IReadOnlyList<(DocumentChunk Chunk, float Similarity)> results;
@@ -385,6 +410,11 @@ public sealed class QueryService(
 
         var contextChunks = contextWindowBuilder.Build(results);
         var context = BuildContext(contextChunks);
+
+        // Ephemeral RAG：将临时上传内容前置注入 context
+        if (!string.IsNullOrWhiteSpace(request.EphemeralContext))
+            context = BuildEphemeralPrefix(request.EphemeralContext) + context;
+
         var systemPrompt = await BuildSystemPromptAsync(request.Question, ct);
         var userMessage = chainOfThought.Enhance(request.Question, context);
 
@@ -397,29 +427,43 @@ public sealed class QueryService(
             yield return new RagStreamChunk { Type = "token", Token = token };
         }
 
-        // 防幻觉校验：使用 sources 最大相似度，与非流式逻辑保持一致。
         var answer = fullAnswer.ToString();
-        var maxSimilarity = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
-        var isHallucination = maxSimilarity < options.Value.HallucinationSimilarityThreshold;
 
-        if (!isHallucination && options.Value.EnableSelfCheckGuard)
+        // 防幻觉：携带 EphemeralContext 时跳过相似度检测
+        bool isHallucination;
+        if (!string.IsNullOrWhiteSpace(request.EphemeralContext))
         {
-            var passed = await hallucinationGuard.VerifyAsync(answer, context, ct);
-            if (!passed) isHallucination = true;
+            isHallucination = false;
+        }
+        else
+        {
+            var maxSimilarity = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
+            isHallucination = maxSimilarity < options.Value.HallucinationSimilarityThreshold;
+
+            if (!isHallucination && options.Value.EnableSelfCheckGuard)
+            {
+                var passed = await hallucinationGuard.VerifyAsync(answer, context, ct);
+                if (!passed) isHallucination = true;
+            }
         }
 
         if (isHallucination)
             logger.LogWarning("Potential hallucination (stream) for: {Question}", request.Question);
 
-        // 非幻觉答案写入语义缓存
-        if (!isHallucination)
+        // EphemeralContext 不写缓存，避免污染后续无附件请求
+        if (!isHallucination && string.IsNullOrWhiteSpace(request.EphemeralContext))
             await semanticCache.SetAsync(queryEmbedding, answer, ct);
 
+        var confidence = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
         yield return new RagStreamChunk
         {
             Type = "done",
-            AnswerConfidence = results.Max(r => r.Similarity),
+            AnswerConfidence = confidence,
             IsHallucination = isHallucination
         };
     }
+
+    /// <summary>构建临时附件上下文前缀，与 KB 检索结果区隔。</summary>
+    private static string BuildEphemeralPrefix(string ephemeralContext) =>
+        $"[临时上传文件内容 — 仅供本次问答，不写入知识库]\n{ephemeralContext}\n---（以下为知识库检索结果）---\n";
 }

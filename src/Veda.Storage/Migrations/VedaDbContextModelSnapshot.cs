@@ -17,6 +17,83 @@ namespace Veda.Storage.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
 
+            modelBuilder.Entity("Veda.Storage.Entities.ChatMessageEntity", b =>
+                {
+                    b.Property<string>("MessageId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<float?>("Confidence")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsHallucination")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourcesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("MessageId");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("SessionId", "CreatedAt");
+
+                    b.ToTable("ChatMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.ChatSessionEntity", b =>
+                {
+                    b.Property<string>("SessionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.ToTable("ChatSessions", (string)null);
+                });
+
             modelBuilder.Entity("Veda.Storage.Entities.ConsensusCandidateEntity", b =>
                 {
                     b.Property<string>("Id")
@@ -45,7 +122,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasIndex("IsApproved");
 
-                    b.ToTable("ConsensusCandidates");
+                    b.ToTable("ConsensusCandidates", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.DocumentPermissionEntity", b =>
@@ -69,7 +146,7 @@ namespace Veda.Storage.Migrations
                     b.HasIndex("DocumentId", "GroupId")
                         .IsUnique();
 
-                    b.ToTable("DocumentPermissions");
+                    b.ToTable("DocumentPermissions", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.EvalQuestionEntity", b =>
@@ -96,7 +173,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("EvalQuestions");
+                    b.ToTable("EvalQuestions", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.EvalRunEntity", b =>
@@ -118,7 +195,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasKey("RunId");
 
-                    b.ToTable("EvalRuns");
+                    b.ToTable("EvalRuns", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.PromptTemplateEntity", b =>
@@ -152,7 +229,7 @@ namespace Veda.Storage.Migrations
                     b.HasIndex("Name", "Version")
                         .IsUnique();
 
-                    b.ToTable("PromptTemplates");
+                    b.ToTable("PromptTemplates", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.SemanticCacheEntity", b =>
@@ -176,7 +253,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SemanticCacheEntries");
+                    b.ToTable("SemanticCacheEntries", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.SharingGroupEntity", b =>
@@ -199,7 +276,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasIndex("OwnerId");
 
-                    b.ToTable("SharingGroups");
+                    b.ToTable("SharingGroups", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.SyncedFileEntity", b =>
@@ -236,7 +313,7 @@ namespace Veda.Storage.Migrations
                     b.HasIndex("ConnectorName", "FilePath")
                         .IsUnique();
 
-                    b.ToTable("SyncedFiles");
+                    b.ToTable("SyncedFiles", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.TokenUsageEntity", b =>
@@ -277,7 +354,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasIndex("UserId", "CreatedAtUtc");
 
-                    b.ToTable("TokenUsages");
+                    b.ToTable("TokenUsages", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.UserBehaviorEntity", b =>
@@ -317,7 +394,7 @@ namespace Veda.Storage.Migrations
 
                     b.HasIndex("UserId", "RelatedChunkId");
 
-                    b.ToTable("UserBehaviors");
+                    b.ToTable("UserBehaviors", (string)null);
                 });
 
             modelBuilder.Entity("Veda.Storage.Entities.VectorChunkEntity", b =>
@@ -381,7 +458,21 @@ namespace Veda.Storage.Migrations
 
                     b.HasIndex("DocumentName", "SupersededAtTicks");
 
-                    b.ToTable("VectorChunks");
+                    b.ToTable("VectorChunks", (string)null);
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.ChatMessageEntity", b =>
+                {
+                    b.HasOne("Veda.Storage.Entities.ChatSessionEntity", null)
+                        .WithMany("Messages")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Veda.Storage.Entities.ChatSessionEntity", b =>
+                {
+                    b.Navigation("Messages");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Veda.Core;
@@ -17,22 +17,19 @@ public sealed class LlmRouterService : ILlmRouter
     private readonly IChatService _simpleService;
     private readonly Lazy<IChatService> _advancedService;
 
-    public LlmRouterService(IChatService simpleService, IConfiguration cfg)
+    public LlmRouterService(IChatService simpleService, IOptions<VedaOptions> options)
     {
         _simpleService = simpleService;
-
-        var baseUrl = cfg["Veda:DeepSeek:BaseUrl"]    ?? "https://api.deepseek.com/v1";
-        var apiKey  = cfg["Veda:DeepSeek:ApiKey"]     ?? string.Empty;
-        var model   = cfg["Veda:DeepSeek:ChatModel"]  ?? "deepseek-chat";
+        var ds = options.Value.DeepSeek;
 
         _advancedService = new Lazy<IChatService>(() =>
         {
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (string.IsNullOrWhiteSpace(ds.ApiKey))
                 return simpleService; // Graceful fallback
 
             // Use SK OpenAI connector with DeepSeek-compatible endpoint (all named args to avoid overload ambiguity)
             var kernel = Kernel.CreateBuilder()
-                .AddOpenAIChatCompletion(modelId: model, apiKey: apiKey, endpoint: new Uri(baseUrl))
+                .AddOpenAIChatCompletion(modelId: ds.ChatModel, apiKey: ds.ApiKey!, endpoint: new Uri(ds.BaseUrl))
                 .Build();
             var inner = kernel.GetRequiredService<IChatCompletionService>();
             return new OllamaChatService(inner); // OllamaChatService is a generic IChatCompletionService adapter

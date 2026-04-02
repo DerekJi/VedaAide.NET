@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -69,13 +70,21 @@ builder.Services.AddScoped<ICurrentUserService, HttpContextCurrentUserService>()
 // ── JWT Bearer Authentication (Microsoft Entra ID) ──────────────────────────────────
 // Validates JWT tokens issued by the configured Entra ID tenant.
 // When AzureAd config is absent, operates in pass-through / anonymous mode.
-var entraInstance = cfg["AzureAd:Instance"] ?? "https://login.microsoftonline.com/";
-var entraDomain   = cfg["AzureAd:Domain"];   // CIAM: e.g. vedaaide.onmicrosoft.com
-var entraTenantId = cfg["AzureAd:TenantId"];
-var entraClientId = cfg["AzureAd:ClientId"];
-var entraAudience = cfg["AzureAd:Audience"] ?? entraClientId;
+builder.Services.Configure<AzureAdOptions>(cfg.GetSection("AzureAd"));
+var entra = cfg.GetSection("AzureAd").Get<AzureAdOptions>() ?? new AzureAdOptions();
+var entraAudience = entra.Audience ?? entra.ClientId;
 
-if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entraClientId))
+// Development 专用无鉴权模式：Veda:DevMode:NoAuth=true 时绕过所有认证。
+// ⚠ 生产环境绝对禁止开启此选项。
+var isDevNoAuth = builder.Environment.IsDevelopment()
+    && cfg.GetValue<bool>("Veda:DevMode:NoAuth", false);
+
+if (isDevNoAuth)
+{
+    builder.Services.AddAuthentication(DevBypassAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevBypassAuthHandler>(DevBypassAuthHandler.SchemeName, null);
+}
+else if (!string.IsNullOrWhiteSpace(entra.TenantId) && !string.IsNullOrWhiteSpace(entra.ClientId))
 {
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -84,9 +93,9 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
             // For CIAM, the OIDC metadata is served under the domain-based URL.
             // The token 'iss' claim uses tenantId format, so we disable issuer
             // validation and rely on audience + signing key validation instead.
-            options.Authority = !string.IsNullOrWhiteSpace(entraDomain)
-                ? $"{entraInstance.TrimEnd('/')}/{entraDomain}/v2.0/"
-                : $"{entraInstance.TrimEnd('/')}/{entraTenantId}/v2.0/";
+            options.Authority = !string.IsNullOrWhiteSpace(entra.Domain)
+                ? $"{entra.Instance.TrimEnd('/')}/{entra.Domain}/v2.0/"
+                : $"{entra.Instance.TrimEnd('/')}/{entra.TenantId}/v2.0/";
             options.Audience  = entraAudience;
             // Disable claim type remapping so CIAM claims (oid, sub, name, roles)
             // are preserved verbatim from the JWT rather than being mapped to
@@ -101,8 +110,8 @@ if (!string.IsNullOrWhiteSpace(entraTenantId) && !string.IsNullOrWhiteSpace(entr
             [
                 entraAudience,
                 $"api://{entraAudience}",
-                entraClientId!,
-                $"api://{entraClientId}"
+                entra.ClientId!,
+                $"api://{entra.ClientId}"
             ];
         });
 }
@@ -115,7 +124,7 @@ builder.Services.AddAuthorization(options =>
 {
     // AdminOnly: JWT roles claim 包含 "Admin"（Entra ID App Roles），
     // 或 oid/sub claim 在 AzureAd:AdminOids 白名单中（适合 CIAM token 无 roles claim 的场景）。
-    var adminOids = cfg.GetSection("AzureAd:AdminOids").Get<string[]>() ?? [];
+    var adminOids = entra.AdminOids;
     options.AddPolicy("AdminOnly", policy => policy
         .RequireAuthenticatedUser()
         .RequireAssertion(ctx =>
@@ -128,11 +137,10 @@ builder.Services.AddAuthorization(options =>
 
 // ── Health Checks ─────────────────────────────────────────────────────────────
 var healthChecks = builder.Services.AddHealthChecks();
-var storageProvider  = cfg["Veda:StorageProvider"]   ?? "Sqlite";
-var embeddingProvider = cfg["Veda:EmbeddingProvider"] ?? "Ollama";
-if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
+var vedaOpts = cfg.GetSection("Veda").Get<VedaOptions>() ?? new VedaOptions();
+if (vedaOpts.StorageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
     healthChecks.AddCheck<Veda.Api.HealthChecks.CosmosDbHealthCheck>("cosmosdb");
-if (embeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
+if (vedaOpts.EmbeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
     healthChecks.AddCheck<Veda.Api.HealthChecks.AzureOpenAIConfigHealthCheck>("azure-openai");
 
 builder.Services.AddSwaggerGen(c =>
@@ -140,7 +148,8 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "VedaAide API", Version = "v1" });
 });
 // ── CORS ───────────────────────────────────────────────────────────────
-var allowedOrigins = (cfg["Veda:Security:AllowedOrigins"] ?? "*").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+var allowedOrigins = vedaOpts.Security.AllowedOrigins
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
     options.AddPolicy("VedaCorsPolicy", policy =>
     {
@@ -188,27 +197,28 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── CosmosDB container initialisation (only when StorageProvider=CosmosDb) ───
-// Run in background so Kestrel starts serving requests immediately.
-// The CosmosDbHealthCheck will report Degraded until init completes.
+// Awaited synchronously so every container exists before Kestrel serves the first
+// request. Avoids race-condition 500s on api/chat/sessions, api/usage/summary
+// and api/querystream when containers don't yet exist after a fresh deployment.
 var cosmosInitializer = app.Services.GetService<Veda.Storage.CosmosDbInitializer>();
 if (cosmosInitializer is not null)
 {
     var appLogger = app.Services.GetRequiredService<ILogger<Program>>();
-    _ = Task.Run(async () =>
+    using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+    try
     {
-        using var initCts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
-        try
-        {
-            await cosmosInitializer.EnsureReadyAsync(initCts.Token);
-        }
-        catch (Exception ex)
-        {
-            appLogger.LogWarning(ex,
-                "CosmosDB initialisation failed (type={ExType}, msg={Msg}). " +
-                "Check Managed Identity role assignments and CosmosDB endpoint.",
-                ex.GetType().Name, ex.Message);
-        }
-    });
+        await cosmosInitializer.EnsureReadyAsync(initCts.Token);
+    }
+    catch (Exception ex)
+    {
+        // Non-fatal: log prominently and continue. Requests will fail at the CosmosDB
+        // call site with a descriptive error until the operator fixes the credentials.
+        appLogger.LogError(ex,
+            "CosmosDB initialisation failed (type={ExType}, msg={Msg}). " +
+            "All CosmosDB-backed endpoints will return 500 until this is resolved. " +
+            "Check Managed Identity role assignments and CosmosDB endpoint.",
+            ex.GetType().Name, ex.Message);
+    }
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────

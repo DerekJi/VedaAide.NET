@@ -142,6 +142,8 @@ VedaAide.NET/
 | `POST` | `/api/documents/upload` | Upload an image/PDF (multimodal) into the knowledge base |
 | `POST` | `/api/query` | RAG query (answer + sources + hallucination flag + optional structuredOutput) |
 | `GET` | `/api/querystream` | Streaming RAG query via SSE |
+| `POST` | `/api/querystream` | Streaming RAG query with ephemeral file context (Context Augmentation) |
+| `POST` | `/api/context/extract` | Extract text from an uploaded file (ephemeral, no DB write) |
 | `POST` | `/api/orchestrate/query` | Agent-orchestrated Q&A |
 | `POST` | `/api/orchestrate/ingest` | Agent-orchestrated ingestion |
 | `POST` | `/api/datasources/sync` | Manually trigger all enabled data source connectors |
@@ -203,7 +205,7 @@ dotnet test --collect:"XPlat Code Coverage"
 ./scripts/smoke-test.sh
 ```
 
-Current test count: **134 tests**, all passing.
+Current test count: **167 tests**, all passing.
 
 ---
 
@@ -242,3 +244,5 @@ Available tools: `search_knowledge_base`, `list_documents`, `ingest_document`
 | Stage 3 Sprint 3 | Structured reasoning output + knowledge versioning + semantic enhancer | ✅ Done |
 | Stage 3 Sprint 4 | Implicit feedback learning + multi-user knowledge governance (4-tier model) | ✅ Done |
 | Stage 5 | User authentication (Azure Entra External ID CIAM) + full route protection (MsalGuard) + JWT-based user data isolation | ✅ Done |
+| Stage 6 | Rich document extraction quality (Certificate type, PDF text layer, Azure DI quota awareness, Ollama Vision provider, token usage stats, email ingestion EML/MSG, admin role isolation) | ✅ Done |
+| Stage 7 Phase 4 | Context Augmentation (Ephemeral RAG): upload file / paste image in chat, extract text without DB write, inject into LLM prompt | ✅ Done |

@@ -12,7 +12,7 @@ namespace Veda.Services;
 /// Requires <c>Veda:Vision:Enabled = true</c> in configuration.
 /// </summary>
 public sealed class VisionModelFileExtractor(
-    [FromKeyedServices("vision")] IChatCompletionService visionChat,
+    [FromKeyedServices(ServiceCollectionExtensions.VisionServiceKey)] IChatCompletionService visionChat,
     IOptions<VisionOptions> options,
     ILogger<VisionModelFileExtractor> logger) : IFileExtractor
 {

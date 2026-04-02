@@ -28,13 +28,13 @@ public sealed class DemoLibraryService(
         return ListFromFileSystem();
     }
 
-    public async Task<IngestResult> IngestAsync(string documentName, KnowledgeScope? scope = null, CancellationToken ct = default)
+    public async Task<IngestResult> IngestAsync(string documentName, KnowledgeScope? scope = null, DocumentType? documentType = null, CancellationToken ct = default)
     {
         var container = TryBuildClient();
         if (container is not null)
-            return await IngestFromBlobAsync(container, documentName, scope, ct);
+            return await IngestFromBlobAsync(container, documentName, scope, documentType, ct);
 
-        return await IngestFromFileSystemAsync(documentName, scope, ct);
+        return await IngestFromFileSystemAsync(documentName, scope, documentType, ct);
     }
 
     // ── Blob Storage source ───────────────────────────────────────────────────
@@ -69,25 +69,26 @@ public sealed class DemoLibraryService(
     }
 
     private async Task<IngestResult> IngestFromBlobAsync(
-        BlobContainerClient container, string blobName, KnowledgeScope? scope, CancellationToken ct)
+        BlobContainerClient container, string blobName, KnowledgeScope? scope, DocumentType? documentType, CancellationToken ct)
     {
         var blobPath   = $"{DemoPrefix}{blobName}";
         var blobClient = container.GetBlobClient(blobPath);
         var ext        = Path.GetExtension(blobName).ToLowerInvariant();
         var mimeType   = ResolveMimeType(ext);
+        var docType    = documentType ?? DocumentTypeParser.InferFromName(blobName);
 
-        logger.LogInformation("DemoLibraryService: ingesting '{Blob}' from Blob Storage", blobPath);
+        logger.LogInformation("DemoLibraryService: ingesting '{Blob}' from Blob Storage as {Type}", blobPath, docType);
 
         if (mimeType == "text/plain")
         {
             var response = await blobClient.DownloadContentAsync(ct);
             var content  = response.Value.Content.ToString();
-            return await documentIngestor.IngestAsync(content, blobName, DocumentType.Other, scope, ct);
+            return await documentIngestor.IngestAsync(content, blobName, docType, scope, ct);
         }
         else
         {
             var stream = await blobClient.OpenReadAsync(cancellationToken: ct);
-            return await documentIngestor.IngestFileAsync(stream, blobName, mimeType, DocumentType.Other, scope, ct);
+            return await documentIngestor.IngestFileAsync(stream, blobName, mimeType, docType, scope, ct);
         }
     }
 
@@ -125,7 +126,7 @@ public sealed class DemoLibraryService(
     }
 
     private async Task<IngestResult> IngestFromFileSystemAsync(
-        string fileName, KnowledgeScope? scope, CancellationToken ct)
+        string fileName, KnowledgeScope? scope, DocumentType? documentType, CancellationToken ct)
     {
         var opts = fsOptions.Value;
         if (!opts.Enabled || string.IsNullOrWhiteSpace(opts.Path))
@@ -137,19 +138,20 @@ public sealed class DemoLibraryService(
 
         var ext      = Path.GetExtension(fileName).ToLowerInvariant();
         var mimeType = ResolveMimeType(ext);
+        var docType  = documentType ?? DocumentTypeParser.InferFromName(fileName);
 
-        logger.LogInformation("DemoLibraryService: ingesting '{File}' from FileSystem", filePath);
+        logger.LogInformation("DemoLibraryService: ingesting '{File}' from FileSystem as {Type}", filePath, docType);
 
         if (mimeType == "text/plain")
         {
             var content = await File.ReadAllTextAsync(filePath, ct);
-            return await documentIngestor.IngestAsync(content, fileName, DocumentType.Other, scope, ct);
+            return await documentIngestor.IngestAsync(content, fileName, docType, scope, ct);
         }
         else
         {
             var stream = File.OpenRead(filePath);
             await using (stream.ConfigureAwait(false))
-                return await documentIngestor.IngestFileAsync(stream, fileName, mimeType, DocumentType.Other, scope, ct);
+                return await documentIngestor.IngestFileAsync(stream, fileName, mimeType, docType, scope, ct);
         }
     }
 

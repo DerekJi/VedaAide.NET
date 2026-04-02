@@ -30,6 +30,8 @@ public static class DocumentTypeParser
             return DocumentType.Specification;
         if (name.Contains("report") || name.Contains("summary"))
             return DocumentType.Report;
+        if (name.Contains("icas") || name.Contains("ameb") || name.Contains("cert") || name.Contains("award"))
+            return DocumentType.Certificate;
         return DocumentType.Other;
     }
 }

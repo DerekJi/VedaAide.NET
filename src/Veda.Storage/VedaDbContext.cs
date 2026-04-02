@@ -15,6 +15,8 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
     public DbSet<DocumentPermissionEntity> DocumentPermissions => Set<DocumentPermissionEntity>();
     public DbSet<ConsensusCandidateEntity> ConsensusCandidates => Set<ConsensusCandidateEntity>();
     public DbSet<TokenUsageEntity> TokenUsages => Set<TokenUsageEntity>();
+    public DbSet<ChatSessionEntity> ChatSessions => Set<ChatSessionEntity>();
+    public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -101,6 +103,32 @@ public class VedaDbContext(DbContextOptions<VedaDbContext> options) : DbContext(
             e.HasIndex(x => x.UserId);
             e.HasIndex(x => x.CreatedAtUtc);
             e.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+        });
+
+        mb.Entity<ChatSessionEntity>(e =>
+        {
+            e.HasKey(x => x.SessionId);
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => new { x.UserId, x.UpdatedAt });
+            e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+            e.Property(x => x.UserId).IsRequired().HasMaxLength(200);
+            // Store DateTimeOffset as ISO-8601 string so SQLite ORDER BY works correctly
+            e.Property(x => x.CreatedAt).HasConversion<string>();
+            e.Property(x => x.UpdatedAt).HasConversion<string>();
+            e.HasMany(x => x.Messages).WithOne().HasForeignKey(m => m.SessionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ChatMessageEntity>(e =>
+        {
+            e.HasKey(x => x.MessageId);
+            e.HasIndex(x => x.SessionId);
+            e.HasIndex(x => new { x.SessionId, x.CreatedAt });
+            e.Property(x => x.Role).IsRequired().HasMaxLength(20);
+            e.Property(x => x.UserId).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Content).IsRequired();
+            e.Property(x => x.SourcesJson).IsRequired().HasDefaultValue("[]");
+            // Store DateTimeOffset as ISO-8601 string so SQLite ORDER BY works correctly
+            e.Property(x => x.CreatedAt).HasConversion<string>();
         });
     }
 }

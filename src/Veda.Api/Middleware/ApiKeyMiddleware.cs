@@ -1,4 +1,5 @@
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Veda.Services;
 
 namespace Veda.Api.Middleware;
 
@@ -8,7 +9,7 @@ namespace Veda.Api.Middleware;
 /// /api/admin/* 和 /mcp 端点使用 Veda:Security:AdminApiKey 进行鉴权。
 /// 密钥未配置时跳过验证（方便本地开发）。
 /// </summary>
-public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration cfg)
+public sealed class ApiKeyMiddleware(RequestDelegate next, IOptions<VedaOptions> options)
 {
     private const string ApiKeyHeader = "X-Api-Key";
 
@@ -24,11 +25,12 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration cfg)
         }
 
         var requestKey = context.Request.Headers[ApiKeyHeader].FirstOrDefault();
+        var security   = options.Value.Security;
 
         if (path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/mcp",       StringComparison.OrdinalIgnoreCase))
         {
-            var adminKey = cfg["Veda:Security:AdminApiKey"];
+            var adminKey = security.AdminApiKey;
             if (!string.IsNullOrWhiteSpace(adminKey) && requestKey != adminKey)
             {
                 context.Response.StatusCode = 401;
@@ -38,7 +40,7 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IConfiguration cfg)
         }
         else
         {
-            var apiKey = cfg["Veda:Security:ApiKey"];
+            var apiKey = security.ApiKey;
             if (!string.IsNullOrWhiteSpace(apiKey) && requestKey != apiKey)
             {
                 context.Response.StatusCode = 401;

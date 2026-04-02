@@ -28,6 +28,50 @@ public record QueryRequest(
     string? ScopeOwnerId = null,
     string? UserId = null);
 
+/// <summary>携带临时附件上下文的流式问答请求（POST /api/querystream）。</summary>
+public record QueryStreamRequest(
+    [Required, MinLength(1)] string Question,
+    string? ExtraContext,
+    [Range(ApiConstraints.TopKMin, ApiConstraints.TopKMax)] int TopK = 5,
+    [Range(0.0, 1.0)] float MinSimilarity = RagDefaults.DefaultMinSimilarity,
+    DateTimeOffset? DateFrom = null,
+    DateTimeOffset? DateTo = null,
+    QueryMode Mode = QueryMode.Simple);
+
+// ── Chat session API models ───────────────────────────────────────────────────
+
+public record CreateSessionRequest(string? Title);
+
+public record AppendMessageRequest(
+    [Required] string Role,
+    [Required, MinLength(1), MaxLength(10_000)] string Content,
+    float? Confidence,
+    bool IsHallucination,
+    IReadOnlyList<ChatSourceRefDto>? Sources);
+
+public record ChatSourceRefDto(
+    string DocumentName,
+    string ChunkContent,
+    float Similarity,
+    string? ChunkId,
+    string? DocumentId);
+
+public record SessionResponse(
+    string SessionId,
+    string Title,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public record MessageResponse(
+    string MessageId,
+    string SessionId,
+    string Role,
+    string Content,
+    float? Confidence,
+    bool IsHallucination,
+    IReadOnlyList<ChatSourceRefDto> Sources,
+    DateTimeOffset CreatedAt);
+
 public record SavePromptRequest(
     [Required, MinLength(1), MaxLength(200)] string Name,
     [Required, MinLength(1), MaxLength(50)]  string Version,

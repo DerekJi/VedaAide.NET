@@ -13,6 +13,7 @@ This document covers all configurable fields in `appsettings.json`, environment 
 5. [Data Source: Auto Sync](#5-data-source-auto-sync)
 6. [Storage Backend](#6-storage-backend)
 7. [AI Provider](#7-ai-provider)
+   - [7.1 Vision Model Provider](#71-vision-model-provider)
 8. [DeepSeek Advanced Reasoning](#8-deepseek-advanced-reasoning)
 9. [API Security](#9-api-security)
 10. [Semantic Cache](#10-semantic-cache)
@@ -274,6 +275,9 @@ Section: `Veda:StorageProvider` / `Veda:CosmosDb`
       "DatabaseName": "VedaAide",
       "ChunksContainerName": "VectorChunks",
       "CacheContainerName": "SemanticCache",
+      "BehaviorsContainerName": "UserBehaviors",
+      "TokenUsagesContainerName": "TokenUsages",
+      "ChatSessionsContainerName": "ChatSessions",
       "EmbeddingDimensions": 1536
     }
   }
@@ -288,13 +292,19 @@ Section: `Veda:StorageProvider` / `Veda:CosmosDb`
 | `CosmosDb:DatabaseName` | string | `VedaAide` | CosmosDB database name |
 | `CosmosDb:ChunksContainerName` | string | `VectorChunks` | Container for vector chunks (with DiskANN index) |
 | `CosmosDb:CacheContainerName` | string | `SemanticCache` | Container for semantic cache entries |
+| `CosmosDb:BehaviorsContainerName` | string | `UserBehaviors` | Container for user behavior feedback events (Partition Key = `/userId`) |
+| `CosmosDb:TokenUsagesContainerName` | string | `TokenUsages` | Container for AI token usage records (Partition Key = `/userId`) |
+| `CosmosDb:ChatSessionsContainerName` | string | `ChatSessions` | Container for multi-session persistence (Partition Key = `/userId`) |
 | `CosmosDb:EmbeddingDimensions` | int | `1024` | Embedding vector dimensions — must match the model (bge-m3=1024, text-embedding-3-small=1536) |
 
-> SQLite metadata stores (PromptTemplate / SyncState / Eval) always use SQLite regardless of this setting.
+> SQLite metadata stores (PromptTemplate / SyncState / Eval) always use SQLite. In CosmosDB mode, vectors, semantic cache, user behaviors, token usage, and chat sessions are all stored in CosmosDB, automatically isolated per user by partition key.
 
 **CosmosDB container requirements:**
 - `VectorChunks`: partition key `/documentId`, DiskANN vector index on `/embedding` (Float32, Cosine, dimensions as configured), `/embedding/*` excluded from regular index
 - `SemanticCache`: partition key `/id`, TTL enabled (`DefaultTimeToLive = -1`)
+- `UserBehaviors`: partition key `/userId`
+- `TokenUsages`: partition key `/userId`
+- `ChatSessions`: partition key `/userId` (stores both session metadata and messages as separate documents via `type` field)
 
 On startup, `CosmosDbInitializer` automatically creates the containers if they do not exist (requires `Cosmos DB Built-in Data Contributor` role on the account).
 
@@ -331,6 +341,51 @@ Section: `Veda:EmbeddingProvider` / `Veda:LlmProvider` / `Veda:AzureOpenAI`
 > **Managed Identity**: In Azure Container Apps, assign a User Assigned Identity to the app and grant it `Cognitive Services OpenAI User` role on the Azure OpenAI resource. Leave `ApiKey` empty.
 >
 > **Local dev with `az login`**: `DefaultAzureCredential` automatically picks up `az login` credentials locally — no key needed.
+
+### 7.1 Vision Model Provider
+
+Section: `Veda:Vision`
+
+```json
+{
+  "Veda": {
+    "Vision": {
+      "Enabled": true,
+      "OllamaModel": "",
+      "ChatDeployment": "gpt-4o-mini",
+      "TimeoutSeconds": 300
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Vision:Enabled` | bool | `true` | Enable Vision extraction for images and scanned PDFs |
+| `Vision:OllamaModel` | string | `""` | Ollama multimodal model name (e.g. `qwen2.5vl:3b`). **If non-empty, Vision uses Ollama regardless of `LlmProvider`** |
+| `Vision:ChatDeployment` | string | `gpt-4o-mini` | Azure OpenAI deployment name for Vision. Used when `OllamaModel` is empty and `AzureOpenAI:Endpoint` is configured |
+| `Vision:TimeoutSeconds` | int | `300` | HTTP timeout for Vision model calls (seconds). Increase for large images or slow hardware |
+
+**Provider selection priority (data-driven, no explicit flag needed):**
+
+| `Vision:OllamaModel` | `AzureOpenAI:Endpoint` | Effective Vision Provider |
+|---|---|---|
+| non-empty | any | Ollama multimodal (`OllamaModel`) |
+| empty | non-empty | Azure OpenAI (`Vision:ChatDeployment`) |
+| empty | empty | Fallback to main Chat LLM |
+
+**Typical configurations:**
+
+```jsonc
+// Local dev: Chat via Ollama, Vision via Azure OpenAI (recommended)
+"LlmProvider": "Ollama",
+"Vision": { "Enabled": true, "OllamaModel": "", "ChatDeployment": "gpt-4o-mini" }
+// Set Veda:AzureOpenAI:Endpoint + Veda:AzureOpenAI:ApiKey in User Secrets
+
+// All-local: both Chat and Vision via Ollama
+"LlmProvider": "Ollama",
+"Vision": { "Enabled": true, "OllamaModel": "qwen2.5vl:3b", "TimeoutSeconds": 180 }
+```
 
 ---
 

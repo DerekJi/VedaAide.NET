@@ -19,6 +19,7 @@ public interface IDemoLibraryService
     /// <summary>
     /// Ingests the specified demo document into the knowledge base.
     /// When scope is provided the document is stored under that user's partition; otherwise it is public.
+    /// When documentType is provided it overrides the auto-detected type.
     /// </summary>
-    Task<IngestResult> IngestAsync(string documentName, KnowledgeScope? scope = null, CancellationToken ct = default);
+    Task<IngestResult> IngestAsync(string documentName, KnowledgeScope? scope = null, DocumentType? documentType = null, CancellationToken ct = default);
 }
