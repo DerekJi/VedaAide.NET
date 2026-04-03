@@ -21,6 +21,7 @@ public sealed class PublicResumeTailoringService(
         4. Keep the tone professional and concise.
         5. Do NOT include phone numbers or home addresses.
         6. If the job description is in Chinese, respond in Chinese. Otherwise respond in English.
+        7. Output raw Markdown ONLY. Do NOT wrap the output in a code fence (no ```markdown or ``` blocks).
         """;
 
     public async IAsyncEnumerable<string> TailorStreamAsync(
