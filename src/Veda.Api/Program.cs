@@ -151,15 +151,32 @@ builder.Services.AddSwaggerGen(c =>
 var allowedOrigins = vedaOpts.Security.AllowedOrigins
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options =>
+{
     options.AddPolicy("VedaCorsPolicy", policy =>
     {
         if (allowedOrigins.Contains("*"))
             policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
         else
             policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
-    }));
+    });
+
+    // 公开简历定制端点专用 CORS 策略，仅允许 resume 站 origin。
+    // 开发环境：放通所有 localhost（任意端口，如 4130、4200 等）。
+    // 生产环境：仅允许 derekji.github.io。
+    options.AddPolicy("ResumePublicPolicy", policy =>
+    {
+        var p = policy.WithMethods("POST").WithHeaders("Content-Type");
+        if (builder.Environment.IsDevelopment())
+            p.SetIsOriginAllowed(origin =>
+                Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+                && uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase));
+        else
+            p.WithOrigins("https://derekji.github.io");
+    });
+});
 
 // ── Rate Limiting (固定窗口，60 次/分钟/全局) ────────────────────────────
+var publicResumeOpts = vedaOpts.PublicResume;
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("global", policy =>
@@ -168,6 +185,18 @@ builder.Services.AddRateLimiter(options =>
         policy.Window      = TimeSpan.FromMinutes(1);
         policy.QueueLimit  = 0;
     });
+
+    // 公开简历端点：按来源 IP 分区，限额从 Veda:PublicResume:RateLimitPerIpPerHour 读取。
+    options.AddPolicy("resume-public", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = publicResumeOpts.RateLimitPerIpPerHour,
+                Window      = TimeSpan.FromHours(1),
+                QueueLimit  = 0
+            }));
+
     options.RejectionStatusCode = 429;
 });
 // ── GraphQL (HotChocolate) ────────────────────────────────────────────────────

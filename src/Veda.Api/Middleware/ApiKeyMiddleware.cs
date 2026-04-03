@@ -55,5 +55,6 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, IOptions<VedaOptions>
     private static bool IsExcluded(string path) =>
         path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith("/graphql", StringComparison.OrdinalIgnoreCase) ||
-        path.Equals("/health", StringComparison.OrdinalIgnoreCase);
+        path.Equals("/health", StringComparison.OrdinalIgnoreCase)      ||
+        path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase);
 }

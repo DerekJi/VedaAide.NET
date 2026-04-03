@@ -38,6 +38,9 @@ public sealed class VedaOptions
     /// <summary>API Key 安全配置，绑定到 "Veda:Security" 节。</summary>
     public SecuritySettings Security { get; set; } = new();
 
+    /// <summary>公开简历生成端点配置，绑定到 "Veda:PublicResume" 节。</summary>
+    public PublicResumeSettings PublicResume { get; set; } = new();
+
     // ── Nested settings classes ───────────────────────────────────────────────
 
     public sealed class AzureOpenAISettings
@@ -60,6 +63,17 @@ public sealed class VedaOptions
         public string? ApiKey          { get; set; }
         public string? AdminApiKey     { get; set; }
         public string  AllowedOrigins  { get; set; } = "*";
+    }
+
+    /// <summary>公开简历生成端点（/api/public/resume/tailor）的配置。</summary>
+    public sealed class PublicResumeSettings
+    {
+        /// <summary>每 IP 每小时最大请求次数（生产建议 5，本地开发可放宽到 30）。</summary>
+        public int RateLimitPerIpPerHour    { get; set; } = 5;
+        /// <summary>JD 文本最大字符数，防止超长 Prompt 攻击。</summary>
+        public int MaxJobDescriptionChars   { get; set; } = 4000;
+        /// <summary>向量检索返回的最大简历片段数。</summary>
+        public int DefaultTopK              { get; set; } = 8;
     }
 }
 

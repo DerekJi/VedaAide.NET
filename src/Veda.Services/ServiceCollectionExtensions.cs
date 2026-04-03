@@ -80,6 +80,7 @@ public static class ServiceCollectionExtensions
         // ISP 拆分的具体服务
         services.AddScoped<IDocumentIngestor, DocumentIngestService>();
         services.AddScoped<IQueryService, QueryService>();
+        services.AddScoped<IPublicResumeTailoringService, PublicResumeTailoringService>();
 
         // 多模态文件提取器（文件上传管线）
         services.AddSingleton<AzureDiQuotaState>();  // 跨请求持久化配额超限状态
