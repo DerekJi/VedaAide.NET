@@ -25,6 +25,9 @@ internal sealed class FakeEmbeddingService : IEmbeddingService
         return Task.FromResult(result);
     }
 
+    public Task<string> ExpandQueryAsync(string text, CancellationToken ct = default)
+        => Task.FromResult(text);  // For testing, no expansion needed
+
     private static float[] ToUnitVector(string text)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));

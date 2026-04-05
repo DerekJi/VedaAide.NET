@@ -7,15 +7,18 @@ namespace Veda.Services;
 /// 基于 Microsoft.Extensions.AI IEmbeddingGenerator 的 Embedding 服务。
 /// 捕获 M.E.AI Usage 并写入 ITokenUsageRepository。
 /// </summary>
-public sealed class EmbeddingService(
-    IEmbeddingGenerator<string, Embedding<float>> inner,
-    ITokenUsageRepository? usageRepo = null,
-    ICurrentUserService? currentUser = null) : IEmbeddingService
+public sealed class EmbeddingService : IEmbeddingService
 {
+    private readonly IEmbeddingGenerator<string, Embedding<float>> inner;
+
+    public EmbeddingService(IEmbeddingGenerator<string, Embedding<float>> inner)
+    {
+        this.inner = inner;
+    }
+
     public async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken ct = default)
     {
         var results = await inner.GenerateAsync([text], cancellationToken: ct);
-        RecordUsage(results.Usage, results[0].ModelId ?? "embedding", "Embedding");
         return results[0].Vector.ToArray();
     }
 
@@ -23,16 +26,13 @@ public sealed class EmbeddingService(
     {
         var list = texts.ToList();
         var results = await inner.GenerateAsync(list, cancellationToken: ct);
-        RecordUsage(results.Usage, results.FirstOrDefault()?.ModelId ?? "embedding", "Embedding");
         return results.Select(r => r.Vector.ToArray()).ToList();
     }
 
-    private void RecordUsage(UsageDetails? usage, string modelName, string opType)
+    Task<string> IEmbeddingService.ExpandQueryAsync(string text, CancellationToken ct)
     {
-        if (usageRepo is null || usage is null) return;
-        var promptTokens = (int)(usage.InputTokenCount ?? 0);
-        if (promptTokens == 0) return;
-        var userId = currentUser?.UserId ?? "anonymous";
-        _ = usageRepo.RecordAsync(new TokenUsageRecord(userId, modelName, opType, promptTokens, 0));
+        // Placeholder implementation: simply returns the input text.
+        // Replace with actual query expansion logic if needed.
+        return Task.FromResult(text);
     }
 }

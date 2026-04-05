@@ -36,7 +36,7 @@ public class IngestQueryIntegrationTests
     private FakeEmbeddingService  _embedding   = null!;
     private FakeChatService       _chat        = null!;
     private DocumentIngestService _ingestor    = null!;
-    private QueryService          _query       = null!;
+    private IQueryService         _query       = null!;
 
     [SetUp]
     public async Task SetUp()
@@ -152,21 +152,27 @@ public class IngestQueryIntegrationTests
 
         var mockHybridRetriever = new Mock<IHybridRetriever>();
 
+        // ── RagQueryHelper (shared utility) ───────────────────────────────
+        var ragQueryHelper = new RagQueryHelper(
+            _vectorStore,
+            mockHybridRetriever.Object,
+            mockFeedbackBoost.Object,
+            mockContextWindow.Object,
+            mockHallucinationGuard.Object,
+            ragOpts,
+            NullLogger<RagQueryHelper>.Instance);
+
         // ── QueryService (real vector search + fake LLM) ──────────────────
         _query = new QueryService(
             _embedding,
-            _vectorStore,
             mockLlmRouter.Object,
-            mockHallucinationGuard.Object,
             mockContextWindow.Object,
             mockPromptRepo.Object,
             mockChainOfThought.Object,
             mockSemanticCache.Object,
-            mockHybridRetriever.Object,
             mockSemanticEnhancer.Object,
-            mockFeedbackBoost.Object,
-            ragOpts,
-            NullLogger<QueryService>.Instance);
+            NullLogger<QueryService>.Instance,
+            ragQueryHelper);
     }
 
     [TearDown]

@@ -7,4 +7,9 @@ public interface IEmbeddingService
 {
     Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken ct = default);
     Task<IReadOnlyList<float[]>> GenerateEmbeddingsAsync(IEnumerable<string> texts, CancellationToken ct = default);
+
+    /// <summary>
+    /// 扩展查询文本以增强语义。
+    /// </summary>
+    Task<string> ExpandQueryAsync(string text, CancellationToken ct = default);
 }
