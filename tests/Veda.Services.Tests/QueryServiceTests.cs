@@ -25,7 +25,9 @@ public class QueryServiceTests
     private Mock<ISemanticEnhancer> _semanticEnhancer = null!;
     private Mock<IFeedbackBoostService> _feedbackBoost = null!;
     private Mock<ILogger<QueryService>> _logger = null!;
-    private QueryService _sut = null!;
+    private Mock<ILogger<RagQueryHelper>> _loggerHelper = null!;
+    private IRagQueryHelper _ragQueryHelper = null!;
+    private IQueryService _sut = null!;
 
     [SetUp]
     public void SetUp()
@@ -69,20 +71,29 @@ public class QueryServiceTests
 
         // Default: hallucination self-check disabled; threshold low enough not to flag in happy-path tests
         var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0f });
+        _loggerHelper = new Mock<ILogger<RagQueryHelper>>();
+
+        // 创建 RagQueryHelper 实例
+        _ragQueryHelper = new RagQueryHelper(
+            _vectorStore.Object,
+            _hybridRetriever.Object,
+            _feedbackBoost.Object,
+            _contextWindowBuilder.Object,
+            _hallucinationGuard.Object,
+            ragOptions,
+            _loggerHelper.Object);
+
+        // 创建 QueryService 实例
         _sut = new QueryService(
             _embedding.Object,
-            _vectorStore.Object,
             _llmRouter.Object,
-            _hallucinationGuard.Object,
             _contextWindowBuilder.Object,
             _promptTemplateRepository.Object,
             _chainOfThought.Object,
             _semanticCache.Object,
-            _hybridRetriever.Object,
             _semanticEnhancer.Object,
-            _feedbackBoost.Object,
-            ragOptions,
-            _logger.Object);
+            _logger.Object,
+            _ragQueryHelper);
     }
 
     [Test]
@@ -224,7 +235,7 @@ public class QueryServiceTests
     public async Task QueryAsync_LongChunkContent_ShouldTruncateSourceAtMaxLength()
     {
         // Arrange: content that exceeds the configured max display length
-        var longContent = new string('A', QueryService.SourceContentMaxLength + 100);
+        var longContent = new string('A', RagQueryHelper.SourceContentMaxLength + 100);
         var chunks = new List<(DocumentChunk, float)>
         {
             (MakeChunk("doc1", longContent), 0.9f)
@@ -243,7 +254,7 @@ public class QueryServiceTests
         var response = await _sut.QueryAsync(new RagQueryRequest { Question = "Q?" });
 
         // Assert: truncated to SourceContentMaxLength chars + "..." (3 chars)
-        response.Sources[0].ChunkContent.Should().HaveLength(QueryService.SourceContentMaxLength + 3);
+        response.Sources[0].ChunkContent.Should().HaveLength(RagQueryHelper.SourceContentMaxLength + 3);
         response.Sources[0].ChunkContent.Should().EndWith("...");
     }
 
@@ -355,12 +366,28 @@ public class QueryServiceTests
     }
 
     // Helper: build a new QueryService with different options but same mocks
-    private QueryService BuildSut(IOptions<RagOptions> ragOptions) =>
-        new(_embedding.Object, _vectorStore.Object, _llmRouter.Object,
-            _hallucinationGuard.Object, _contextWindowBuilder.Object,
-            _promptTemplateRepository.Object, _chainOfThought.Object,
-            _semanticCache.Object, _hybridRetriever.Object, _semanticEnhancer.Object,
-            _feedbackBoost.Object, ragOptions, _logger.Object);
+    private IQueryService BuildSut(IOptions<RagOptions> ragOptions)
+    {
+        var helper = new RagQueryHelper(
+            _vectorStore.Object,
+            _hybridRetriever.Object,
+            _feedbackBoost.Object,
+            _contextWindowBuilder.Object,
+            _hallucinationGuard.Object,
+            ragOptions,
+            _loggerHelper.Object);
+
+        return new QueryService(
+            _embedding.Object,
+            _llmRouter.Object,
+            _contextWindowBuilder.Object,
+            _promptTemplateRepository.Object,
+            _chainOfThought.Object,
+            _semanticCache.Object,
+            _semanticEnhancer.Object,
+            _logger.Object,
+            helper);
+    }
 
     private static DocumentChunk MakeChunk(string docName, string content) => new()
     {
