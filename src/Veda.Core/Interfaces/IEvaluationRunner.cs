@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 namespace Veda.Core.Interfaces;
 
 /// <summary>

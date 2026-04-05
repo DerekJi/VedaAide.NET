@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;

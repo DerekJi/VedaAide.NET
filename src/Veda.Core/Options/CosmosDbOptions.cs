@@ -1,4 +1,4 @@
-namespace Veda.Storage;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// Azure CosmosDB 向量存储配置，绑定到 appsettings.json 的 "Veda:CosmosDb" 节。

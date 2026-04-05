@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Veda.Api.Models;
