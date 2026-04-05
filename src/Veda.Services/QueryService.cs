@@ -1,3 +1,5 @@
+
+using Veda.Core.Extensions;
 namespace Veda.Services;
 
 /// <summary>
@@ -26,7 +28,7 @@ public sealed class QueryService(
         if (template is not null)
             return template.Content.Replace("{today}", today, StringComparison.Ordinal);
 
-        var langRule = IsChinese(question)
+        var langRule = question.IsChinese()
             ? "2. 必须使用中文回答。"
             : "2. You MUST respond entirely in English. Do not use Chinese.";
 
@@ -41,16 +43,6 @@ public sealed class QueryService(
             4. 只有在 Context 完全没有任何相关信息时，才回答无相关记录。
             5. 不要重复引用文档名称，直接给出结论。
             """;
-    }
-
-    /// <summary>
-    /// 简单启发式语言检测：CJK 字符占比超过 33% 则视为中文。
-    /// </summary>
-    private static bool IsChinese(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return false;
-        var cjkCount = text.Count(c => c >= '\u4E00' && c <= '\u9FFF');
-        return cjkCount * 3 > text.Length;
     }
 
     public async Task<RagQueryResponse> QueryAsync(RagQueryRequest request, CancellationToken ct = default)
@@ -135,8 +127,6 @@ public sealed class QueryService(
         };
     }
 
-
-
     /// <summary>构建结构化输出 Prompt，强制 LLM 返回特定 JSON 格式。</summary>
     private static string BuildStructuredPrompt(
         string question,
@@ -160,5 +150,4 @@ public sealed class QueryService(
             }
             """;
     }
-
 }

@@ -1,4 +1,5 @@
-﻿using Azure;
+﻿using Veda.Core.Options;
+using Azure;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration;

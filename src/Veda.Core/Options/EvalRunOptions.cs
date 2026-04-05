@@ -1,4 +1,4 @@
-namespace Veda.Core;
+namespace Veda.Core.Options;
 
 /// <summary>评估运行的配置选项。</summary>
 public record EvalRunOptions

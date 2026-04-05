@@ -1,4 +1,4 @@
-namespace Veda.Services.DataSources;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// Background Service 自动同步配置节：<c>Veda:DataSources:AutoSync</c>

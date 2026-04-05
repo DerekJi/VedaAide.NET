@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;

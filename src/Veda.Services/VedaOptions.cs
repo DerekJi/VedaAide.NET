@@ -1,4 +1,4 @@
-namespace Veda.Services;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// VedaAide 核心配置，绑定到 appsettings.json 的 "Veda" 节。

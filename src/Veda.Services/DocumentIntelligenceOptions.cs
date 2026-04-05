@@ -1,4 +1,4 @@
-namespace Veda.Services;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// Azure AI Document Intelligence 配置，绑定到 appsettings.json 的 "Veda:DocumentIntelligence" 节。
