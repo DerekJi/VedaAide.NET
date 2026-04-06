@@ -34,4 +34,15 @@ public sealed class CosmosDbOptions
     /// bge-m3 = 1024，text-embedding-3-small = 1536。
     /// </summary>
     public int EmbeddingDimensions { get; set; } = 1536;
+
+    /// <summary>
+    /// 是否启用 Cosmos DB 原生全文检索（FullTextContainsAny + FullTextScore/BM25）用于关键词检索。
+    /// 关闭时使用 CONTAINS + 本地改良 TF/覆盖率评分。
+    /// </summary>
+    public bool EnableFullTextKeywordSearch { get; set; }
+
+    /// <summary>
+    /// 全文检索语言代码（例如 en-US、zh-CN）。为空时由 Cosmos DB 使用默认语言配置。
+    /// </summary>
+    public string? FullTextLanguage { get; set; }
 }

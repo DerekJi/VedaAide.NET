@@ -18,6 +18,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
 {
     private readonly Container _container;
     private readonly ILogger<CosmosDbVectorStore> _logger;
+    private readonly CosmosDbOptions _options;
 
     /// <summary>向量检索时获取候选数量的倍数，剩余过滤在内存中完成。</summary>
     private const int CandidateMultiplier = 4;
@@ -27,9 +28,18 @@ public sealed class CosmosDbVectorStore : IVectorStore
         CosmosDbOptions options,
         ILogger<CosmosDbVectorStore> logger)
     {
-        var opts = options;
-        _container = client.GetDatabase(opts.DatabaseName).GetContainer(opts.ChunksContainerName);
+        _options = options;
+        _container = client.GetDatabase(options.DatabaseName).GetContainer(options.ChunksContainerName);
         _logger = logger;
+
+        // 检查是否为 Cosmos DB provider，如果不是，则警告 EnableFullTextKeywordSearch 配置无效
+        // 目前通过 CosmosClient.Endpoint 判断，若为本地 SQLite，通常 endpoint 为空或为 file://
+        var endpoint = options.Endpoint?.ToLowerInvariant() ?? string.Empty;
+        if (_options.EnableFullTextKeywordSearch &&
+            (string.IsNullOrWhiteSpace(endpoint) || endpoint.StartsWith("file://") || endpoint.Contains("sqlite")))
+        {
+            _logger.LogWarning("[CosmosDbVectorStore] EnableFullTextKeywordSearch is enabled, but current provider is not Azure Cosmos DB. This setting will be ignored and fallback to CONTAINS scoring.");
+        }
     }
 
     public Task UpsertAsync(DocumentChunk chunk, CancellationToken ct = default)
@@ -159,6 +169,108 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (keywords.Count == 0)
             return Array.Empty<(DocumentChunk, float)>();
 
+        if (_options.EnableFullTextKeywordSearch)
+        {
+            var fullTextResults = await TrySearchByFullTextAsync(
+                keywords, topK, filterType, dateFrom, dateTo, scope, ct);
+            if (fullTextResults.Count > 0)
+                return fullTextResults;
+        }
+
+        return await SearchByContainsWithTfScoringAsync(
+            keywords, topK, filterType, dateFrom, dateTo, scope, ct);
+    }
+
+    private async Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> TrySearchByFullTextAsync(
+        IReadOnlyList<string> keywords,
+        int topK,
+        DocumentType? filterType,
+        DateTimeOffset? dateFrom,
+        DateTimeOffset? dateTo,
+        KnowledgeScope? scope,
+        CancellationToken ct)
+    {
+        try
+        {
+            var candidateCount = Math.Max(topK * CandidateMultiplier, 20);
+            var conditions = new List<string>
+            {
+                "c.supersededAtTicks = 0"
+            };
+            if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
+            if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
+            if (dateTo.HasValue)     conditions.Add("c.createdAtTicks <= @dateTo");
+            AppendScopeConditions(conditions, scope);
+
+            var searchExpr = string.IsNullOrWhiteSpace(_options.FullTextLanguage)
+                ? "FullTextContainsAny(c.content, @keywords)"
+                : "FullTextContainsAny(c.content, @keywords, @fullTextLanguage)";
+            conditions.Add(searchExpr);
+
+            var scoreExpr = string.IsNullOrWhiteSpace(_options.FullTextLanguage)
+                ? "FullTextScore(c.content, @keywords)"
+                : "FullTextScore(c.content, @keywords, @fullTextLanguage)";
+
+            var whereClause = " WHERE " + string.Join(" AND ", conditions);
+            var sql = $"""
+                SELECT TOP {candidateCount}
+                    c.id, c.documentId, c.documentName, c.documentType,
+                    c.content, c.chunkIndex, c.contentHash, c.embeddingModel, c.metadata, c.createdAtTicks,
+                    c.version, c.supersededAtTicks,
+                    {scoreExpr} AS bm25Score
+                FROM c{whereClause}
+                ORDER BY RANK {scoreExpr}
+                """;
+
+            var queryDef = new QueryDefinition(sql)
+                .WithParameter("@keywords", keywords.ToArray());
+            if (filterType.HasValue) queryDef = queryDef.WithParameter("@filterType", (int)filterType.Value);
+            if (dateFrom.HasValue)   queryDef = queryDef.WithParameter("@dateFrom", dateFrom.Value.UtcTicks);
+            if (dateTo.HasValue)     queryDef = queryDef.WithParameter("@dateTo", dateTo.Value.UtcTicks);
+            if (!string.IsNullOrWhiteSpace(_options.FullTextLanguage))
+                queryDef = queryDef.WithParameter("@fullTextLanguage", _options.FullTextLanguage);
+            BindScopeParameters(ref queryDef, scope);
+
+            var results = new List<(DocumentChunk, float)>();
+            var feed = _container.GetItemQueryIterator<CosmosKeywordSearchResult>(queryDef);
+
+            while (feed.HasMoreResults && results.Count < topK)
+            {
+                var page = await feed.ReadNextAsync(ct);
+                foreach (var item in page)
+                {
+                    var score = (float)Math.Max(item.Bm25Score, 0d);
+                    results.Add((ToChunk(item), score));
+                    if (results.Count >= topK) break;
+                }
+            }
+
+            return results
+                .OrderByDescending(x => x.Item2)
+                .ToList()
+                .AsReadOnly();
+        }
+        catch (CosmosException ex)
+        {
+            _logger.LogWarning(ex,
+                "CosmosDbVectorStore: FullText keyword search unavailable, fallback to CONTAINS scoring");
+            return Array.Empty<(DocumentChunk, float)>();
+        }
+    }
+
+    private async Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> SearchByContainsWithTfScoringAsync(
+        IReadOnlyList<string> keywords,
+        int topK,
+        DocumentType? filterType,
+        DateTimeOffset? dateFrom,
+        DateTimeOffset? dateTo,
+        KnowledgeScope? scope,
+        CancellationToken ct)
+    {
+        var lowerKeywords = keywords
+            .Select(k => k.ToLowerInvariant())
+            .ToList();
+
         var candidateCount = Math.Max(topK * CandidateMultiplier, 20);
         var conditions = new List<string>
         {
@@ -169,15 +281,15 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (dateTo.HasValue)     conditions.Add("c.createdAtTicks <= @dateTo");
         AppendScopeConditions(conditions, scope);
 
-        // CONTAINS-based keyword match (BM25 平替)
-        var keywordExpr = string.Join(" OR ", keywords.Select((_, i) => $"CONTAINS(LOWER(c.content), @kw{i})"));
+        var keywordExpr = string.Join(" OR ", lowerKeywords.Select((_, i) => $"CONTAINS(LOWER(c.content), @kw{i})"));
         conditions.Add($"({keywordExpr})");
 
         var whereClause = " WHERE " + string.Join(" AND ", conditions);
         var sql = $"""
             SELECT TOP {candidateCount}
                 c.id, c.documentId, c.documentName, c.documentType,
-                c.content, c.chunkIndex, c.contentHash, c.embeddingModel, c.metadata, c.createdAtTicks
+                c.content, c.chunkIndex, c.contentHash, c.embeddingModel, c.metadata, c.createdAtTicks,
+                c.version, c.supersededAtTicks
             FROM c{whereClause}
             """;
 
@@ -186,8 +298,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (dateFrom.HasValue)   queryDef = queryDef.WithParameter("@dateFrom", dateFrom.Value.UtcTicks);
         if (dateTo.HasValue)     queryDef = queryDef.WithParameter("@dateTo", dateTo.Value.UtcTicks);
         BindScopeParameters(ref queryDef, scope);
-        for (var i = 0; i < keywords.Count; i++)
-            queryDef = queryDef.WithParameter($"@kw{i}", keywords[i].ToLowerInvariant());
+        for (var i = 0; i < lowerKeywords.Count; i++)
+            queryDef = queryDef.WithParameter($"@kw{i}", lowerKeywords[i]);
 
         var results = new List<(DocumentChunk, float)>();
         var feed = _container.GetItemQueryIterator<CosmosChunkDocument>(queryDef);
@@ -197,29 +309,17 @@ public sealed class CosmosDbVectorStore : IVectorStore
             var page = await feed.ReadNextAsync(ct);
             foreach (var item in page)
             {
-                var chunk = new DocumentChunk
-                {
-                    Id             = item.Id,
-                    DocumentId     = item.DocumentId,
-                    DocumentName   = item.DocumentName,
-                    DocumentType   = (DocumentType)item.DocumentType,
-                    Content        = item.Content,
-                    ChunkIndex     = item.ChunkIndex,
-                    EmbeddingModel = item.EmbeddingModel,
-                    Metadata       = item.Metadata,
-                    CreatedAt      = new DateTimeOffset(item.CreatedAtTicks, TimeSpan.Zero)
-                };
-                // Score = keyword coverage ratio (matched keywords / total keywords)
-                var matchCount = keywords.Count(kw =>
-                    item.Content.Contains(kw, StringComparison.OrdinalIgnoreCase));
-                var score = (float)matchCount / keywords.Count;
-                results.Add((chunk, score));
+                var score = CalculateContainsScore(item.Content, lowerKeywords);
+                if (score <= 0f) continue;
+
+                results.Add((ToChunk(item), score));
                 if (results.Count >= topK) break;
             }
         }
 
         return results
             .OrderByDescending(x => x.Item2)
+            .Take(topK)
             .ToList()
             .AsReadOnly();
     }
@@ -451,6 +551,112 @@ public sealed class CosmosDbVectorStore : IVectorStore
             ? new DateTimeOffset(r.SupersededAtTicks, TimeSpan.Zero)
             : null
     };
+
+    private static DocumentChunk ToChunk(CosmosChunkDocument d) => new()
+    {
+        Id             = d.Id,
+        DocumentId     = d.DocumentId,
+        DocumentName   = d.DocumentName,
+        DocumentType   = (DocumentType)d.DocumentType,
+        Content        = d.Content,
+        ChunkIndex     = d.ChunkIndex,
+        EmbeddingModel = d.EmbeddingModel,
+        Metadata       = d.Metadata,
+        CreatedAt      = new DateTimeOffset(d.CreatedAtTicks, TimeSpan.Zero),
+        Version        = d.Version,
+        SupersededAt   = d.SupersededAtTicks > 0
+            ? new DateTimeOffset(d.SupersededAtTicks, TimeSpan.Zero)
+            : null
+    };
+
+    private static DocumentChunk ToChunk(CosmosKeywordSearchResult d) => new()
+    {
+        Id             = d.Id,
+        DocumentId     = d.DocumentId,
+        DocumentName   = d.DocumentName,
+        DocumentType   = (DocumentType)d.DocumentType,
+        Content        = d.Content,
+        ChunkIndex     = d.ChunkIndex,
+        EmbeddingModel = d.EmbeddingModel,
+        Metadata       = d.Metadata,
+        CreatedAt      = new DateTimeOffset(d.CreatedAtTicks, TimeSpan.Zero),
+        Version        = d.Version,
+        SupersededAt   = d.SupersededAtTicks > 0
+            ? new DateTimeOffset(d.SupersededAtTicks, TimeSpan.Zero)
+            : null
+    };
+
+    private static float CalculateContainsScore(string content, IReadOnlyList<string> keywords)
+    {
+        if (string.IsNullOrWhiteSpace(content) || keywords.Count == 0)
+            return 0f;
+
+        var normalized = content.ToLowerInvariant();
+        var wordCount = CountWords(normalized);
+        if (wordCount == 0)
+            return 0f;
+
+        var matchedKeywordCount = 0;
+        var totalOccurrences = 0;
+        foreach (var keyword in keywords)
+        {
+            var occurrences = CountOccurrences(normalized, keyword);
+            if (occurrences <= 0) continue;
+
+            matchedKeywordCount++;
+            totalOccurrences += occurrences;
+        }
+
+        if (matchedKeywordCount == 0)
+            return 0f;
+
+        var coverage = (float)matchedKeywordCount / keywords.Count;
+        var avgTermFrequency = (float)totalOccurrences / wordCount;
+        var tfScore = MathF.Min(avgTermFrequency * 20f, 1f);
+
+        return (coverage * 0.7f) + (tfScore * 0.3f);
+    }
+
+    private static int CountWords(string text)
+    {
+        var count = 0;
+        var inWord = false;
+
+        foreach (var c in text)
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                if (inWord) continue;
+                inWord = true;
+                count++;
+            }
+            else
+            {
+                inWord = false;
+            }
+        }
+
+        return count;
+    }
+
+    private static int CountOccurrences(string text, string keyword)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(keyword))
+            return 0;
+
+        var count = 0;
+        var index = 0;
+        while (true)
+        {
+            index = text.IndexOf(keyword, index, StringComparison.Ordinal);
+            if (index < 0) break;
+
+            count++;
+            index += keyword.Length;
+        }
+
+        return count;
+    }
 
     /// <summary>
     /// 将 float[] 序列化为 CosmosDB SQL 内联向量格式，例如 [0.1,-0.3,0.7]。
