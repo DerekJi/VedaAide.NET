@@ -93,6 +93,14 @@ public class IngestQueryIntegrationTests
         mockSemanticEnhancer
             .Setup(e => e.GetAliasTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<string>());
+        mockSemanticEnhancer
+            .Setup(e => e.GetEnhancedMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string content, CancellationToken _) => new SemanticEnhancementResult
+            {
+                AliasTags = [],
+                DetectedTermsWithSynonyms = new Dictionary<string, IReadOnlyList<string>>(),
+                EnrichedContent = content
+            });
 
         var mockDocumentDiff = new Mock<IDocumentDiffService>();
         mockDocumentDiff

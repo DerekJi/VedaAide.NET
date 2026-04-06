@@ -8,6 +8,28 @@
 
 ---
 
+### Semantic Enhancement (Detailed Explanation)
+
+**Core Concept**: During ingestion, use a personal vocabulary configuration to automatically detect terms in chunks, then replace them in-place with "term (synonym1 synonym2)" format to enhance embedding semantic associations.
+
+**Example Walkthrough**:
+
+| Stage | Content |
+|-------|---------|
+| **Original chunk** | The BG is too dark, so James had to be very careful. |
+| **Vocabulary** | term="BG", synonyms=["背景资料", "context"] |
+| **After Enhancement** | The BG (背景资料 context) is too dark, so James had to be very careful. |
+| **Stored Metadata** | aliasTags: [], detectedTerms: {"BG": ["背景资料", "context"]} |
+| **For Embedding** | Full enriched text; embedding captures semantic associations between BG/背景资料/context |
+
+**Advantages**:
+- ✅ Syntax coherent, high-quality embedding semantics
+- ✅ User queries with "background" or "背景资料" will retrieve this chunk (via embedding similarity)
+- ✅ Original matched case is preserved (e.g., "BG" stays "BG", not "bg")
+- ✅ Avoids double-replacement (already-replaced terms are not replaced again)
+
+---
+
 ## 1. Overall Ingest Flow
 
 ```plantuml
@@ -71,7 +93,7 @@ end note
 :Return List<DocumentChunk>;
 
 |DocumentIngestService|
-:Semantic enhancement — SemanticEnhancer.GetAliasTagsAsync\nAppend alias tags to each chunk's Metadata;
+:Semantic enhancement — SemanticEnhancer.GetEnhancedMetadataAsync\nExtract alias tags and detected terms for each chunk, write to Metadata: aliasTags, detectedTerms;
 
 |EmbeddingService|
 :Batch call IEmbeddingGenerator\n(Azure OpenAI text-embedding-3-small\nor Ollama bge-m3);

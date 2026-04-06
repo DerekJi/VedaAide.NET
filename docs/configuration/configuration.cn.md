@@ -533,9 +533,37 @@ POST /api/documents/upload  (multipart/form-data)
 ```
 
 **运行机制：**
-- 查询时：`QueryService` 在生成 Embedding 前调用 `ISemanticEnhancer.ExpandQueryAsync`，将缩写扩为同义词集合
-- 摄取时：`DocumentIngestService` 在 chunk 入库时调用 `GetAliasTagsAsync`，将别名作为 `metadata.aliasTags` 附加存储
+- 摄取时：`DocumentIngestService` 在 chunk 入库时调用 `GetEnhancedMetadataAsync`，同时提取别名标签和检测术语，写入 `metadata.aliasTags` 和 `metadata.detectedTerms`
+- 查询时：`QueryService` 在生成 Embedding 前调用 `ExpandQueryAsync`，将用户查询中的缩写扩为同义词集合
+- 对称设计：两个方法使用相同的 Vocabulary 规则，确保摄入发现的术语在检索时也能被找到
 - 词库文件由用户独立提供，不影响核心代码
+
+**增强示例**：
+
+原始 chunk：
+```
+The BG is too dark, so James had to be very careful.
+```
+
+Vocabulary 配置：
+```json
+{
+  "term": "BG",
+  "synonyms": ["背景资料", "context"]
+}
+```
+
+增强后 chunk（用于 Embedding）：
+```
+The BG (背景资料 context) is too dark, so James had to be very careful.
+```
+
+| 元数据字段 | 值 |
+|-----------|-----|
+| aliasTags | [] |
+| detectedTerms | {"BG": ["背景资料", "context"]} |
+
+这样，当用户查询"What about the background?"时，经过 `ExpandQueryAsync` 扩展后变为"What about the background? context 背景资料"，embedding 能在向量空间中匹配到原文中的"BG (背景资料 context)"。
 
 ---
 
