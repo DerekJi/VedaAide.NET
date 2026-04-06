@@ -1,4 +1,4 @@
-namespace Veda.Api;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// Azure Entra ID (CIAM) 认证配置，绑定到 appsettings.json 的 "AzureAd" 节。

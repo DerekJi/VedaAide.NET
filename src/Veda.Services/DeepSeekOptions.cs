@@ -1,4 +1,4 @@
-namespace Veda.Services;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// DeepSeek（OpenAI 兼容）LLM 配置，绑定到 appsettings.json 的 "Veda:DeepSeek" 节。

@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Veda.Core;
+using Veda.Core.Options;
 using Veda.Core.Interfaces;
 using Veda.Storage.Entities;
 

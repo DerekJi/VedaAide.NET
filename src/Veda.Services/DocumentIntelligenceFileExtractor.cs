@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure.Identity;

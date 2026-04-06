@@ -1,4 +1,4 @@
-namespace Veda.Core;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// 语义缓存配置项（绑定到 Veda:SemanticCache 配置节）。

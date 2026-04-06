@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using Azure;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;

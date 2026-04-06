@@ -1,7 +1,7 @@
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using Veda.Services.DataSources;
+using Veda.Core.Options;
 
 namespace Veda.Services;
 

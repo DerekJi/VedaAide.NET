@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net;

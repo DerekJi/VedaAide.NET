@@ -1,4 +1,4 @@
-namespace Veda.Services;
+namespace Veda.Core.Options;
 
 /// <summary>Semantics 模块配置项。</summary>
 public sealed class SemanticsOptions
