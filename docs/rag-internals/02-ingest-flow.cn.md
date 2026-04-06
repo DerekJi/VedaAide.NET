@@ -8,6 +8,28 @@
 
 ---
 
+### 语义增强（Semantic Enhancement）详细说明
+
+**核心概念**：在摄取阶段使用个人词库配置，自动检测 chunk 内的术语，并将其就地替换为"term (synonym1 synonym2)"格式，从而增强 embedding 的语义关联性。
+
+**实例对照**：
+
+| 阶段 | 内容 |
+|------|------|
+| **原始 chunk** | The BG is too dark, so James had to be very careful. |
+| **Vocabulary** | term="BG", synonyms=["背景资料", "context"] |
+| **增强后** | The BG (背景资料 context) is too dark, so James had to be very careful. |
+| **存储 metadata** | aliasTags: [], detectedTerms: {"BG": ["背景资料", "context"]} |
+| **用于 Embedding** | 完整的增强文本，embedding 能捕捉 BG/背景资料/context 的语义关联 |
+
+**优势**：
+- ✅ 语法连贯，embedding 语义质量高
+- ✅ 用户用"background"或"背景资料"查询时能召回该 chunk（通过 embedding 相似度）
+- ✅ 保留原始匹配的大小写（"BG"保持为"BG"，不变成"bg"）
+- ✅ 避免重复替换（已替换过的术语不会再次替换）
+
+---
+
 ## 1. 整体流程图
 
 ```plantuml
@@ -71,7 +93,7 @@ end note
 :返回 List<DocumentChunk>;
 
 |DocumentIngestService|
-:语义增强 — SemanticEnhancer.GetAliasTagsAsync\n为每个 chunk 追加别名标签到 Metadata;
+:语义增强 — SemanticEnhancer.GetEnhancedMetadataAsync\n为每个 chunk 提取别名标签、检测术语、同义词\n写入 Metadata: aliasTags, detectedTerms;
 
 |EmbeddingService|
 :批量调用 IEmbeddingGenerator\n(Azure OpenAI text-embedding-3-small\n或 Ollama bge-m3);
@@ -314,7 +336,7 @@ end note
 | 图文 Vision 提取 | `VisionModelFileExtractor` | `ExtractAsync()` |
 | 分块 | `TextDocumentProcessor` | `Process()` |
 | 分块配置 | `ChunkingOptions` | `ForDocumentType()` |
-| 别名注入 | `PersonalVocabularyEnhancer` | `GetAliasTagsAsync()` |
+| 语义增强 | `PersonalVocabularyEnhancer` | `GetEnhancedMetadataAsync()` |
 | Embedding 生成 | `EmbeddingService` | `GenerateEmbeddingsAsync()` |
 | 语义近似去重 | `DocumentIngestService` | `IngestAsync()` 内循环 |
 | 版本标记 | `SqliteVectorStore` / `CosmosDbVectorStore` | `MarkDocumentSupersededAsync()` |
