@@ -134,3 +134,46 @@ internal sealed class CosmosSearchResult
     [JsonPropertyName("supersededAtTicks")]
     public long SupersededAtTicks { get; set; } = 0;
 }
+
+/// <summary>关键词检索结果，包含 BM25 相关分数。</summary>
+internal sealed class CosmosKeywordSearchResult
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentId")]
+    public string DocumentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentName")]
+    public string DocumentName { get; set; } = string.Empty;
+
+    [JsonPropertyName("documentType")]
+    public int DocumentType { get; set; }
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    [JsonPropertyName("chunkIndex")]
+    public int ChunkIndex { get; set; }
+
+    [JsonPropertyName("contentHash")]
+    public string ContentHash { get; set; } = string.Empty;
+
+    [JsonPropertyName("embeddingModel")]
+    public string EmbeddingModel { get; set; } = string.Empty;
+
+    [JsonPropertyName("metadata")]
+    public Dictionary<string, string> Metadata { get; set; } = new();
+
+    [JsonPropertyName("createdAtTicks")]
+    public long CreatedAtTicks { get; set; }
+
+    [JsonPropertyName("version")]
+    public int Version { get; set; } = 1;
+
+    [JsonPropertyName("supersededAtTicks")]
+    public long SupersededAtTicks { get; set; } = 0;
+
+    [JsonPropertyName("bm25Score")]
+    public double Bm25Score { get; set; }
+}
