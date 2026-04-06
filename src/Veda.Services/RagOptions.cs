@@ -1,4 +1,4 @@
-namespace Veda.Services;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// RAG 管道可配置阈值，通过 appsettings.json 的 Veda:Rag 节覆盖默认值。

@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using FluentAssertions;
 using NUnit.Framework;
 

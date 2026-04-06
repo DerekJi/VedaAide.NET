@@ -1,8 +1,7 @@
-namespace Veda.Services;
+namespace Veda.Core.Options;
 
 /// <summary>
 /// Vision 模型提取配置，绑定到 appsettings.json 的 "Veda:Vision" 节。
-/// 仅对 <see cref="DocumentType.RichMedia"/> 类型的文件启用。
 /// </summary>
 public sealed class VisionOptions
 {

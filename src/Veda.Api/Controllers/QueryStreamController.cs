@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,7 @@ namespace Veda.Api.Controllers;
 [ApiController]
 [Route("api/querystream")]
 [Authorize]
-public class QueryStreamController(IQueryService queryService, IOptions<RagOptions> ragOptions) : ControllerBase
+public class QueryStreamController(IQueryStreamService queryStreamService, IOptions<RagOptions> ragOptions) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
@@ -106,7 +107,7 @@ public class QueryStreamController(IQueryService queryService, IOptions<RagOptio
 
     private async Task WriteStreamAsync(RagQueryRequest request, CancellationToken ct)
     {
-        await foreach (var chunk in queryService.QueryStreamAsync(request, ct))
+        await foreach (var chunk in queryStreamService.QueryStreamAsync(request, ct))
         {
             var data = JsonSerializer.Serialize(chunk, JsonOptions);
             await Response.WriteAsync($"data: {data}\n\n", ct);

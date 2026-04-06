@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;

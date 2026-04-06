@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Veda.Core;
 using Veda.Core.Interfaces;
+using Veda.Core.Options;
 
 namespace Veda.Storage;
 
@@ -37,7 +38,7 @@ public static class ServiceCollectionExtensions
         var storageProvider = cfg["Veda:StorageProvider"] ?? "Sqlite";
         if (storageProvider.Equals("CosmosDb", StringComparison.OrdinalIgnoreCase))
         {
-            var cosmosOpts = cfg.GetSection("Veda:CosmosDb").Get<CosmosDbOptions>() ?? new CosmosDbOptions();
+            var cosmosOpts = cfg.GetSection("Veda:CosmosDb").Get<Veda.Core.Options.CosmosDbOptions>() ?? new Veda.Core.Options.CosmosDbOptions();
             if (string.IsNullOrWhiteSpace(cosmosOpts.Endpoint))
                 throw new InvalidOperationException("Veda:CosmosDb:Endpoint is required when StorageProvider=CosmosDb");
 

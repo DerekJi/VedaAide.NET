@@ -1,5 +1,5 @@
-using Veda.Evaluation.Scorers;
 
+using Veda.Evaluation.Scorers;
 namespace Veda.Evaluation;
 
 public static class ServiceCollectionExtensions

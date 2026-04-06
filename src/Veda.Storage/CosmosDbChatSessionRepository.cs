@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using System.Text.Json;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;

@@ -1,5 +1,6 @@
 using Veda.Evaluation.Scorers;
 
+using Veda.Core.Options;
 namespace Veda.Evaluation;
 
 /// <summary>

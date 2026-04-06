@@ -1,3 +1,5 @@
+
+using Veda.Core.Extensions;
 namespace Veda.Prompts;
 
 /// <summary>
@@ -24,17 +26,7 @@ public sealed class ChainOfThoughtStrategy : IChainOfThoughtStrategy
 
     public string Enhance(string question, string context)
     {
-        var instruction = IsChinese(question) ? CoTInstructionZh : CoTInstructionEn;
+        var instruction = question.IsChinese() ? CoTInstructionZh : CoTInstructionEn;
         return $"Context:\n{context}\n\n{instruction}Question: {question}";
-    }
-
-    /// <summary>
-    /// 简单启发式语言检测：CJK 字符占比超过 30% 则视为中文。
-    /// </summary>
-    private static bool IsChinese(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return false;
-        var cjkCount = text.Count(c => c >= '\u4E00' && c <= '\u9FFF');
-        return cjkCount * 3 > text.Length; // CJK 占比 > 33%
     }
 }

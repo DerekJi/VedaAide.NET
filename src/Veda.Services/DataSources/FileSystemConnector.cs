@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using System.Security.Cryptography;
 using System.Text;
 

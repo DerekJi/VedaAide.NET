@@ -1,3 +1,4 @@
+using Veda.Core.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Azure.Cosmos;

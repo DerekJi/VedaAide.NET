@@ -1,4 +1,4 @@
-namespace Veda.Core;
+namespace Veda.Core.Options;
 
 /// <summary>混合检索融合策略。</summary>
 public enum FusionStrategy

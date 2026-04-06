@@ -1,4 +1,5 @@
-﻿using Azure;
+﻿using Veda.Core.Options;
+using Azure;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration;
@@ -77,8 +78,12 @@ public static class ServiceCollectionExtensions
         // Phase 2: 防幻觉服务
         services.AddScoped<IHallucinationGuardService, HallucinationGuardService>();
 
+        // RAG 查询的共用辅助服务
+        services.AddScoped<IRagQueryHelper, RagQueryHelper>();
+
         // ISP 拆分的具体服务
         services.AddScoped<IDocumentIngestor, DocumentIngestService>();
+        services.AddScoped<IQueryStreamService, QueryStreamService>();
         services.AddScoped<IQueryService, QueryService>();
         services.AddScoped<IPublicResumeTailoringService, PublicResumeTailoringService>();
 
