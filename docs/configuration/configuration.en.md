@@ -20,6 +20,7 @@ This document covers all configurable fields in `appsettings.json`, environment 
 11. [User Secrets (Development Sensitive Config)](#11-user-secrets-development-sensitive-config)
 12. [Environment Variable Overrides](#12-environment-variable-overrides)
 13. [Configuration Priority](#13-configuration-priority)
+14. [Semantic Enhancement Layer (Phase 3)](#14-semantic-enhancement-layer-phase-3)
 
 ---
 
@@ -567,3 +568,70 @@ User Secrets  (dotnet user-secrets set ...)  ← highest precedence
 
 > **Practical use:** Set safe defaults in `appsettings.json` (committed to Git), and override sensitive values such as `ConnectionString` or `AccountUrl` via User Secrets or environment variables.
 > This way, even if `appsettings.json` is leaked, it contains no credentials.
+
+## 13. Semantic Enhancement Layer (Phase 3)
+
+Section: `Veda:Semantics`
+
+```json
+{
+  "Veda": {
+    "Semantics": {
+      "VocabularyFilePath": ""
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Semantics:VocabularyFilePath` | string | `""` | Path to the personal vocabulary JSON config file (absolute or relative to API working directory). **Leave empty to use `NoOpSemanticEnhancer` (no semantic enhancement)** |
+
+**Personal vocabulary file format (JSON):**
+
+```json
+{
+  "vocabulary": [
+    { "term": "bg", "synonyms": ["background info", "context"] },
+    { "term": "Q4", "synonyms": ["fourth quarter"] }
+  ],
+  "tags": [
+    { "pattern": "invoice|payment", "labels": ["finance", "billing"] },
+    { "pattern": "health|checkup", "labels": ["health", "medical record"] }
+  ]
+}
+```
+
+**How it works:**
+- Ingestion: `DocumentIngestService` calls `GetEnhancedMetadataAsync` for each chunk, extracting alias tags and detected terms, writing them to `metadata.aliasTags` and `metadata.detectedTerms`.
+- Query: `QueryService` calls `ExpandQueryAsync` before generating embeddings, expanding user queries with synonyms.
+- Symmetry: Both methods use the same Vocabulary rules, ensuring terms detected at ingestion are also found at retrieval.
+- The vocabulary file is user-provided and does not affect core code.
+
+**Enhancement Example**:
+
+Original chunk:
+```
+The BG is too dark, so James had to be very careful.
+```
+
+Vocabulary configuration:
+```json
+{
+  "term": "BG",
+  "synonyms": ["background info", "context"]
+}
+```
+
+Enriched chunk (for Embedding):
+```
+The BG (background info context) is too dark, so James had to be very careful.
+```
+
+| Metadata Field | Value |
+|----------------|-------|
+| aliasTags | [] |
+| detectedTerms | {"BG": ["background info", "context"]} |
+
+When user queries "What about the background?", `ExpandQueryAsync` expands it to "What about the background? context background info", and embedding can then match the original "BG (background info context)" in the vector space.
+
