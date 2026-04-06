@@ -65,6 +65,14 @@ public class QueryServiceTests
         _semanticEnhancer
             .Setup(e => e.ExpandQueryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string q, CancellationToken _) => q);
+        _semanticEnhancer
+            .Setup(e => e.GetEnhancedMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string content, CancellationToken _) => new SemanticEnhancementResult
+            {
+                AliasTags = [],
+                DetectedTermsWithSynonyms = new Dictionary<string, IReadOnlyList<string>>(),
+                EnrichedContent = content
+            });
         _feedbackBoost = new Mock<IFeedbackBoostService>();
         _feedbackBoost
             .Setup(f => f.ApplyBoostAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<(DocumentChunk, float)>>(), It.IsAny<CancellationToken>()))

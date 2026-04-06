@@ -6,6 +6,17 @@ namespace Veda.Services;
 /// </summary>
 public sealed class NoOpSemanticEnhancer : ISemanticEnhancer
 {
+    public Task<SemanticEnhancementResult> GetEnhancedMetadataAsync(string content, CancellationToken ct = default)
+    {
+        var result = new SemanticEnhancementResult
+        {
+            AliasTags = [],
+            DetectedTermsWithSynonyms = new Dictionary<string, IReadOnlyList<string>>(),
+            EnrichedContent = content
+        };
+        return Task.FromResult(result);
+    }
+
     public Task<string> ExpandQueryAsync(string query, CancellationToken ct = default)
         => Task.FromResult(query);
 

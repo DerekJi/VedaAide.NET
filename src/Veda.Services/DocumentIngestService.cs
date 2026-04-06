@@ -56,16 +56,31 @@ public sealed class DocumentIngestService(
         var chunks = processor.Process(content, documentName, documentType, documentId);
         logger.LogInformation("Split '{Name}' into {Count} chunks", documentName, chunks.Count);
 
-        // 语义增强：为每个 chunk 追加别名标签到 metadata
+        // 语义增强：为每个 chunk 生成并追加语义元数据（别名标签、检测到的术语等）
+        // 这确保摄入时的语义标注与检索时的查询扩展逻辑保持对齐
         foreach (var chunk in chunks)
         {
             chunk.Version = version;
             // 写入 OwnerId scope，确保文档按用户隔离
             if (scope?.OwnerId is not null)
                 chunk.Metadata["_scope_ownerId"] = scope.OwnerId;
-            var aliasTags = await semanticEnhancer.GetAliasTagsAsync(chunk.Content, ct);
-            if (aliasTags.Count > 0)
-                chunk.Metadata["aliasTags"] = string.Join(",", aliasTags);
+
+            // 通过 GetEnhancedMetadataAsync 同时应用 Vocabulary 和 Tags 规则
+            var enhancement = await semanticEnhancer.GetEnhancedMetadataAsync(chunk.Content, ct);
+
+            // 写入别名标签
+            if (enhancement.AliasTags.Count > 0)
+                chunk.Metadata["aliasTags"] = string.Join(",", enhancement.AliasTags);
+
+            // 写入检测到的术语和同义词（JSON 格式便于后续检索端使用）
+            if (enhancement.DetectedTermsWithSynonyms.Count > 0)
+            {
+                var termDict = enhancement.DetectedTermsWithSynonyms.ToDictionary(
+                    kv => kv.Key,
+                    kv => (object)kv.Value.ToList()
+                );
+                chunk.Metadata["detectedTerms"] = System.Text.Json.JsonSerializer.Serialize(termDict);
+            }
         }
 
         var texts = chunks.Select(c => c.Content).ToList();

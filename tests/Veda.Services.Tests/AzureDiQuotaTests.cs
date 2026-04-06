@@ -210,6 +210,13 @@ public class DocumentIngestServiceFallbackTests
         var semanticEnhancer = new Mock<ISemanticEnhancer>();
         semanticEnhancer.Setup(e => e.GetAliasTagsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<string>().ToList());
+        semanticEnhancer.Setup(e => e.GetEnhancedMetadataAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string content, CancellationToken _) => new SemanticEnhancementResult
+            {
+                AliasTags = [],
+                DetectedTermsWithSynonyms = new Dictionary<string, IReadOnlyList<string>>(),
+                EnrichedContent = content
+            });
 
         var diffService = new Mock<IDocumentDiffService>();
 
