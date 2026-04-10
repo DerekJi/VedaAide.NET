@@ -57,12 +57,12 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-p
   location: location
 }
 
-// ── Azure AI Document Intelligence (F0: 500 pages/month free) ─────────────────
+// ── Azure AI Document Intelligence (S0: Standard paid tier, 1 free per subscription) ────
 resource docIntelligence 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
   name: '${prefix}-docintel'
   location: location
   kind: 'FormRecognizer'
-  sku: { name: 'F0' }
+  sku: { name: 'S0' }
   properties: {
     publicNetworkAccess: 'Enabled'
     customSubDomainName: '${prefix}-docintel'
