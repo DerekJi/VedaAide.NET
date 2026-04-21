@@ -30,13 +30,14 @@
 
 ### 3.1 核心思路
 
-VedaAide.NET 为 resume 站提供**唯一一个专供公开接口**：
+VedaAide.NET 为 resume 站提供两个专供公开接口：
 
 ```
-POST /api/public/resume/tailor
+GET  /api/public/resume/ping    # 轻量健康探针，用于前端检测冷启动是否完成
+POST /api/public/resume/tailor  # 流式生成定制简历（SSE）
 ```
 
-该接口：
+这两个接口：
 - `[AllowAnonymous]` — 不要求 JWT，无需登录；
 - 仅允许来自 resume 站 origin 的跨域请求（CORS 白名单）；
 - 专用严格限流（per-IP），防止 LLM 配额滥用；

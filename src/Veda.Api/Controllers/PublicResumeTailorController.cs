@@ -20,6 +20,14 @@ public sealed class PublicResumeTailorController(
     IPublicResumeTailoringService tailoringService,
     IOptions<VedaOptions> options) : ControllerBase
 {
+    /// <summary>
+    /// 轻量健康探针，用于前端检测 Container App 是否已从冷启动恢复。
+    /// GET /api/public/resume/ping → 200 OK { "status": "ok" }
+    /// </summary>
+    [HttpGet("ping")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult Ping() => Ok(new { status = "ok" });
+
     [HttpPost("tailor")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
