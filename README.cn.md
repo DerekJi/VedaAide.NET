@@ -1,8 +1,278 @@
 # VedaAide.NET
 
-通用型、企业级、私有化 RAG 智能问答系统。
+> **生产级 RAG 系统** — 基于 C# / .NET 10 + Semantic Kernel 从零构建。  
+> 面向企业私有部署：混合检索、多层防幻觉、Agent 编排、MCP 集成、定量评估框架。
 
 > English documentation: [README.md](README.md)
+
+---
+
+## 为什么我构建了这个
+
+大多数 RAG 教程到 "Embed → Store → Search → Answer" 就停了。但那还不够生产级。  
+这个项目是我对这个问题的回答：*一个真正可用于生产的 RAG 系统到底应该是什么样的？*
+
+每一项架构决策都是有意为之 — 并在[架构决策记录](docs/rag-internals/09-adr.cn.md)中有详细文档。
+
+---
+
+## 架构一览
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  入口点：REST + GraphQL + SSE + MCP HTTP                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Agent 层：ReAct Agent (SK 插件) · OrchestrationService        │
+│  评估层：忠实度 · 回答相关性 · 上下文召回                      │
+│  MCP 服务：search_knowledge_base · ingest · list_documents     │
+├─────────────────────────────────────────────────────────────────┤
+│  核心服务：                                                     │
+│  DocumentIngestService ──► 分块 → Embedding → 去重 → 存储      │
+│  QueryService          ──► HybridRetriever → ContextWindow     │
+│                             → LlmRouter → HallucinationGuard   │
+│  EmbeddingService · LlmRouter · SemanticCache                  │
+├─────────────────────────────────────────────────────────────────┤
+│  存储层：CosmosDB (DiskANN) · SQLite-VSS                        │
+│          SemanticCache · UserMemoryStore · SyncStateStore      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+八个分层 C# 项目，严格的依赖方向：`Core → Services → Storage → Entry Points`。  
+详见[完整模块依赖图](docs/rag-internals/06-module-dependencies.cn.md)。
+
+---
+
+## 关键工程决策
+
+### 1. 混合检索 + RRF 融合
+密集向量检索（余弦相似度）和稀疏关键词检索并发运行。  
+结果通过 **Reciprocal Rank Fusion (RRF, k=60)** 数学公式融合 — 无需调参，理论上最优。  
+同时支持 `WeightedSum` 和 `RRF` 两种融合策略，可配置。
+
+> *为什么不只用向量检索？* 关键词检索在精确匹配、产品编码、专有名词上远超向量检索。混合方案弥补两种方法的各自缺陷。
+
+### 2. 双层防幻觉
+- **第一层 — 自检：** LLM 在一次调用中生成答案 + 置信度标志（Structured Output）
+- **第二层 — Guard 验证：** `HallucinationGuardService` 将答案 + 检索到的上下文发给独立的 LLM 调用做二次事实核查
+
+可通过 `Veda:Rag:EnableSelfCheckGuard` 配置。额外耗时 ~300ms，但能消除无依据的声明。
+
+### 3. 语义缓存（CosmosDB + SQLite）
+任何新问题到达前，先与缓存中的问题 Embedding 通过余弦相似度做匹配。  
+缓存命中阈值可配置（`SemanticCacheOptions:SimilarityThreshold`）。  
+提供两个实现：`CosmosDbSemanticCache`（生产环境）和 `SqliteSemanticCache`（本地/开发）。
+
+### 4. LLM 路由器
+`LlmRouterService` 根据 `QueryMode` 选择合适的模型：
+- `Simple` → 轻量级模型（Ollama 本地 / GPT-4o-mini）
+- `Advanced` → DeepSeek R2（或任何 OpenAI 兼容的端点）
+
+优雅降级：若 Advanced 模型未配置，自动路由到 Simple。
+
+### 5. Token 预算感知的上下文窗口
+`ContextWindowBuilder` 按相似度得分选择 chunk，同时强制执行严格的 token 预算（保守估算 3 字符/token 以处理中英混合内容）。  
+防止低相关性 chunk 填满 LLM 上下文窗口。
+
+### 6. ReAct Agent（Semantic Kernel 插件）
+`VedaKernelPlugin` 将知识库检索暴露为 `[KernelFunction]`。  
+SK 的 `ChatCompletionAgent` 在 **Reason-Act-Observe** 循环中使用 — Agent 自主决策*何时*和*检索什么*，而不是硬编码在查询路径上。
+
+### 7. MCP Server
+VedaAide 通过 **Model Context Protocol (HTTP 传输)** 暴露三个工具：
+- `search_knowledge_base` — 语义搜索向量库
+- `list_documents` — 浏览已摄取文档
+- `ingest_document` — 在运行时添加内容
+
+接入 VS Code Copilot、Claude Desktop 或任何 MCP 兼容的 AI 助手，只需一行配置。
+
+### 8. 定量 RAG 评估
+三个评分器，各自使用 LLM-as-a-Judge 方法：
+
+| 指标 | 衡量内容 |
+|-----|---------|
+| **忠实度** | 答案中的每项主张都能从检索的上下文中找到支持 |
+| **回答相关性** | 答案确实在解答所提出的问题 |
+| **上下文召回** | 检索的 chunk 包含回答问题所需的全部信息 |
+
+评分被存储、可通过 `/api/evaluation` 查询，支持不同检索策略的 A/B 对比。
+
+---
+
+## 技术栈
+
+| 层级 | 技术 | 备注 |
+|------|------|------|
+| 后端 | .NET 10、ASP.NET Core | 清晰架构，8 个项目 |
+| AI 编排 | Semantic Kernel 1.73 | 插件式 ReAct Agent |
+| 向量数据库 | Azure CosmosDB (DiskANN) / SQLite-VSS | 通过 `IVectorStore` 可插拔 |
+| LLM / Embedding | Ollama（本地）、Azure OpenAI、DeepSeek | 多模型路由 |
+| API | REST + GraphQL (HotChocolate 15) + SSE | 支持流式问答 |
+| MCP | ModelContextProtocol.AspNetCore | HTTP 传输 |
+| 前端 | Angular 19（Standalone + Signals） | 实时 SSE 流式 UI |
+| 认证 | Azure Entra External ID (CIAM) | 基于 JWT 的用户数据隔离 |
+| 可观测性 | OpenTelemetry | 结构化日志 + 健康检查 |
+| 部署 | Docker Compose（本地）/ Azure Container Apps | `/infra` 中有 Bicep IaC |
+
+---
+
+## 快速启动
+
+### 前置要求
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/)
+- [Ollama](https://ollama.com/)，并下载所需模型：
+  ```bash
+  ollama pull bge-m3        # 向量模型
+  ollama pull qwen3:8b      # 对话模型
+  ```
+- [Node.js 24+](https://nodejs.org/) 用于前端
+- [Docker](https://www.docker.com/) 用于容器化部署
+
+### 本地运行
+
+```bash
+# 1. 启动 Ollama
+ollama serve
+
+# 2. 启动 API
+cd src/Veda.Api && dotnet run
+
+# 3. 启动前端（新开终端）
+cd src/Veda.Web && npm install && npm start
+```
+
+| 端点 | URL |
+|------|-----|
+| API | http://localhost:5126 |
+| 前端 | http://localhost:4200 |
+| Swagger | http://localhost:5126/swagger |
+| GraphQL Playground | http://localhost:5126/graphql |
+| MCP | http://localhost:5126/mcp |
+
+### Docker Compose
+
+```bash
+docker compose up -d
+# 可选：通过 Cloudflare Tunnel 对外暴露
+docker compose --profile tunnel up -d
+```
+
+---
+
+## 项目结构
+
+```
+VedaAide.NET/
+├── src/
+│   ├── Veda.Core/          # 领域模型、所有 IXxx 接口、配置选项
+│   ├── Veda.Services/      # RAG 引擎：摄取、检索、Embedding、LLM 路由
+│   ├── Veda.Storage/       # EF Core、向量存储、语义缓存、同步状态
+│   ├── Veda.Prompts/       # 上下文窗口构建器、思维链策略
+│   ├── Veda.Agents/        # Semantic Kernel ReAct Agent、编排服务
+│   ├── Veda.MCP/           # MCP 服务器工具
+│   ├── Veda.Evaluation/    # 忠实度 / 相关性 / 召回率 评分器
+│   ├── Veda.Api/           # ASP.NET Core：REST + GraphQL + SSE + MCP
+│   └── Veda.Web/           # Angular 19 前端
+├── tests/
+│   ├── Veda.Core.Tests/
+│   └── Veda.Services.Tests/ # 167 个测试，全部通过
+├── docs/
+│   ├── rag-internals/      # 9 张 PlantUML 架构图
+│   ├── designs/            # 各阶段设计文档 + ADR
+│   └── insights/           # 工程决策记录
+├── infra/                  # Azure Bicep IaC
+└── docker-compose.yml
+```
+
+---
+
+## API 参考（代表性）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/documents` | 摄取文档 |
+| `POST` | `/api/documents/upload` | 上传 PDF / 图片（多模态 OCR） |
+| `POST` | `/api/query` | RAG 问答 → 答案 + 来源 + 幻觉标记 |
+| `GET` | `/api/querystream` | 流式 RAG (SSE) |
+| `POST` | `/api/orchestrate/query` | Agent 编排问答（ReAct 循环） |
+| `POST` | `/api/datasources/sync` | 触发数据源同步（Blob / 文件系统） |
+| `POST` | `/api/feedback` | 上报接受 / 拒绝 / 编辑反馈 |
+| `POST` | `/api/governance/groups` | 创建知识共享组 |
+| `POST` | `/api/evaluation/run` | 运行 RAG 评估框架 |
+| `GET` | `/api/evaluation/reports` | 查询评估结果 |
+| `POST` | `/mcp` | MCP 端点（VS Code Copilot / Claude Desktop） |
+| `POST` | `/graphql` | GraphQL 端点 |
+
+完整 API：运行本地时见 [Swagger](http://localhost:5126/swagger)。
+
+---
+
+## 运行测试
+
+```bash
+dotnet test                                         # 所有 167 个测试
+dotnet test --filter "Category!=Integration"        # 仅单元测试
+dotnet test --collect:"XPlat Code Coverage"         # 含覆盖率
+./scripts/smoke-test.sh                             # 烟雾测试（API 需运行）
+```
+
+---
+
+## MCP 集成
+
+API 运行时，将下面配置加到 `.vscode/mcp.json`：
+
+```json
+{
+  "servers": {
+    "vedaaide": {
+      "type": "http",
+      "url": "http://localhost:5126/mcp"
+    }
+  }
+}
+```
+
+可用工具：`search_knowledge_base` · `list_documents` · `ingest_document`
+
+---
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [系统架构](docs/rag-internals/01-system-architecture.cn.md) | 分层图 + Azure 基础设施 |
+| [摄取流程](docs/rag-internals/02-ingest-flow.cn.md) | 分块 → Embedding → 去重 → 版本化 |
+| [查询流程](docs/rag-internals/03-query-flow.cn.md) | 混合检索 → RRF → 上下文窗口 → 防幻觉 |
+| [存储与检索](docs/rag-internals/04-storage-retrieval.cn.md) | SQLite vs CosmosDB、语义缓存 |
+| [RAG 概念↔代码对照](docs/rag-internals/05-concept-code-map.cn.md) | 30 个标准 RAG 术语映射到实现 |
+| [架构决策记录](docs/rag-internals/09-adr.cn.md) | 7 条关键决策及理由 |
+| [配置参考](docs/configuration/configuration.cn.md) | 所有 `appsettings` 键与环境变量 |
+| [Azure 部署](docs/rag-internals/08-azure-deployment.cn.md) | Container Apps + CosmosDB + CI/CD |
+
+> 所有文档均维护中英文两个版本：`.cn.md`（中文）和 `.en.md`（英文）。
+
+---
+
+## 实现进展
+
+| 阶段 | 说明 | 状态 |
+|------|------|------|
+| Phase 0 | 方案框架、EF Core、DI 容器 | ✅ |
+| Phase 1 | 核心 RAG：摄取 + 向量检索 + LLM 问答 | ✅ |
+| Phase 2 | RAG 质量：去重 + 防幻觉 | ✅ |
+| Phase 3 | 全栈：GraphQL + SSE 流式 + Angular + Docker | ✅ |
+| Phase 4 | Agent 工作流 + MCP Server + Prompt 工程 | ✅ |
+| Phase 5 | 外部数据源（文件系统 + Blob）、后台同步 | ✅ |
+| Phase 6 | 评估框架：忠实度、相关性、A/B 测试 | ✅ |
+| Stage 3.1 | KnowledgeScope + 混合检索（RRF 融合） | ✅ |
+| Stage 3.2 | 富文档提取：Document Intelligence OCR + Vision 多模态 | ✅ |
+| Stage 3.3 | 结构化推理输出 + 知识版本化 + 语义增强器 | ✅ |
+| Stage 3.4 | 隐式反馈学习 + 多用户知识治理（4 层模型） | ✅ |
+| Stage 5 | Azure Entra External ID CIAM + JWT 用户数据隔离 | ✅ |
+| Stage 6 | Token 统计、邮件摄取 (EML/MSG)、管理员角色隔离 | ✅ |
+| Stage 7 | Context Augmentation：无 DB 写入的临时文件/图片注入 | ✅ |
+
 
 ---
 

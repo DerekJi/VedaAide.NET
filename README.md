@@ -1,8 +1,277 @@
 # VedaAide.NET
 
-A general-purpose, enterprise-grade, private-deployable RAG (Retrieval-Augmented Generation) intelligent Q&A system.
+> **Production-grade RAG platform** — built from scratch in C# / .NET 10 with Semantic Kernel.  
+> Designed for enterprise private deployment: hybrid retrieval, multi-layer hallucination defence, agent orchestration, MCP integration, and a quantitative evaluation harness.
 
 > 中文文档见 [README.cn.md](README.cn.md)
+
+---
+
+## Why I Built This
+
+Most RAG tutorials stop at "embed → store → search → answer." That's not enough for production. This project is my answer to the question: *what does a genuinely production-ready RAG system actually look like?*
+
+Every architectural decision here was made deliberately — and is documented in [Architecture Decision Records](docs/rag-internals/09-adr.en.md).
+
+---
+
+## Architecture at a Glance
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Entry Points: REST + GraphQL + SSE + MCP HTTP                  │
+├─────────────────────────────────────────────────────────────────┤
+│  Agent Layer:  ReAct Agent (SK plugin) · OrchestrationService   │
+│  Eval Layer:   Faithfulness · Answer Relevancy · Context Recall  │
+│  MCP Server:   search_knowledge_base · ingest · list_documents   │
+├─────────────────────────────────────────────────────────────────┤
+│  Core Services:                                                  │
+│  DocumentIngestService  ──► Chunking → Embedding → Dedup → Store│
+│  QueryService           ──► HybridRetriever → ContextWindow      │
+│                              → LlmRouter → HallucinationGuard    │
+│  EmbeddingService  ·  LlmRouter  ·  SemanticCache               │
+├─────────────────────────────────────────────────────────────────┤
+│  Storage Layer:  CosmosDB (DiskANN) · SQLite-VSS                 │
+│                  SemanticCache · UserMemoryStore · SyncStateStore│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Eight layered C# projects, strict dependency direction: `Core → Services → Storage → Entry Points`.  
+See [full module dependency diagram](docs/rag-internals/06-module-dependencies.en.md).
+
+---
+
+## Key Engineering Decisions
+
+### 1. Hybrid Retrieval with RRF Fusion
+Dense vector search (cosine similarity) and sparse keyword search run concurrently.  
+Results are merged via **Reciprocal Rank Fusion (RRF, k=60)** — mathematically sound, no tuning required.  
+Both `WeightedSum` and `RRF` strategies are supported and configurable.
+
+> *Why not just vector search?* Keyword search significantly outperforms dense retrieval for exact terms, product codes, and proper nouns. Hybrid covers both failure modes.
+
+### 2. Dual-Layer Hallucination Defence
+- **Layer 1 — Self-check:** LLM generates answer + confidence flag in a single structured call
+- **Layer 2 — Guard verification:** `HallucinationGuardService` sends answer + retrieved context to a second LLM call as an independent fact-checker
+
+Configurable via `Veda:Rag:EnableSelfCheckGuard`. Adds ~300ms but eliminates unsupported claims.
+
+### 3. Semantic Cache (CosmosDB + SQLite)
+Before calling the embedding model or LLM, incoming questions are compared against cached embeddings via cosine similarity.  
+Cache hit threshold is configurable (`SemanticCacheOptions:SimilarityThreshold`).  
+Two implementations: `CosmosDbSemanticCache` (production) and `SqliteSemanticCache` (local/dev).
+
+### 4. LLM Router
+`LlmRouterService` selects the appropriate model based on `QueryMode`:
+- `Simple` → lightweight model (Ollama local / GPT-4o-mini)
+- `Advanced` → DeepSeek R2 (or any OpenAI-compatible endpoint)
+
+Graceful fallback: if the advanced model is not configured, routes to simple automatically.
+
+### 5. Token-Aware Context Window
+`ContextWindowBuilder` selects chunks by similarity score and enforces a strict token budget (conservative 3 chars/token estimate to handle mixed Chinese/English content).  
+Prevents context pollution from low-relevance chunks exceeding the LLM window.
+
+### 6. ReAct Agent (Semantic Kernel Plugin)
+`VedaKernelPlugin` exposes knowledge base retrieval as a `[KernelFunction]`.  
+The SK `ChatCompletionAgent` uses this in a **Reason-Act-Observe** loop — the agent decides *when* and *what* to retrieve, rather than retrieval being hardcoded into the query path.
+
+### 7. MCP Server
+VedaAide exposes three tools via the **Model Context Protocol (HTTP transport)**:
+- `search_knowledge_base` — semantic search against the vector store
+- `list_documents` — browse ingested documents
+- `ingest_document` — add content at runtime
+
+Plugs into VS Code Copilot, Claude Desktop, or any MCP-compatible AI assistant with a single config line.
+
+### 8. Quantitative RAG Evaluation
+Three scorers, each using LLM-as-a-judge:
+
+| Metric | What It Measures |
+|--------|-----------------|
+| **Faithfulness** | Every claim in the answer is supported by retrieved context |
+| **Answer Relevancy** | The answer actually addresses the question asked |
+| **Context Recall** | The retrieved chunks contain the information needed to answer |
+
+Scores are stored, queryable via `/api/evaluation`, and support A/B comparison between retrieval strategies.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Backend | .NET 10, ASP.NET Core | Clean architecture, 8 projects |
+| AI Orchestration | Semantic Kernel 1.73 | Plugin-based ReAct agent |
+| Vector DB | Azure CosmosDB (DiskANN) / SQLite-VSS | Pluggable via `IVectorStore` |
+| LLM / Embedding | Ollama (local), Azure OpenAI, DeepSeek | Multi-model routing |
+| API | REST + GraphQL (HotChocolate 15) + SSE | Streaming Q&A support |
+| MCP | ModelContextProtocol.AspNetCore | HTTP transport |
+| Frontend | Angular 19 (Standalone + Signals) | Real-time SSE streaming UI |
+| Auth | Azure Entra External ID (CIAM) | JWT-based user data isolation |
+| Observability | OpenTelemetry | Structured logging + health checks |
+| Deployment | Docker Compose (local) / Azure Container Apps | IaC in `/infra` (Bicep) |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/)
+- [Ollama](https://ollama.com/) with:
+  ```bash
+  ollama pull bge-m3        # embedding
+  ollama pull qwen3:8b      # chat
+  ```
+- [Node.js 24+](https://nodejs.org/) for the frontend
+- [Docker](https://www.docker.com/) for containerised deployment
+
+### Run Locally
+
+```bash
+# 1. Start Ollama
+ollama serve
+
+# 2. Start the API
+cd src/Veda.Api && dotnet run
+
+# 3. Start the frontend (new terminal)
+cd src/Veda.Web && npm install && npm start
+```
+
+| Endpoint | URL |
+|----------|-----|
+| API | http://localhost:5126 |
+| Frontend | http://localhost:4200 |
+| Swagger | http://localhost:5126/swagger |
+| GraphQL Playground | http://localhost:5126/graphql |
+| MCP | http://localhost:5126/mcp |
+
+### Docker Compose
+
+```bash
+docker compose up -d
+# Optional: expose via Cloudflare Tunnel
+docker compose --profile tunnel up -d
+```
+
+---
+
+## Project Structure
+
+```
+VedaAide.NET/
+├── src/
+│   ├── Veda.Core/          # Domain models, all IXxx interfaces, options
+│   ├── Veda.Services/      # RAG engine: ingest, retrieval, embedding, LLM routing
+│   ├── Veda.Storage/       # EF Core, vector stores, semantic cache, sync state
+│   ├── Veda.Prompts/       # Context Window Builder, Chain-of-Thought strategy
+│   ├── Veda.Agents/        # Semantic Kernel ReAct agent, orchestration service
+│   ├── Veda.MCP/           # MCP server tools
+│   ├── Veda.Evaluation/    # Faithfulness / Relevancy / Recall scorers
+│   ├── Veda.Api/           # ASP.NET Core: REST + GraphQL + SSE + MCP
+│   └── Veda.Web/           # Angular 19 frontend
+├── tests/
+│   ├── Veda.Core.Tests/
+│   └── Veda.Services.Tests/    # 167 tests, all passing
+├── docs/
+│   ├── rag-internals/      # 9 PlantUML architecture diagrams
+│   ├── designs/            # Phase design docs + ADRs
+│   └── insights/           # Engineering decision write-ups
+├── infra/                  # Azure Bicep IaC
+└── docker-compose.yml
+```
+
+---
+
+## API Reference (Selected)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/documents` | Ingest a document |
+| `POST` | `/api/documents/upload` | Upload PDF / image (multimodal OCR) |
+| `POST` | `/api/query` | RAG query → answer + sources + hallucination flag |
+| `GET`  | `/api/querystream` | Streaming RAG via SSE |
+| `POST` | `/api/orchestrate/query` | Agent-orchestrated Q&A (ReAct loop) |
+| `POST` | `/api/datasources/sync` | Trigger data source connectors (Blob / FileSystem) |
+| `POST` | `/api/feedback` | Record accept / reject / edit feedback |
+| `POST` | `/api/governance/groups` | Create a knowledge-sharing group |
+| `POST` | `/api/evaluation/run` | Run RAG evaluation harness |
+| `GET`  | `/api/evaluation/reports` | Query evaluation results |
+| `POST` | `/mcp` | MCP endpoint (VS Code Copilot / Claude Desktop) |
+| `POST` | `/graphql` | GraphQL endpoint |
+
+Full API: [Swagger](http://localhost:5126/swagger) when running locally.
+
+---
+
+## Running Tests
+
+```bash
+dotnet test                                         # all 167 tests
+dotnet test --filter "Category!=Integration"        # unit tests only
+dotnet test --collect:"XPlat Code Coverage"         # with coverage
+./scripts/smoke-test.sh                             # smoke tests (API must be running)
+```
+
+---
+
+## MCP Integration
+
+Add to `.vscode/mcp.json` while the API is running:
+
+```json
+{
+  "servers": {
+    "vedaaide": {
+      "type": "http",
+      "url": "http://localhost:5126/mcp"
+    }
+  }
+}
+```
+
+Available tools: `search_knowledge_base` · `list_documents` · `ingest_document`
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [System Architecture](docs/rag-internals/01-system-architecture.en.md) | Layer diagram + Azure infra |
+| [Ingest Pipeline](docs/rag-internals/02-ingest-flow.en.md) | Chunking → embedding → dedup → versioning |
+| [Query Pipeline](docs/rag-internals/03-query-flow.en.md) | Hybrid retrieval → RRF → context window → hallucination guard |
+| [Storage & Retrieval](docs/rag-internals/04-storage-retrieval.en.md) | SQLite vs CosmosDB, semantic cache |
+| [RAG Concept ↔ Code Map](docs/rag-internals/05-concept-code-map.en.md) | 30 standard RAG terms mapped to implementation |
+| [Architecture Decision Records](docs/rag-internals/09-adr.en.md) | 7 key decisions with rationale |
+| [Configuration Reference](docs/configuration/configuration.en.md) | All `appsettings` keys and env vars |
+| [Azure Deployment](docs/rag-internals/08-azure-deployment.en.md) | Container Apps + CosmosDB + CI/CD |
+
+> All docs are bilingual: `.en.md` (English) and `.cn.md` (Chinese).
+
+---
+
+## Implementation Progress
+
+| Stage | Description | Status |
+|-------|-------------|--------|
+| Phase 0 | Solution scaffold, EF Core, DI | ✅ |
+| Phase 1 | Core RAG: ingest + vector search + LLM Q&A | ✅ |
+| Phase 2 | RAG quality: dedup + hallucination detection | ✅ |
+| Phase 3 | Full-stack: GraphQL + SSE streaming + Angular + Docker | ✅ |
+| Phase 4 | Agentic workflow + MCP server + prompt engineering | ✅ |
+| Phase 5 | External data sources (FileSystem + Blob), background sync | ✅ |
+| Phase 6 | Evaluation harness: faithfulness, relevancy, A/B testing | ✅ |
+| Stage 3.1 | KnowledgeScope + hybrid retrieval (RRF fusion) | ✅ |
+| Stage 3.2 | Rich document extraction: Document Intelligence OCR + Vision multimodal | ✅ |
+| Stage 3.3 | Structured reasoning output + knowledge versioning + semantic enhancer | ✅ |
+| Stage 3.4 | Implicit feedback learning + multi-user knowledge governance (4-tier) | ✅ |
+| Stage 5 | Azure Entra External ID CIAM + JWT-based user data isolation | ✅ |
+| Stage 6 | Token usage tracking, email ingestion (EML/MSG), admin role isolation | ✅ |
+| Stage 7 | Context Augmentation: ephemeral file/image injection without DB write | ✅ |
+
 
 ---
 
