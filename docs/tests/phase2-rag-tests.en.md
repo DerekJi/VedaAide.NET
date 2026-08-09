@@ -1,6 +1,6 @@
 # Phase 2 RAG Quality Enhancement Test Plan
 
-> 中文版见 [phase2-rag-tests.cn.md](phase2-rag-tests.cn.md)
+> Chinese version: [phase2-rag-tests.cn.md](phase2-rag-tests.cn.md)
 
 ## 1. Test Scope
 

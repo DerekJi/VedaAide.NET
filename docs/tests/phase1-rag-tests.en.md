@@ -1,6 +1,6 @@
 # Phase 1 RAG Engine Test Plan
 
-> 中文版见 [phase1-rag-tests.cn.md](phase1-rag-tests.cn.md)
+> Chinese version: [phase1-rag-tests.cn.md](phase1-rag-tests.cn.md)
 
 ## 1. Test Scope
 

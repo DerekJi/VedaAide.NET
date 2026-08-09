@@ -4,7 +4,7 @@
 **Files**: `src/Veda.Services/EmbeddingService.cs`, `src/Veda.Services/ServiceCollectionExtensions.cs`  
 **Phase**: Phase 1
 
-> 中文版见 [embedding-local-ollama.cn.md](embedding-local-ollama.cn.md)
+> Chinese version: [embedding-local-ollama.cn.md](embedding-local-ollama.cn.md)
 
 ---
 

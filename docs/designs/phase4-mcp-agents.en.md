@@ -2,7 +2,7 @@
 
 > Prerequisite: Phase 3 is complete (GraphQL + SSE streaming + Angular frontend + Docker deployment).
 
-> 中文版见 [phase4-mcp-agents.cn.md](phase4-mcp-agents.cn.md)
+> Chinese version: [phase4-mcp-agents.cn.md](phase4-mcp-agents.cn.md)
 
 ---
 

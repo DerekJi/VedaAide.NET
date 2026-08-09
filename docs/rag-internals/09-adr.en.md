@@ -1,6 +1,6 @@
 > **Viewing diagrams:** In browser, install [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) extension; in VS Code, install [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) plugin.
 
-> 中文版：[09-adr.cn.md](09-adr.cn.md)
+> Chinese version: [09-adr.cn.md](09-adr.cn.md)
 
 # 09 — Architecture Decision Records (ADR)
 

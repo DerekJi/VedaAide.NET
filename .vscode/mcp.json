@@ -7,7 +7,7 @@
         "X-Api-Key": ""
       },
       "metadata": {
-        "description": "VedaAide 知识库 MCP Server — 提供向量检索、文档摄取、列表三个工具"
+        "description": "VedaAide knowledge base MCP Server — provides three tools: vector search, document ingestion, and document listing"
       }
     }
   }

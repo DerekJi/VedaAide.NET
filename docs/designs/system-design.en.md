@@ -2,7 +2,7 @@
 
 > 💡 Non-obvious design decisions accumulated during development: [docs/insights/](../insights/README.en.md)
 
-> 中文版见 [system-design.cn.md](system-design.cn.md)
+> Chinese version: [system-design.cn.md](system-design.cn.md)
 
 ## 1. Project Overview
 

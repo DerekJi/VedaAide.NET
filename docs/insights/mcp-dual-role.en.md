@@ -2,7 +2,7 @@
 
 **Phase**: Phase 4/5
 
-> 中文版见 [mcp-dual-role.cn.md](mcp-dual-role.cn.md)
+> Chinese version: [mcp-dual-role.cn.md](mcp-dual-role.cn.md)
 
 ---
 

@@ -1,6 +1,6 @@
 > **Viewing diagrams:** In browser, install [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) extension; in VS Code, install [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) plugin.
 
-> 中文版：[PLAN.cn.md](PLAN.cn.md)
+> Chinese version: [PLAN.cn.md](PLAN.cn.md)
 
 # RAG Internals — Documentation Plan
 

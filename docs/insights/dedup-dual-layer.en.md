@@ -4,7 +4,7 @@
 **Files**: `src/Veda.Services/DocumentIngestService.cs`, `src/Veda.Storage/SqliteVectorStore.cs`  
 **Phase**: Phase 2
 
-> 中文版见 [dedup-dual-layer.cn.md](dedup-dual-layer.cn.md)
+> Chinese version: [dedup-dual-layer.cn.md](dedup-dual-layer.cn.md)
 
 ---
 

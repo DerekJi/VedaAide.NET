@@ -1,6 +1,6 @@
 > **Viewing diagrams:** In browser, install [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) extension; in VS Code, install [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) plugin.
 
-> 中文版：[02-ingest-flow.cn.md](02-ingest-flow.cn.md)
+> Chinese version: [02-ingest-flow.cn.md](02-ingest-flow.cn.md)
 
 # 02 — Ingest Pipeline
 

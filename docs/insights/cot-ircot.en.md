@@ -2,7 +2,7 @@
 
 **Phase**: Phase 4
 
-> 中文版见 [cot-ircot.cn.md](cot-ircot.cn.md)
+> Chinese version: [cot-ircot.cn.md](cot-ircot.cn.md)
 
 ---
 

@@ -1,6 +1,6 @@
 > **Viewing diagrams:** In browser, install [Markdown Diagrams](https://chromewebstore.google.com/detail/markdown-diagrams/mnfehgbmkaijmakeobbflcbldbbldmjh) extension; in VS Code, install [Markdown PlantUML Preview](https://marketplace.visualstudio.com/items?itemName=well-30.plantuml-markdown) plugin.
 
-> 中文版：[07-data-model-er.cn.md](07-data-model-er.cn.md)
+> Chinese version: [07-data-model-er.cn.md](07-data-model-er.cn.md)
 
 # 07 — Data Model ER Diagram
 

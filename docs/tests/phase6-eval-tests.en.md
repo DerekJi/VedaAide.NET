@@ -1,6 +1,6 @@
 # Phase 6: AI Evaluation System — Test Plan
 
-> English version · 中文版: [phase6-eval-tests.cn.md](phase6-eval-tests.cn.md)
+> English version · Chinese version: [phase6-eval-tests.cn.md](phase6-eval-tests.cn.md)
 
 ## Overview
 

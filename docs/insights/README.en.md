@@ -4,7 +4,7 @@ This directory records **non-obvious design decisions** made during development 
 
 Not textbook content, but real decisions that were measured, questioned, and made with conviction.
 
-> 中文版见 [README.cn.md](README.cn.md)
+> Chinese version: [README.cn.md](README.cn.md)
 
 ---
 

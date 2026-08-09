@@ -4,7 +4,7 @@
 **Files**: `src/Veda.Core/ChunkingOptions.cs`, `src/Veda.Core/DocumentType.cs`  
 **Phase**: Phase 1
 
-> 中文版见 [chunking-strategy.cn.md](chunking-strategy.cn.md)
+> Chinese version: [chunking-strategy.cn.md](chunking-strategy.cn.md)
 
 ---
 

@@ -4,7 +4,7 @@
 **Files**: `src/Veda.Services/QueryService.cs`, `src/Veda.Services/HallucinationGuardService.cs`  
 **Phase**: Phase 2
 
-> 中文版见 [anti-hallucination.cn.md](anti-hallucination.cn.md)
+> Chinese version: [anti-hallucination.cn.md](anti-hallucination.cn.md)
 
 ---
 

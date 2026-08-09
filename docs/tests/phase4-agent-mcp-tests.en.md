@@ -1,6 +1,6 @@
 # Phase 4/5 Test Plan: Agent + MCP + Prompt + External Data Sources
 
-> 中文版见 [phase4-agent-mcp-tests.cn.md](phase4-agent-mcp-tests.cn.md)
+> Chinese version: [phase4-agent-mcp-tests.cn.md](phase4-agent-mcp-tests.cn.md)
 
 ## 1. Test Scope
 

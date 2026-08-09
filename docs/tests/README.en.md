@@ -2,7 +2,7 @@
 
 This directory contains test strategy designs, test methodology notes, and per-phase test guides.
 
-> 中文版见 [README.cn.md](README.cn.md)
+> Chinese version: [README.cn.md](README.cn.md)
 
 ## Directory Structure
 

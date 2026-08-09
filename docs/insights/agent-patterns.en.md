@@ -2,7 +2,7 @@
 
 **Phase**: Phase 4
 
-> 中文版见 [agent-patterns.cn.md](agent-patterns.cn.md)
+> Chinese version: [agent-patterns.cn.md](agent-patterns.cn.md)
 
 ---
 

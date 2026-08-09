@@ -4,7 +4,7 @@
 **Files**: `src/Veda.Services/QueryService.cs` → `Rerank()`, `src/Veda.Core/RagDefaults.cs`  
 **Phase**: Phase 2
 
-> 中文版见 [reranking.cn.md](reranking.cn.md)
+> Chinese version: [reranking.cn.md](reranking.cn.md)
 
 ---
 

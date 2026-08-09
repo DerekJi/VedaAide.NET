@@ -4,7 +4,7 @@
 **Files**: `src/Veda.Services/QueryService.cs` → `BuildSystemPrompt()`  
 **Phase**: Phase 3
 
-> 中文版见 [rag-prompt-boundary.cn.md](rag-prompt-boundary.cn.md)
+> Chinese version: [rag-prompt-boundary.cn.md](rag-prompt-boundary.cn.md)
 
 ---
 

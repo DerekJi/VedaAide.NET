@@ -1,6 +1,6 @@
 # Test Naming Conventions and Coding Standards
 
-> 中文版见 [test-conventions.cn.md](test-conventions.cn.md)
+> Chinese version: [test-conventions.cn.md](test-conventions.cn.md)
 
 ## 1. Test Method Naming
 

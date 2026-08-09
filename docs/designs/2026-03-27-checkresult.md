@@ -1,116 +1,117 @@
-## 一、一二三期实现完整性
+# Stage 1/2/3 Implementation Completeness Check
 
-**编译无错误，整体完成度较高。** 对照文档逐条核对：
+## 1. Stage 1/2/3 Implementation Completeness
 
-### 已实现 ✅
-| 模块 | 状态 |
+**Compiles without errors; overall completion is high.** Verified item by item against the design docs:
+
+### Implemented ✅
+| Module | Status |
 |---|---|
-| 一期：RAG底座、防幻觉、Agent、MCP Server、评估体系、GraphQL | ✅ |
-| 二期：CosmosDB切换、LLM路由(simple/advanced)、语义缓存、API Key认证、CORS、Rate Limiting、Admin工具 | ✅ |
-| 三期Sprint1：HybridRetriever、KnowledgeScope过滤、SearchByKeywordsAsync | ✅ |
-| 三期Sprint2：DocumentIntelligence提取、VisionModel提取、文件上传端点 | ✅ |
-| 三期Sprint3：StructuredFinding、StructuredOutputParser、DocumentDiffService、版本化字段、SemanticEnhancer | ✅ |
-| 三期Sprint4：UserBehaviorEvent、UserMemoryStore、FeedbackBoostService、GovernanceController、隐私隔离 | ✅ |
+| Stage 1: RAG foundation, anti-hallucination, Agent, MCP Server, evaluation system, GraphQL | ✅ |
+| Stage 2: CosmosDB switch, LLM routing (simple/advanced), semantic cache, API Key auth, CORS, Rate Limiting, Admin tools | ✅ |
+| Stage 3 Sprint1: HybridRetriever, KnowledgeScope filtering, SearchByKeywordsAsync | ✅ |
+| Stage 3 Sprint2: DocumentIntelligence extraction, VisionModel extraction, file upload endpoints | ✅ |
+| Stage 3 Sprint3: StructuredFinding, StructuredOutputParser, DocumentDiffService, versioned fields, SemanticEnhancer | ✅ |
+| Stage 3 Sprint4: UserBehaviorEvent, UserMemoryStore, FeedbackBoostService, GovernanceController, privacy isolation | ✅ |
 
-### 尚未实现 ⚠️（与设计文档明确标注的遗留项一致）
-| 项目 | 说明 |
+### Not yet implemented ⚠️ (consistent with the leftover items explicitly marked in the design docs)
+| Item | Notes |
 |---|---|
-| `AdminController.Stats` 无缓存命中率统计 | Sprint3遗留 |
-| `DocumentIngestService` ingest后不触发cache失效 | Sprint3遗留 |
-| `/mcp` 端点未受API Key保护 | Sprint2遗留安全风险 |
-| 摄取完整性评估指标（`Veda.Evaluation`集成） | Sprint2遗留 |
+| `AdminController.Stats` lacks cache hit-rate statistics | Sprint3 leftover |
+| `DocumentIngestService` does not invalidate the cache after ingest | Sprint3 leftover |
+| `/mcp` endpoint not protected by API Key | Sprint2 leftover security risk |
+| Ingestion completeness evaluation metrics (`Veda.Evaluation` integration) | Sprint2 leftover |
 
 ---
 
-## 二、代码逻辑一致性问题与Bug
+## 2. Code Logic Inconsistencies and Bugs
 
-### 🐛 Critical Bug：`MarkDocumentSupersededAsync` 会把新chunk也标记为已取代
+### 🐛 Critical Bug: `MarkDocumentSupersededAsync` also marks new chunks as superseded
 
-**位置**：`DocumentIngestService.IngestAsync`，SQLite和CosmosDB两个实现均受影响。
+**Location**: `DocumentIngestService.IngestAsync`; both the SQLite and CosmosDB implementations are affected.
 
-**原因**：调用顺序是：
-1. `UpsertBatchAsync(deduped)` → 新chunk写入，`SupersededAtTicks == 0`
-2. `MarkDocumentSupersededAsync(documentName, newDocumentId)` → WHERE条件是 `DocumentName == name AND SupersededAtTicks == 0`
+**Cause**: the call order is:
+1. `UpsertBatchAsync(deduped)` → new chunks written, `SupersededAtTicks == 0`
+2. `MarkDocumentSupersededAsync(documentName, newDocumentId)` → WHERE condition is `DocumentName == name AND SupersededAtTicks == 0`
 
-步骤2的WHERE会同时命中旧chunk和刚插入的新chunk，导致新chunk立刻被标记为已取代（被自身取代），之后所有查询（`WHERE SupersededAtTicks == 0`）都找不到新文档内容。
+Step 2's WHERE matches both the old chunks and the just-inserted new chunks, so the new chunks are immediately marked superseded (by themselves). After that, every query (`WHERE SupersededAtTicks == 0`) can no longer find the new document content.
 
-**还有额外一个CosmosDB的bug**：`MarkDocumentSupersededAsync`的Patch操作使用了`PartitionKey.None`，而容器的PartitionKey是`/documentId`，Patch需要精确的PartitionKey，跨分区操作在CosmosDB中对写/更新是不被支持的，会抛出异常。
+**There is an additional CosmosDB bug**: `MarkDocumentSupersededAsync`'s Patch operation uses `PartitionKey.None`, but the container's PartitionKey is `/documentId`. Patch requires the exact PartitionKey; cross-partition write/update operations are not supported in CosmosDB and will throw an exception.
 
-### 🐛 Bug：`QueryStreamAsync` 与 `QueryAsync` 行为不一致
-流式查询存在三处遗漏（而非流式路径都有正确实现）：
+### 🐛 Bug: `QueryStreamAsync` behaves inconsistently with `QueryAsync`
+The streaming query has three omissions (the non-streaming path implements all of them correctly):
 
-| 功能 | QueryAsync | QueryStreamAsync |
+| Feature | QueryAsync | QueryStreamAsync |
 |---|---|---|
-| HybridRetriever（双通道检索） | ✅ 根据配置使用 | ❌ 始终直接调用`vectorStore.SearchAsync` |
-| KnowledgeScope过滤 | ✅ 传入`scope: request.Scope` | ❌ 缺少`scope`参数，完全忽略 |
-| FeedbackBoost个性化排序 | ✅ 按userId应用 | ❌ 没有调用`feedbackBoostService` |
+| HybridRetriever (dual-channel retrieval) | ✅ Used per configuration | ❌ Always calls `vectorStore.SearchAsync` directly |
+| KnowledgeScope filtering | ✅ Passes `scope: request.Scope` | ❌ Missing the `scope` parameter; completely ignored |
+| FeedbackBoost personalized ranking | ✅ Applied by userId | ❌ Does not call `feedbackBoostService` |
 
-### ⚠️ 潜在并发Bug：HybridRetriever并发操作同一DbContext
+### ⚠️ Potential concurrency bug: HybridRetriever operates on the same DbContext concurrently
 
 ```csharp
 // HybridRetriever.cs
-var vectorTask = vectorStore.SearchAsync(...);    // 启动第一个查询
-var keywordTask = vectorStore.SearchByKeywordsAsync(...)  // 立即启动第二个查询
-await Task.WhenAll(vectorTask, keywordTask);      // 并发等待
+var vectorTask = vectorStore.SearchAsync(...);    // starts the first query
+var keywordTask = vectorStore.SearchByKeywordsAsync(...)  // immediately starts the second query
+await Task.WhenAll(vectorTask, keywordTask);      // waits concurrently
 ```
 
-两个Task都使用同一个`SqliteVectorStore`实例（Scoped），进而使用同一个`VedaDbContext`。EF Core的`DbContext`不支持并发操作，可能抛出 `InvalidOperationException: A second operation was started on this context instance before a previous asynchronous operation completed`。SQLite情况下可能偶现，CosmosDB路径无此问题（CosmosDB实现不依赖DbContext）。
+Both tasks use the same `SqliteVectorStore` instance (Scoped), and therefore the same `VedaDbContext`. EF Core's `DbContext` does not support concurrent operations and may throw `InvalidOperationException: A second operation was started on this context instance before a previous asynchronous operation completed`. This may surface intermittently on SQLite; the CosmosDB path is unaffected (the CosmosDB implementation does not depend on DbContext).
 
-### ⚠️ 安全隐患：`IsDocumentVisibleToUserAsync` 使用字符串Contains匹配userId
+### ⚠️ Security concern: `IsDocumentVisibleToUserAsync` matches userId with string Contains
 
 ```csharp
 var groups = await db.SharingGroups
-    .Where(g => g.MembersJson.Contains(userId))  // 潜在子串误匹配
+    .Where(g => g.MembersJson.Contains(userId))  // potential substring false match
 ```
 
-若userId=`user1`，MembersJson=`["user12","user13"]`，Contains会错误命中。应改用正确的JSON解析或增加引号边界匹配（`Contains($"\"{userId}\"")`）。
+If userId=`user1` and MembersJson=`["user12","user13"]`, Contains matches incorrectly. It should use proper JSON parsing or add quote-boundary matching (`Contains($"\"{userId}\"")`).
 
 ---
 
-## 三、切换数据库时的Migration处理
+## 3. Migration Handling When Switching Databases
 
-**已有自动Migration机制，但仅覆盖SQLite部分。**
+**An automatic migration mechanism already exists, but it only covers SQLite.**
 
-### 现有机制
+### Existing Mechanism
 
-`Program.cs`启动时执行：
+At startup, `Program.cs` runs:
 ```csharp
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<VedaDbContext>();
-    await db.Database.MigrateAsync();  // 自动应用所有pending migrations
+    await db.Database.MigrateAsync();  // applies all pending migrations automatically
 }
 ```
 
-如果切到CosmosDB则额外异步初始化：
+If switched to CosmosDB, it additionally initializes asynchronously:
 ```csharp
 var cosmosInitializer = app.Services.GetService<CosmosDbInitializer>();
 if (cosmosInitializer is not null)
-    await cosmosInitializer.EnsureReadyAsync(initCts.Token);  // 创建Database/Container/Vector Index
+    await cosmosInitializer.EnsureReadyAsync(initCts.Token);  // creates Database/Container/Vector Index
 ```
 
-### 切换场景分析
+### Switch Scenario Analysis
 
-| 场景 | 行为 |
+| Scenario | Behavior |
 |---|---|
-| **SQLite→SQLite**（首次启动或新schema字段） | ✅ `MigrateAsync()`自动应用，安全 |
-| **CosmosDB→CosmosDB**（首次启动） | ✅ `CosmosDbInitializer`自动创建容器和向量索引（幂等） |
-| **SQLite切换到CosmosDB**（修改`Veda:StorageProvider`） | ⚠️ 旧SQLite数据**不会迁移**到CosmosDB，知识库需重新ingest；`MigrateAsync()`仍会跑（SQLite元数据库独立存在），向量数据从零开始 |
-| **CosmosDB切换到SQLite** | ⚠️ 同上，CosmosDB中的向量数据不会同步到SQLite，需重新摄取文档 |
-| **Embedding模型变更（维度变化）** | ❌ **没有自动检测**，旧embedding维度与新模型不兼容，需手动`DELETE /api/admin/data`清库后重新ingest |
+| **SQLite→SQLite** (first start or new schema fields) | ✅ `MigrateAsync()` applies automatically, safe |
+| **CosmosDB→CosmosDB** (first start) | ✅ `CosmosDbInitializer` creates containers and vector index automatically (idempotent) |
+| **SQLite→CosmosDB** (change `Veda:StorageProvider`) | ⚠️ Old SQLite data is **not migrated** to CosmosDB; the knowledge base must be re-ingested; `MigrateAsync()` still runs (the SQLite metadata DB exists independently), vector data starts from zero |
+| **CosmosDB→SQLite** | ⚠️ Same as above: vector data in CosmosDB is not synced to SQLite; documents must be re-ingested |
+| **Embedding model change (dimension change)** | ❌ **No automatic detection**; old embedding dimensions are incompatible with the new model; you must manually `DELETE /api/admin/data` to clear and then re-ingest |
 
-**结论**：切换StorageProvider不会报错、不会崩溃（`MigrateAsync`只操作SQLite元数据库，向量存储各走各的路），但**向量知识库数据不会自动迁移**，切换后需要重新触发数据源同步。设计文档中已明确说明这个行为（"修改配置 + 清库 + 重新ingest"）。
+**Conclusion**: switching StorageProvider does not error or crash (`MigrateAsync` only operates on the SQLite metadata DB; each vector store follows its own path), but **vector knowledge-base data is not migrated automatically** — you must re-trigger data-source sync after switching. The design doc already states this behavior explicitly ("change config + clear data + re-ingest").
 
 ---
 
-## 建议修复优先级
+## Recommended Fix Priorities
 
-| 优先级 | 问题 |
+| Priority | Issue |
 |---|---|
-| P0（数据损坏） | `MarkDocumentSupersededAsync` 误标新chunk：应在`UpsertBatch`前先标记旧chunk，或在WHERE中增加`DocumentId != newDocumentId` |
-| P0（CosmosDB） | `PatchItemAsync`使用`PartitionKey.None`，需改为从查询结果中获取`documentId`作为PartitionKey |
-| P1（行为不一致） | `QueryStreamAsync`补充：HybridRetriever、KnowledgeScope、FeedbackBoost |
-| P1（并发安全） | `HybridRetriever`改为顺序await，或使用独立DbContext作用域 |
-| P2（安全） | `SharingGroups.MembersJson.Contains(userId)` 改为精确JSON匹配 |
-| P2（遗留缺口） | cache失效、stats缓存统计、`/mcp`认证 | 
-
+| P0 (data corruption) | `MarkDocumentSupersededAsync` wrongly marks new chunks: mark old chunks BEFORE `UpsertBatch`, or add `DocumentId != newDocumentId` to the WHERE |
+| P0 (CosmosDB) | `PatchItemAsync` uses `PartitionKey.None`; change it to use the `documentId` from the query result as the PartitionKey |
+| P1 (behavior inconsistency) | `QueryStreamAsync` should add: HybridRetriever, KnowledgeScope, FeedbackBoost |
+| P1 (concurrency safety) | `HybridRetriever` should await sequentially, or use a separate DbContext scope |
+| P2 (security) | `SharingGroups.MembersJson.Contains(userId)` → exact JSON matching |
+| P2 (leftover gaps) | cache invalidation, stats cache hit-rate, `/mcp` authentication |

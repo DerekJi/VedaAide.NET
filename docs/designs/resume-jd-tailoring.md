@@ -1,101 +1,101 @@
-# Resume JD Tailoring — 开发分析文档
+# Resume JD Tailoring — Development Analysis
 
 **Date:** 2026-04-03  
-**Status:** 草稿（待评审）
+**Status:** Draft (pending review)
 
 ---
 
-## 1. 需求概述
+## 1. Requirements Overview
 
-用户在 `resume` Angular 前端：
+A user on the `resume` Angular frontend:
 
-1. 以**文字或图片**形式输入一份 Job Description（JD）；
-2. 前端调用 **VedaAide.NET 的 MCP**（Model Context Protocol）；
-3. VedaAide.NET 结合知识库中已有的简历素材，生成**适合该 JD 的 Markdown 格式简历**。
+1. Enters a Job Description (JD) as **text or an image**;
+2. The frontend calls **VedaAide.NET's MCP** (Model Context Protocol);
+3. VedaAide.NET combines the resume material already stored in the knowledge base to generate a **Markdown resume tailored to that JD**.
 
 ---
 
-## 2. 用户与场景重新定位
+## 2. Users and Scenarios Revisited
 
-| 用户 | 场景 | 是否需要登录 |
+| User | Scenario | Login required? |
 |------|------|------|
-| **招聘方** | 访问 `derekji.github.io`，输入 JD，快速看一眼 AI 定制简历 | ❌ 无需登录 |
-| **Derek 本人** | 日常使用 VedaAide 完整功能 | ✅ Entra ID 登录 |
+| **Recruiter** | Visits `derekji.github.io`, enters a JD, quickly previews an AI-tailored resume | ❌ No login |
+| **Derek (owner)** | Uses the full VedaAide feature set on a daily basis | ✅ Entra ID login |
 
-> resume 站是公开名片，"AI 生成简历"是其上一个**免登录的亮点 feature**，目的是让招聘方留下深刻印象，而不是让他们走流程注册账号。
+> The resume site is a public business card; "AI-generated resume" is a **login-free highlight feature** on it, meant to leave a strong impression on recruiters rather than pushing them through an account registration flow.
 
 ---
 
-## 3. 安全方案：专供端点 + 双重防滥用
+## 3. Security Approach: Dedicated Endpoints + Double Abuse Protection
 
-### 3.1 核心思路
+### 3.1 Core Idea
 
-VedaAide.NET 为 resume 站提供两个专供公开接口：
+VedaAide.NET exposes two dedicated public endpoints for the resume site:
 
 ```
-GET  /api/public/resume/ping    # 轻量健康探针，用于前端检测冷启动是否完成
-POST /api/public/resume/tailor  # 流式生成定制简历（SSE）
+GET  /api/public/resume/ping    # lightweight health probe so the frontend can detect when cold start finishes
+POST /api/public/resume/tailor  # stream a tailored resume (SSE)
 ```
 
-这两个接口：
-- `[AllowAnonymous]` — 不要求 JWT，无需登录；
-- 仅允许来自 resume 站 origin 的跨域请求（CORS 白名单）；
-- 专用严格限流（per-IP），防止 LLM 配额滥用；
-- 只检索 `Visibility=Public` 的简历片段（Derek 主动公开的内容，无手机号等隐私字段）。
+These two endpoints:
+- Are `[AllowAnonymous]` — no JWT, no login required;
+- Only accept cross-origin requests from the resume site's origin (CORS allowlist);
+- Use dedicated strict rate limiting (per-IP) to prevent LLM quota abuse;
+- Only retrieve resume fragments with `Visibility=Public` (content Derek explicitly made public, no private fields such as phone numbers).
 
-### 3.2 防滥用机制
+### 3.2 Abuse Protection Mechanisms
 
-> CORS 只是浏览器层的礼貌约定，无法阻止 curl/Postman。**真正的防护是限流。**
+> CORS is just a browser-level courtesy convention; it cannot stop curl/Postman. **The real protection is rate limiting.**
 
-| 机制 | 配置 | 作用 |
+| Mechanism | Configuration | Purpose |
 |------|------|------|
-| **CORS 白名单** | 只允许 `https://derekji.github.io`（dev: `localhost:4200`） | 阻止其他网站嵌入/调用（浏览器层） |
-| **Per-IP 固定窗口限流** | 新增 `resume-public` policy，限额通过 `Veda:PublicResume:RateLimit` 配置（默认：生产 5次/小时，本地开发 30次/小时） | 核心防护：限制爬虫和脚本滥用 |
-| **请求体大小限制** | JD 文本 ≤ 4000 字符 | 防止超长 Prompt 攻击 |
-| **全局限流兜底** | 现有 `global` policy：60 次/分钟 | 最终兜底 |
+| **CORS allowlist** | Only `https://derekji.github.io` (dev: `localhost:4200`) | Prevents other sites from embedding/calling (browser layer) |
+| **Per-IP fixed-window rate limit** | New `resume-public` policy; quota via `Veda:PublicResume:RateLimit` (default: production 5/hour, local dev 30/hour) | Core protection: limits crawlers and script abuse |
+| **Request body size limit** | JD text ≤ 4000 chars | Prevents oversized-prompt attacks |
+| **Global rate-limit fallback** | Existing `global` policy: 60/minute | Final safety net |
 
-已有基础（无需重建）：
-- CORS：`AddCors` + `AllowedOrigins` 配置已有，新增一条 `ResumePublicPolicy` 即可；
-- 限流：`AddRateLimiter` 已有，新增 `resume-public` per-IP 策略即可。
+Already in place (no rebuild needed):
+- CORS: `AddCors` + `AllowedOrigins` config exists; just add a `ResumePublicPolicy`;
+- Rate limiting: `AddRateLimiter` exists; just add the `resume-public` per-IP policy.
 
-### 3.3 简历数据的公开/私有分层
+### 3.3 Public/Private Layering of Resume Data
 
-**两份简历素材，用途不同：**
+**Two resume assets, different purposes:**
 
-| 文档 | Visibility | 内容 | 用于 |
+| Document | Visibility | Content | Used by |
 |------|------|------|------|
-| `derek-resume-public.md` | `Public`（无 OwnerId） | 去掉手机号、家庭住址等隐私字段的公开版 | 招聘方专供端点 `/api/public/resume/tailor` |
-| `derek-resume-private.md` | `Private`（OwnerId = Derek's OID） | 完整简历，含联系方式 | Derek 自己在 VedaAide.Web 使用（未来扩展） |
+| `derek-resume-public.md` | `Public` (no OwnerId) | Public version with private fields (phone, home address) removed | Recruiter-facing endpoint `/api/public/resume/tailor` |
+| `derek-resume-private.md` | `Private` (OwnerId = Derek's OID) | Full resume, including contact details | Derek himself in VedaAide.Web (future extension) |
 
-这样即使有人提取到 API 地址直接调用，也只能得到 Derek 主动公开的内容，不会泄露任何隐私数据。
+This way, even if someone extracts the API address and calls it directly, they only get content Derek explicitly made public — no private data leaks.
 
-### 3.4 为什么不用"resume 站专用 API Key"
+### 3.4 Why Not a "Resume-Site-Specific API Key"
 
-Angular bundle 是公开的，API Key 必然可被提取（无论如何混淆），等同于公开。  
-既然如此，不如直接 `[AllowAnonymous]` + IP 限流，省去密钥管理负担，同等安全效果。
+The Angular bundle is public, so an API Key can always be extracted (no matter how it is obfuscated) — it is effectively public.  
+In that case, just use `[AllowAnonymous]` + IP rate limiting: no key-management overhead, equivalent security.
 
 ---
 
-## 4. 可行性判断
+## 4. Feasibility Assessment
 
-**可以做到。** 核心依赖已全部就位：
+**It can be done.** All core dependencies are already in place:
 
-| 依赖 | 现状 |
+| Dependency | Current state |
 |------|------|
-| VedaAide.NET 知识库 | 已支持向量搜索 + `KnowledgeScope(Visibility)` 过滤；简历素材 ingest 为 `Public` 即可 |
-| VedaAide.NET LLM 能力 | 已有 `ChatModel`（Ollama / Azure GPT-4o-mini / DeepSeek）；SSE 流式输出有现成范例 |
-| CORS | `AddCors` + `AllowedOrigins` 配置已有，新增 `ResumePublicPolicy` 即可 |
-| Rate Limiter | `AddRateLimiter` 已有，新增 per-IP 策略即可 |
-| resume 前端 | Angular 21，原生 `fetch` + `ReadableStream` 消费 SSE，无需额外库 |
+| VedaAide.NET knowledge base | Already supports vector search + `KnowledgeScope(Visibility)` filtering; ingest resume material as `Public` |
+| VedaAide.NET LLM capabilities | Already has `ChatModel` (Ollama / Azure GPT-4o-mini / DeepSeek); SSE streaming has a ready example |
+| CORS | `AddCors` + `AllowedOrigins` config exists; just add `ResumePublicPolicy` |
+| Rate Limiter | `AddRateLimiter` exists; just add a per-IP policy |
+| resume frontend | Angular 21, native `fetch` + `ReadableStream` to consume SSE, no extra library needed |
 
 ---
 
-## 5. 整体流程
+## 5. Overall Flow
 
 ```
-招聘方（无需登录）
+Recruiter (no login)
   │
-  │  ① 在 derekji.github.io 输入 JD 文字
+  │  ① Enter JD text on derekji.github.io
   ▼
 resume (Angular)
   │
@@ -104,54 +104,54 @@ resume (Angular)
   ▼
 VedaAide.NET (Veda.Api)
   │
-  ├── ③ 请求校验：CORS 白名单 + per-IP 限流（5次/小时）+ 字符数上限
-  ├── ④ 向量搜索：检索 Visibility=Public 的简历片段
-  ├── ⑤ 构建 Prompt（JD + 公开简历片段，严禁虚构）
-  └── ⑥ 调用 LLM，以 SSE 流式返回 Markdown 简历
+  ├── ③ Request validation: CORS allowlist + per-IP rate limit (5/hour) + char limit
+  ├── ④ Vector search: retrieve resume fragments with Visibility=Public
+  ├── ⑤ Build prompt (JD + public resume fragments, strictly no fabrication)
+  └── ⑥ Call LLM, stream Markdown resume back via SSE
   ▼
 resume (Angular)
-  ⑦ 流式渲染 Markdown，提供下载按钮
+  ⑦ Stream-render Markdown, provide a download button
 ```
 
 ---
 
-## 6. 两边各需要做什么
+## 6. What Each Side Needs to Do
 
-### 6.1 VedaAide.NET 侧
+### 6.1 VedaAide.NET Side
 
-#### 6.1.1 预处理：ingest 公开版简历素材
+#### 6.1.1 Preprocessing: Ingest the Public Resume Material
 
-将简历内容整理为 `derek-resume-public.md`（**去掉手机号、家庭住址等隐私字段**），通过 `/api/admin/ingest` 写入知识库：
+Organize the resume content into `derek-resume-public.md` (**remove private fields such as phone number and home address**), then write it into the knowledge base via `/api/admin/ingest`:
 
 ```csharp
 await documentIngestor.IngestAsync(
     content:      markdownContent,
     documentName: "derek-resume-public.md",
     documentType: DocumentType.Other,
-    scope: new KnowledgeScope(Visibility: Visibility.Public)  // 无 OwnerId —— 公开
+    scope: new KnowledgeScope(Visibility: Visibility.Public)  // no OwnerId — public
 );
 ```
 
-每次简历内容更新后需重新 ingest。
+Re-ingest after every resume content update.
 
-#### 6.1.2 新增专供 Controller
+#### 6.1.2 New Dedicated Controller
 
-在 `Veda.Api/Controllers/` 新增 `PublicResumeTailorController`：
+Add `PublicResumeTailorController` under `Veda.Api/Controllers/`:
 
 ```csharp
 [ApiController]
 [Route("api/public/resume")]
-[AllowAnonymous]                                    // 无需 JWT
-[EnableCors("ResumePublicPolicy")]                  // 专用 CORS 策略
-[EnableRateLimiting("resume-public")]               // 专用限流策略
+[AllowAnonymous]                                    // no JWT required
+[EnableCors("ResumePublicPolicy")]                  // dedicated CORS policy
+[EnableRateLimiting("resume-public")]               // dedicated rate-limit policy
 public class PublicResumeTailorController(...) : ControllerBase
 {
     [HttpPost("tailor")]
     public async Task Tailor([FromBody] PublicTailorRequest request, CancellationToken ct)
     {
-        // 1. 校验 request.JobDescription 长度 ≤ 4000 字符
-        // 2. 向量搜索 Visibility=Public 的简历片段
-        // 3. 构建 Prompt → LLM → SSE 流式响应
+        // 1. Validate request.JobDescription length ≤ 4000 chars
+        // 2. Vector search for resume fragments with Visibility=Public
+        // 3. Build prompt → LLM → SSE streaming response
     }
 }
 
@@ -160,9 +160,9 @@ public record PublicTailorRequest(
     int TopK = 8);
 ```
 
-#### 6.1.3 新增 CORS 策略 `ResumePublicPolicy`
+#### 6.1.3 New CORS Policy `ResumePublicPolicy`
 
-在 `Program.cs` `AddCors` 中追加：
+Append to `AddCors` in `Program.cs`:
 
 ```csharp
 options.AddPolicy("ResumePublicPolicy", policy =>
@@ -171,12 +171,12 @@ options.AddPolicy("ResumePublicPolicy", policy =>
           .WithHeaders("Content-Type"));
 ```
 
-#### 6.1.4 新增限流配置项 `PublicResumeOptions`
+#### 6.1.4 New Rate-Limit Config Option `PublicResumeOptions`
 
-限流参数通过 appsettings 配置，避免硬编码：
+Rate-limit parameters come from appsettings to avoid hardcoding:
 
 ```json
-// appsettings.json（生产默认值）
+// appsettings.json (production defaults)
 "Veda": {
   "PublicResume": {
     "RateLimitPerIpPerHour": 5,
@@ -184,7 +184,7 @@ options.AddPolicy("ResumePublicPolicy", policy =>
   }
 }
 
-// appsettings.Development.json（本地放宽）
+// appsettings.Development.json (relaxed locally)
 "Veda": {
   "PublicResume": {
     "RateLimitPerIpPerHour": 30
@@ -192,12 +192,12 @@ options.AddPolicy("ResumePublicPolicy", policy =>
 }
 ```
 
-在 `Program.cs` `AddRateLimiter` 中追加，读取配置后再注册策略：
+Append to `AddRateLimiter` in `Program.cs`, reading the config before registering the policy:
 
 ```csharp
 var publicResumeOpts = cfg.GetSection("Veda:PublicResume").Get<PublicResumeOptions>() ?? new();
 
-// 按来源 IP 分区的固定窗口限流
+// fixed-window rate limit partitioned by source IP
 options.AddPolicy("resume-public", context =>
     RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -209,28 +209,28 @@ options.AddPolicy("resume-public", context =>
         }));
 ```
 
-#### 6.1.5 ApiKeyMiddleware 豁免 `/api/public/*`
+#### 6.1.5 Exempt `/api/public/*` in ApiKeyMiddleware
 
 ```csharp
-// ApiKeyMiddleware.IsExcluded() 中追加：
+// Add to ApiKeyMiddleware.IsExcluded():
 || path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase)
 ```
 
 ---
 
-### 6.2 resume (Angular) 侧
+### 6.2 resume (Angular) Side
 
-#### 6.2.1 新增 Section：`JobTailorComponent`
+#### 6.2.1 New Section: `JobTailorComponent`
 
-作为现有 SPA 内的一个独立 section（无路由），位置建议在 Experience 或 Hero 之后。
+A standalone section inside the existing SPA (no routing); suggested placement after Experience or Hero.
 
-页面功能：
-- **JD 输入区**：`<textarea>` 输入文字 JD，字符计数显示（上限 4000）；
-- **生成按钮**：触发 API 调用；
-- **流式输出区**：用 `fetch` + `ReadableStream` 逐 token 拼接，实时渲染；
-- **下载按钮**：将 Markdown 内容保存为 `resume-tailored.md` 文件。
+Page features:
+- **JD input area**: a `<textarea>` for pasting the JD, with a character counter (max 4000);
+- **Generate button**: triggers the API call;
+- **Streaming output area**: uses `fetch` + `ReadableStream` to accumulate tokens and render in real time;
+- **Download button**: saves the Markdown content as a `resume-tailored.md` file.
 
-目录建议：
+Suggested layout:
 ```
 src/app/pages/job-tailor/
   job-tailor.module.ts
@@ -239,7 +239,7 @@ src/app/pages/job-tailor/
   job-tailor.component.scss
 ```
 
-#### 6.2.2 新增 Service：`TailorService`
+#### 6.2.2 New Service: `TailorService`
 
 ```typescript
 // src/app/core/tailor.service.ts
@@ -248,7 +248,7 @@ export class TailorService {
   private readonly endpoint = `${environment.vedaApiUrl}/api/public/resume/tailor`;
 
   tailor(jobDescription: string): Observable<string> {
-    // 使用 fetch() + ReadableStream 消费 SSE，返回逐步累积的 Markdown
+    // consume SSE via fetch() + ReadableStream, emit progressively accumulated Markdown
     return new Observable(observer => {
       fetch(this.endpoint, {
         method: 'POST',
@@ -270,7 +270,7 @@ export class TailorService {
 }
 ```
 
-#### 6.2.3 环境配置
+#### 6.2.3 Environment Configuration
 
 ```typescript
 // environment.ts
@@ -286,51 +286,51 @@ export const environment = {
 };
 ```
 
-#### 6.2.4 依赖
+#### 6.2.4 Dependencies
 
-- Markdown 渲染：`marked`（轻量，无框架依赖）— `pnpm add marked @types/marked`；
-- 无需认证库（MSAL）：`[AllowAnonymous]` 端点，无 JWT 要求。
-
----
-
-## 7. 开发步骤（分期）
-
-### Phase 1 — 文字 JD → 流式 Markdown 简历（约 2-3 天）
-
-**VedaAide.NET：**
-1. 整理 `derek-resume-public.md`，通过 admin API 以 `Visibility=Public` ingest；
-2. 在 `Veda.Services` 新增 `IPublicResumeTailoringService` 接口及实现；
-3. 新增 `ResumePublicPolicy` CORS 策略 + `resume-public` per-IP 限流；
-4. 新增 `PublicResumeTailorController`（`[AllowAnonymous]`，SSE 响应）；
-5. `ApiKeyMiddleware` 豁免 `/api/public/*`。
-
-**resume (Angular)：**
-1. 新增 `environment.vedaApiUrl`；
-2. 新增 `TailorService`（`fetch` + `ReadableStream`）；
-3. 新增 `JobTailorModule` + Component（文字输入、流式渲染、下载）；
-4. 注册到 `app.module.ts`，在 `app.component.html` 合适位置插入 section。
-
-### Phase 2 — 图片输入支持（约 1-2 天，可选）
-
-**VedaAide.NET：**
-- `PublicResumeTailorController` 新增 `multipart/form-data` 变体；
-- 复用 `VisionOptions`（Azure Computer Vision）或 `DocumentIntelligenceOptions` 提取图片文字；
-- 提取后走 Phase 1 相同流程。
-
-**resume (Angular)：**
-- `JobTailorComponent` 新增 `<input type="file" accept="image/*">`；
-- `TailorService` 新增 `tailorFromImage(file: File)` 方法。
+- Markdown rendering: `marked` (lightweight, framework-agnostic) — `pnpm add marked @types/marked`;
+- No auth library needed (MSAL): the endpoint is `[AllowAnonymous]`, no JWT required.
 
 ---
 
-## 8. 关键风险与注意事项
+## 7. Development Steps (Phased)
 
-| 风险 | 应对 |
+### Phase 1 — Text JD → Streamed Markdown Resume (~2-3 days)
+
+**VedaAide.NET:**
+1. Prepare `derek-resume-public.md` and ingest it with `Visibility=Public` via the admin API;
+2. Add the `IPublicResumeTailoringService` interface and its implementation in `Veda.Services`;
+3. Add the `ResumePublicPolicy` CORS policy + `resume-public` per-IP rate limiting;
+4. Add `PublicResumeTailorController` (`[AllowAnonymous]`, SSE response);
+5. Exempt `/api/public/*` in `ApiKeyMiddleware`.
+
+**resume (Angular):**
+1. Add `environment.vedaApiUrl`;
+2. Add `TailorService` (`fetch` + `ReadableStream`);
+3. Add `JobTailorModule` + Component (text input, streamed rendering, download);
+4. Register in `app.module.ts`, insert the section in a suitable spot in `app.component.html`.
+
+### Phase 2 — Image Input Support (~1-2 days, optional)
+
+**VedaAide.NET:**
+- Add a `multipart/form-data` variant to `PublicResumeTailorController`;
+- Reuse `VisionOptions` (Azure Computer Vision) or `DocumentIntelligenceOptions` to extract text from the image;
+- After extraction, follow the same flow as Phase 1.
+
+**resume (Angular):**
+- Add `<input type="file" accept="image/*">` to `JobTailorComponent`;
+- Add a `tailorFromImage(file: File)` method to `TailorService`.
+
+---
+
+## 8. Key Risks and Notes
+
+| Risk | Mitigation |
 |------|------|
-| **LLM 配额滥用** | per-IP 限流（生产默认 5次/小时，通过 `Veda:PublicResume:RateLimitPerIpPerHour` 配置）；全局限流兜底 |
-| **隐私数据泄露** | 只 ingest `derek-resume-public.md`（无手机/住址）；Private 文档不参与此端点的搜索 |
-| **ingest 时误用 Private Scope** | public 版文档必须用 `Visibility=Public`，无 OwnerId；通过 ingest 脚本固化，避免手动失误 |
-| **LLM 虚构内容** | System Prompt 强约束："仅使用提供的上下文，不得捏造任何信息" |
-| **CORS 配置遗漏** | `derekji.github.io` 和 `localhost:4200` 均需在 `ResumePublicPolicy` 白名单中 |
-| **图片 OCR 费用** | Azure Document Intelligence 按页计费；限制上传文件大小 ≤ 2MB，Phase 1 暂不实现 |
-| **分布式 botnet 绕过 IP 限流** | 后续可选：接入 **Cloudflare Turnstile**（免费，用户无感）；前端加 challenge token，后端验证后才执行生成逻辑。当前 Phase 1 不实现，视实际滥用情况再决策 |
+| **LLM quota abuse** | Per-IP rate limit (production default 5/hour, configurable via `Veda:PublicResume:RateLimitPerIpPerHour`); global rate-limit fallback |
+| **Private data leakage** | Only ingest `derek-resume-public.md` (no phone/address); Private documents never participate in this endpoint's search |
+| **Accidentally ingesting with Private scope** | The public document must use `Visibility=Public` with no OwnerId; pin this down in the ingest script to avoid manual mistakes |
+| **LLM fabrication** | Strong System Prompt constraint: "use only the provided context, do not invent any information" |
+| **Missing CORS config** | Both `derekji.github.io` and `localhost:4200` must be in the `ResumePublicPolicy` allowlist |
+| **Image OCR cost** | Azure Document Intelligence bills per page; cap upload size at ≤ 2MB; not implemented in Phase 1 |
+| **Distributed botnets bypassing IP limits** | Future option: integrate **Cloudflare Turnstile** (free, invisible to users); the frontend sends a challenge token that the backend verifies before running generation. Not implemented in Phase 1; decide based on actual abuse |
