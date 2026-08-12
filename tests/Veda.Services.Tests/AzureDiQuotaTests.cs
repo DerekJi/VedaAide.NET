@@ -1,10 +1,9 @@
 using Veda.Core.Options;
 using Azure;
 using FluentAssertions;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
 using NUnit.Framework;
 using Veda.Core;
@@ -171,17 +170,16 @@ public class DocumentIngestServiceFallbackTests
 
         // Vision extractor: mock returns known text
         const string visionResult = "Vision extracted: invoice details";
-        var chatCompletion = new Mock<IChatCompletionService>();
-        chatCompletion
-            .Setup(c => c.GetChatMessageContentsAsync(
-                It.IsAny<ChatHistory>(),
-                It.IsAny<PromptExecutionSettings>(),
-                It.IsAny<Kernel>(),
+        var chatClient = new Mock<IChatClient>();
+        chatClient
+            .Setup(c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(),
+                It.IsAny<ChatOptions>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new ChatMessageContent(AuthorRole.Assistant, visionResult)]);
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, visionResult)));
 
         var visionExtractor = new VisionModelFileExtractor(
-            chatCompletion.Object,
+            chatClient.Object,
             Options.Create(new VisionOptions { Enabled = true }),
             Mock.Of<ILogger<VisionModelFileExtractor>>());
 
@@ -241,11 +239,10 @@ public class DocumentIngestServiceFallbackTests
         // Assert: ingestion succeeded via Vision
         result.DocumentName.Should().Be("invoice.jpg");
         result.ChunksStored.Should().BeGreaterThan(0);
-        chatCompletion.Verify(
-            c => c.GetChatMessageContentsAsync(
-                It.IsAny<ChatHistory>(),
-                It.IsAny<PromptExecutionSettings>(),
-                It.IsAny<Kernel>(),
+        chatClient.Verify(
+            c => c.GetResponseAsync(
+                It.IsAny<IEnumerable<ChatMessage>>(),
+                It.IsAny<ChatOptions>(),
                 It.IsAny<CancellationToken>()),
             Times.Once,
             "Vision extractor must be called as fallback");

@@ -1,7 +1,6 @@
 using Veda.Core.Options;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace Veda.Services;
 
@@ -13,7 +12,7 @@ namespace Veda.Services;
 /// Requires <c>Veda:Vision:Enabled = true</c> in configuration.
 /// </summary>
 public sealed class VisionModelFileExtractor(
-    [FromKeyedServices(ServiceCollectionExtensions.VisionServiceKey)] IChatCompletionService visionChat,
+    [FromKeyedServices(ServiceCollectionExtensions.VisionServiceKey)] IChatClient visionChat,
     IOptions<VisionOptions> options,
     ILogger<VisionModelFileExtractor> logger) : IFileExtractor
 {
@@ -36,15 +35,17 @@ public sealed class VisionModelFileExtractor(
             "Vision extraction for '{Name}' ({MimeType}, {Bytes} bytes)",
             fileName, mimeType, imageBytes.Length);
 
-        var chatHistory = new ChatHistory();
-        chatHistory.AddUserMessage(new ChatMessageContentItemCollection
+        var messages = new[]
         {
-            new TextContent(BuildExtractionPrompt(documentType)),
-            new ImageContent(BinaryData.FromBytes(imageBytes), mimeType)
-        });
+            new ChatMessage(ChatRole.User,
+            [
+                new TextContent(BuildExtractionPrompt(documentType)),
+                new DataContent(BinaryData.FromBytes(imageBytes), mimeType)
+            ])
+        };
 
-        var results = await visionChat.GetChatMessageContentsAsync(chatHistory, cancellationToken: ct);
-        var text = string.Concat(results.Select(r => r.Content));
+        var response = await visionChat.GetResponseAsync(messages, cancellationToken: ct);
+        var text = response.Text ?? string.Empty;
 
         logger.LogInformation(
             "Vision extraction complete for '{Name}': {Chars} chars extracted",

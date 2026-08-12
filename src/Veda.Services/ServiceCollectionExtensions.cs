@@ -2,17 +2,19 @@
 using Azure;
 using Azure.AI.OpenAI;
 using Azure.Identity;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
+using OpenAI;
+using System.ClientModel;
 
 namespace Veda.Services;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>Keyed DI key for the vision <see cref="IChatCompletionService"/> instance.</summary>
+    /// <summary>Keyed DI key for the vision <see cref="IChatClient"/> instance.</summary>
     public const string VisionServiceKey = "vision";
+    
     /// <summary>
     /// Registers the AI services (Embedding + Chat LLM).
     /// The provider is selected via the Veda:EmbeddingProvider / Veda:LlmProvider settings:
@@ -23,55 +25,58 @@ public static class ServiceCollectionExtensions
     {
         var opts          = cfg.GetSection("Veda").Get<VedaOptions>() ?? new VedaOptions();
         var visionOpts    = opts.Vision;
-        var kernelBuilder = services.AddKernel();
-
-        // ── Embedding ────────────────────────────────────────────────────────
+        
+        // ── Embeddings (Microsoft.Extensions.AI) ───────────────────────────
         if (opts.EmbeddingProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
         {
             var endpoint = opts.AzureOpenAI.Endpoint
                 ?? throw new InvalidOperationException("Veda:AzureOpenAI:Endpoint is required");
-
-            // Build AzureOpenAIClient: separate constructors for apiKey vs Managed Identity
             var azureEmbedClient = string.IsNullOrWhiteSpace(opts.AzureOpenAI.ApiKey)
                 ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(opts.AzureOpenAI.ApiKey!));
-            kernelBuilder.Services.AddAzureOpenAIEmbeddingGenerator(opts.AzureOpenAI.EmbeddingDeployment, azureEmbedClient);
+            services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
+                azureEmbedClient.GetEmbeddingClient(opts.AzureOpenAI.EmbeddingDeployment).AsIEmbeddingGenerator());
         }
         else
         {
-            kernelBuilder.AddOllamaEmbeddingGenerator(opts.EmbeddingModel, new Uri(opts.OllamaEndpoint));
+            services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
+                CreateOllamaOpenAIClient(opts.OllamaEndpoint)
+                    .GetEmbeddingClient(opts.EmbeddingModel)
+                    .AsIEmbeddingGenerator());
         }
 
-        // ── Chat LLM ─────────────────────────────────────────────────────────
+        // ── Chat LLM (Microsoft.Extensions.AI) ───────────────────────────
+        // Use IChatClient from Microsoft.Extensions.AI for chat completions
         if (opts.LlmProvider.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
         {
             var endpoint = opts.AzureOpenAI.Endpoint
                 ?? throw new InvalidOperationException("Veda:AzureOpenAI:Endpoint is required");
-
             var azureChatClient = string.IsNullOrWhiteSpace(opts.AzureOpenAI.ApiKey)
                 ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
                 : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(opts.AzureOpenAI.ApiKey!));
-            kernelBuilder.AddAzureOpenAIChatCompletion(opts.AzureOpenAI.ChatDeployment, azureChatClient);
+            // Wrap AzureOpenAIClient as IChatClient using the extension method
+            var chatClient = azureChatClient.GetChatClient(opts.AzureOpenAI.ChatDeployment).AsIChatClient();
+            services.AddSingleton<IChatClient>(chatClient);
         }
         else
         {
-            kernelBuilder.AddOllamaChatCompletion(opts.ChatModel, new Uri(opts.OllamaEndpoint));
+            // Ollama chat client via OpenAI-compatible endpoint
+            services.AddSingleton<IChatClient>(sp => CreateOllamaChatClient(opts.ChatModel, opts.OllamaEndpoint));
         }
 
-        // ── Vision service registration (unified, independent of main LlmProvider) ──
-        // Rule: OllamaModel set → Ollama VL; else AzureOpenAI:Endpoint set → AzureOpenAI; else → fallback to main chat.
+        // ── Vision service registration ───────────────────────────────────
         RegisterVisionService(services, opts, visionOpts);
 
         services.AddScoped<IEmbeddingService, EmbeddingService>();
         services.AddScoped<IDocumentProcessor, TextDocumentProcessor>();
 
-        // DIP adapter: wraps SK's IChatCompletionService as the domain interface IChatService
-        // optional ITokenUsageRepository + ICurrentUserService are injected automatically by DI
+        // DIP adapter: wraps IChatClient as the domain interface IChatService
         services.AddScoped<IChatService>(sp =>
-            new OllamaChatService(
-                sp.GetRequiredService<IChatCompletionService>(),
+            new AiChatService(
+                sp.GetRequiredService<IChatClient>(),
                 sp.GetService<ITokenUsageRepository>(),
                 sp.GetService<ICurrentUserService>()));
+        
         // LLM Router: dispatches to simple / advanced services based on QueryMode
         services.AddScoped<ILlmRouter, LlmRouterService>();
 
@@ -115,9 +120,31 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+    
+    /// <summary>Creates an Ollama-compatible IChatClient via Ollama's OpenAI-compatible endpoint.</summary>
+    private static IChatClient CreateOllamaChatClient(string model, string endpoint, int? timeoutSeconds = null)
+        => CreateOllamaOpenAIClient(endpoint, timeoutSeconds).GetChatClient(model).AsIChatClient();
 
     /// <summary>
-    /// Registers the keyed "vision" <see cref="IChatCompletionService"/>.
+    /// Creates an OpenAI SDK client pointing at Ollama's OpenAI-compatible API
+    /// (the endpoint is normalized to include the /v1 path).
+    /// </summary>
+    private static OpenAIClient CreateOllamaOpenAIClient(string endpoint, int? timeoutSeconds = null)
+    {
+        var trimmed = endpoint.TrimEnd('/');
+        var baseUrl = trimmed.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
+            ? trimmed
+            : trimmed + "/v1";
+        var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
+        if (timeoutSeconds is not null)
+            options.NetworkTimeout = TimeSpan.FromSeconds(timeoutSeconds.Value);
+        return new OpenAIClient(
+            new ApiKeyCredential("ollama"), // Ollama ignores the key; any non-empty value is accepted
+            options);
+    }
+
+    /// <summary>
+    /// Registers the "vision" service.
     /// Priority rule (no explicit provider field needed):
     ///   1. <c>Veda:Vision:OllamaModel</c> non-empty  → dedicated Ollama VL model
     ///   2. <c>Veda:AzureOpenAI:Endpoint</c> non-empty → AzureOpenAI using <c>Vision:ChatDeployment</c>
@@ -130,36 +157,26 @@ public static class ServiceCollectionExtensions
         if (!string.IsNullOrWhiteSpace(visionOpts.OllamaModel))
         {
             // Dedicated Ollama VL model (e.g. qwen3-vl:8b).
-            // Use a longer-timeout HttpClient: VL models under VRAM pressure can exceed
-            // the default 100 s HttpClient.Timeout when running in CPU/GPU split mode.
-            var visionHttpClient = new System.Net.Http.HttpClient
-            {
-                BaseAddress = new Uri(opts.OllamaEndpoint.TrimEnd('/') + "/"),
-                Timeout     = TimeSpan.FromSeconds(visionOpts.TimeoutSeconds)
-            };
-            var visionKernel = Kernel.CreateBuilder()
-                .AddOllamaChatCompletion(visionOpts.OllamaModel, visionHttpClient)
-                .Build();
-            services.AddKeyedSingleton<IChatCompletionService>(VisionServiceKey,
-                visionKernel.GetRequiredService<IChatCompletionService>());
+            // Use a longer NetworkTimeout: VL models under VRAM pressure can exceed the default 100 s timeout.
+            services.AddKeyedSingleton<IChatClient>(VisionServiceKey, 
+                (sp, _) => CreateOllamaChatClient(visionOpts.OllamaModel, opts.OllamaEndpoint, visionOpts.TimeoutSeconds));
         }
         else if (!string.IsNullOrWhiteSpace(opts.AzureOpenAI.Endpoint))
         {
             // AzureOpenAI vision (works regardless of main LlmProvider).
-            var visionAzureClient = string.IsNullOrWhiteSpace(opts.AzureOpenAI.ApiKey)
-                ? new AzureOpenAIClient(new Uri(opts.AzureOpenAI.Endpoint), new DefaultAzureCredential())
-                : new AzureOpenAIClient(new Uri(opts.AzureOpenAI.Endpoint), new AzureKeyCredential(opts.AzureOpenAI.ApiKey!));
-            var visionKernel = Kernel.CreateBuilder()
-                .AddAzureOpenAIChatCompletion(visionOpts.ChatDeployment, visionAzureClient)
-                .Build();
-            services.AddKeyedSingleton<IChatCompletionService>(VisionServiceKey,
-                visionKernel.GetRequiredService<IChatCompletionService>());
+            services.AddKeyedSingleton<IChatClient>(VisionServiceKey, (sp, _) =>
+            {
+                var visionAzureClient = string.IsNullOrWhiteSpace(opts.AzureOpenAI.ApiKey)
+                    ? new AzureOpenAIClient(new Uri(opts.AzureOpenAI.Endpoint), new DefaultAzureCredential())
+                    : new AzureOpenAIClient(new Uri(opts.AzureOpenAI.Endpoint), new AzureKeyCredential(opts.AzureOpenAI.ApiKey!));
+                return visionAzureClient.GetChatClient(visionOpts.ChatDeployment).AsIChatClient();
+            });
         }
         else
         {
             // No vision-specific model configured — reuse main chat service.
-            services.AddKeyedTransient<IChatCompletionService>(VisionServiceKey,
-                (sp, _) => sp.GetRequiredService<IChatCompletionService>());
+            services.AddKeyedSingleton<IChatClient>(VisionServiceKey,
+                (sp, _) => sp.GetRequiredService<IChatClient>());
         }
     }
 }

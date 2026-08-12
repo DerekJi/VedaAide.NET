@@ -2,9 +2,9 @@ using Veda.Core.Options;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
 using NUnit.Framework;
 using Veda.Core;
@@ -70,7 +70,7 @@ public class IngestQueryIntegrationTests
             new AzureDiQuotaState());
 
         var visionExtractor = new VisionModelFileExtractor(
-            new Mock<IChatCompletionService>().Object,
+            new Mock<IChatClient>().Object,
             Options.Create(new VisionOptions { Enabled = false }),
             NullLogger<VisionModelFileExtractor>.Instance);
 

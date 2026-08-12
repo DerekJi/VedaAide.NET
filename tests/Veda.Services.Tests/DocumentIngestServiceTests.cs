@@ -1,8 +1,8 @@
 using Veda.Core.Options;
 using FluentAssertions;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel.ChatCompletion;
 using Moq;
 using NUnit.Framework;
 using Veda.Core;
@@ -41,7 +41,7 @@ public class DocumentIngestServiceTests
             new Mock<ILogger<DocumentIntelligenceFileExtractor>>().Object,
             new AzureDiQuotaState());
         _visionExtractor = new VisionModelFileExtractor(
-            new Mock<IChatCompletionService>().Object,
+            new Mock<IChatClient>().Object,
             Options.Create(new VisionOptions { Enabled = false }),
             new Mock<ILogger<VisionModelFileExtractor>>().Object);
 

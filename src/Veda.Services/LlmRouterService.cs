@@ -1,7 +1,10 @@
 using Veda.Core.Options;
+using Azure;
+using Azure.AI.OpenAI;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
+using OpenAI;
+using System.ClientModel;
 using Veda.Core;
 using Veda.Core.Interfaces;
 
@@ -9,8 +12,8 @@ namespace Veda.Services;
 
 /// <summary>
 /// LLM router implementation.
-/// Simple mode → the DI-injected default IChatService (Ollama or Azure OpenAI GPT-4o-mini).
-/// Advanced mode → DeepSeek (via the SK OpenAI-compatible connector + OllamaChatService adapter).
+/// Simple mode → the DI-injected default IChatClient (Ollama or Azure OpenAI GPT-4o-mini).
+/// Advanced mode → DeepSeek (via OpenAI-compatible endpoint).
 /// When the DeepSeek ApiKey is not configured, Advanced automatically falls back to Simple.
 /// </summary>
 public sealed class LlmRouterService : ILlmRouter
@@ -28,12 +31,13 @@ public sealed class LlmRouterService : ILlmRouter
             if (string.IsNullOrWhiteSpace(ds.ApiKey))
                 return simpleService; // Graceful fallback
 
-            // Use SK OpenAI connector with DeepSeek-compatible endpoint (all named args to avoid overload ambiguity)
-            var kernel = Kernel.CreateBuilder()
-                .AddOpenAIChatCompletion(modelId: ds.ChatModel, apiKey: ds.ApiKey!, endpoint: new Uri(ds.BaseUrl))
-                .Build();
-            var inner = kernel.GetRequiredService<IChatCompletionService>();
-            return new OllamaChatService(inner); // OllamaChatService is a generic IChatCompletionService adapter
+            // Create OpenAI-compatible client for DeepSeek
+            var deepseekClient = new OpenAIClient(
+                new ApiKeyCredential(ds.ApiKey),
+                new OpenAIClientOptions { Endpoint = new Uri(ds.BaseUrl) });
+            
+            var chatClient = deepseekClient.GetChatClient(ds.ChatModel).AsIChatClient();
+            return new AiChatService(chatClient); // AiChatService is the MAF-compatible adapter
         });
     }
 
