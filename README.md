@@ -85,6 +85,7 @@ Scores are stored, queryable via `/api/evaluation`, and support A/B comparison b
 | LLM / Embedding | Ollama (local), Azure OpenAI, DeepSeek | Multi-model routing + fallback |
 | API | REST + GraphQL (HotChocolate 15) + SSE | Streaming Q&A, multimodal ingest |
 | MCP | ModelContextProtocol.AspNetCore | HTTP transport |
+| Evaluation | Multi-source datasets (HuggingFace / Local / DB) + 9-dimension metrics | RAGAS, Natural Questions, MS MARCO support |
 | Frontend | Angular 19 (Standalone + Signals) | Real-time SSE streaming UI |
 | Auth | Azure Entra External ID (CIAM) + MSAL Angular 3 | JWT-based per-user data isolation |
 | Observability | OpenTelemetry | Structured logging + health checks |
@@ -103,6 +104,12 @@ Scores are stored, queryable via `/api/evaluation`, and support A/B comparison b
 | Phase 3 | Full-stack: GraphQL + SSE streaming + Angular + Docker | ✅ |
 | Phase 4–5 | Agentic workflow + MCP server + prompt engineering; external data sources (FileSystem + Blob) with background sync | ✅ |
 | Phase 6 | AI evaluation harness: faithfulness, relevancy, A/B testing | ✅ |
+| **Phase 7** | **Evaluation System Expansion (In Progress)** | **🚀**|
+|   | Multi-source dataset integration (HuggingFace / Local / DB) | Issues #11–19 |
+|   | Extended metrics: retrieval (Precision@K, NDCG), generation (ROUGE, Semantic F1) | Phase 2 deliverable |
+|   | Version management and comparison across model/prompt variants | Phase 2 deliverable |
+|   | HTML reports with interactive visualization | Phase 3 deliverable |
+|   | CI/CD regression detection (GitHub Actions workflow) | Phase 4 deliverable |
 | Stage 3.1–3.4 | KnowledgeScope + hybrid retrieval (RRF); Document Intelligence OCR + Vision multimodal; structured reasoning output + knowledge versioning + semantic enhancer; implicit feedback learning + 4-tier knowledge governance | ✅ |
 | Stage 5 | Azure Entra External ID (CIAM) auth + MsalGuard route protection + JWT-based user data isolation | ✅ |
 | Stage 6 | Token-usage tracking, email ingestion (EML/MSG), admin role isolation, Certificate/PDF text-layer extraction | ✅ |
@@ -121,6 +128,14 @@ Scores are stored, queryable via `/api/evaluation`, and support A/B comparison b
 - MCP `list_documents` is safe and API-Key protected; broader MCP tooling (e.g. pricing / route plugins) is a planned epic
 - Vector data does not auto-migrate between storage providers (SQLite ↔ CosmosDB) — switching requires re-ingestion; documented in the design docs
 - Embedding model changes (dimension changes) require a data reset + re-ingest; no automatic detection yet
+
+**Evaluation System (Phase 7 — In Progress)**
+- ✅ Three-dimensional evaluation (Faithfulness, Answer Relevancy, Context Recall) implemented
+- 🚀 Expanding to 9 dimensions with retrieval + generation + efficiency metrics
+- 🚀 Multi-source dataset support (HuggingFace, Local, Database) — in design phase
+- 📋 CI/CD integration for regression detection — planned for Phase 4
+- 📊 Interactive HTML reports with version comparison — planned for Phase 3
+- See [evaluation research report](docs/designs/rag-evaluation-research.en.md) for detailed roadmap
 
 This list is kept deliberately — it reflects how the project is built and where the next round of work would go.
 
@@ -213,7 +228,11 @@ VedaAide.NET/
 | `POST` | `/api/datasources/sync` | Trigger data source connectors (Blob / FileSystem) |
 | `POST` | `/api/feedback` | Record accept / reject / edit feedback |
 | `POST` | `/api/governance/groups` | Create a knowledge-sharing group |
-| `POST` | `/api/evaluation/run` | Run RAG evaluation harness |
+| `POST` | `/api/evaluation/run` | Run RAG evaluation harness (Faithfulness / Relevancy / Recall) |
+| `GET`  | `/api/evaluation/questions` | List Golden Dataset questions |
+| `POST` | `/api/evaluation/questions` | Add evaluation question to Golden Dataset |
+| `GET`  | `/api/evaluation/reports` | List evaluation reports with version history |
+| `GET`  | `/api/evaluation/compare` | Compare two evaluation runs (A/B testing) |
 | `POST` | `/api/public/resume/tailor` | Public SSE resume tailoring (per-IP rate limited) |
 | `POST` | `/mcp` | MCP endpoint (VS Code Copilot / Claude Desktop) |
 | `POST` | `/graphql` | GraphQL endpoint |
@@ -267,5 +286,75 @@ Available tools: `search_knowledge_base` · `list_documents` · `ingest_document
 | [Azure Deployment](docs/rag-internals/08-azure-deployment.en.md) | Container Apps + CosmosDB + CI/CD |
 | [Test Strategy](docs/tests/README.en.md) | Test conventions & naming standards |
 | [Engineering Insights](docs/insights/README.en.md) | Chunking, anti-hallucination, reranking, MCP, and more |
+| [RAG Evaluation Research](docs/designs/rag-evaluation-research.en.md) | 9-dimension metric framework, dataset integration strategy, implementation roadmap |
+| [RAG Evaluation Research (中文)](docs/designs/rag-evaluation-research.cn.html) | 中文调研报告：评估系统架构、HuggingFace 数据集集成、指标设计 |
 
 > All docs are maintained bilingually: `.en.md` (English) and `.cn.md` (Chinese).
+
+---
+
+## Evaluation System (Phase 7)
+
+VedaAide includes a **quantitative RAG evaluation framework** to measure and compare answer quality across different versions, models, and configurations.
+
+### Evaluation Metrics (9 Dimensions)
+
+**Current (Core):**
+- **Faithfulness** (30%): Does the answer rely *only* on retrieved context? (LLM judgment)
+- **Answer Relevancy** (20%): Is the answer on-topic and useful? (Embedding similarity)
+- **Context Recall** (20%): Do retrieved chunks contain needed information? (Embedding vs. expected answer)
+
+**Expanding (Phase 2):**
+- **Retrieval Metrics** (25%): Precision@5, Recall@5, NDCG@10
+- **Generation Metrics** (10%): ROUGE-L, Semantic F1, Token Overlap
+- **Efficiency** (tracked): Latency (ms), Token Cost
+
+### Quick Start: Run Evaluation
+
+```bash
+# 1. Evaluate against Golden Dataset (stored in database)
+dotnet run --project src/Veda.Api -- --mode=eval --dataset-source=database
+
+# 2. Evaluate against HuggingFace RAGAS (coming in Phase 1)
+# python scripts/eval-dataset-import.py --dataset ragas --split test --max-records 100
+# dotnet run --project src/Veda.Api -- --mode=eval --dataset-source=huggingface
+
+# 3. Compare two versions
+dotnet run --project src/Veda.Api -- --mode=eval-compare --version1=v1.0 --version2=v1.1
+```
+
+### Supported Datasets (Phase 1 Roadmap)
+
+| Dataset | Samples | Use Case | Status |
+|---------|---------|----------|--------|
+| **RAGAS** (ragas-v1/code-generated) | 20K | General RAG eval | 🚀 Priority 1 |
+| **Natural Questions** | 323K | Open-domain QA | 📋 Planned |
+| **MS MARCO** | 1M | Large-scale retrieval | 📋 Planned |
+| **SQuAD 2.0** | 150K | Reading comprehension | 📋 Planned |
+| **Custom Golden Dataset** | User-defined | Domain-specific eval | ✅ Available now |
+| **CMMLU / ZhQuAD** (Chinese) | 14K–90K | Chinese scenarios | 📋 Planned |
+
+### GitHub Issues & Roadmap
+
+Evaluation system expansion is tracked across 9 GitHub issues (Phase 1–5):
+
+- **Phase 1 (2 weeks):** Dataset provider abstraction + HuggingFace integration + Python preprocessing
+  - [#11](https://github.com/DerekJi/VedaAide.NET/issues/11) IEvalDatasetProvider interface
+  - [#12](https://github.com/DerekJi/VedaAide.NET/issues/12) HuggingFace provider implementation
+  - [#13](https://github.com/DerekJi/VedaAide.NET/issues/13) Python preprocessing script
+
+- **Phase 2 (3 weeks):** Metrics expansion + version management
+  - [#14](https://github.com/DerekJi/VedaAide.NET/issues/14) Retrieval metrics (Precision@K, NDCG)
+  - [#15](https://github.com/DerekJi/VedaAide.NET/issues/15) Generation metrics (ROUGE, Semantic F1)
+  - [#16](https://github.com/DerekJi/VedaAide.NET/issues/16) Version management & comparison
+
+- **Phase 3 (2 weeks):** Visualization
+  - [#17](https://github.com/DerekJi/VedaAide.NET/issues/17) HTML reports with interactive charts
+
+- **Phase 4 (2 weeks):** CI/CD Integration
+  - [#18](https://github.com/DerekJi/VedaAide.NET/issues/18) GitHub Actions regression detection
+
+- **Phase 5 (1 week):** Documentation
+  - [#19](https://github.com/DerekJi/VedaAide.NET/issues/19) Complete evaluation guides & examples
+
+See [evaluation research report](docs/designs/rag-evaluation-research.en.md) for detailed design and architecture decisions.

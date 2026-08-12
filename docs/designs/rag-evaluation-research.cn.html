@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VedaAide RAG 评估系统调研报告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .toc {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+        
+        .toc h2 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .toc ol {
+            margin-left: 20px;
+        }
+        
+        .toc li {
+            margin-bottom: 8px;
+        }
+        
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        section {
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        section:last-child {
+            border-bottom: none;
+        }
+        
+        h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        h2::before {
+            content: "▶";
+            margin-right: 10px;
+            font-size: 0.9em;
+        }
+        
+        h3 {
+            color: #555;
+            font-size: 1.3em;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        h3::before {
+            content: "◆";
+            margin-right: 10px;
+            color: #764ba2;
+            font-size: 0.8em;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .info-box {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .danger-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        tr:hover {
+            background: #f9f9f9;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .code-block {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        
+        .code-block code {
+            color: #c7254e;
+        }
+        
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .grid-item {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        
+        .grid-item h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .comparison-table {
+            width: 100%;
+            margin: 15px 0;
+        }
+        
+        .comparison-table th {
+            background: #667eea;
+            color: white;
+        }
+        
+        .pros {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .cons {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .metric-card h4 {
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+        
+        .metric-card p {
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+        
+        .diagram {
+            background: #f9f9f9;
+            border: 2px dashed #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9em;
+        }
+        
+        .recommendation {
+            background: #f0f8ff;
+            border: 2px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .recommendation h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            border-radius: 4px;
+        }
+        
+        .date-info {
+            color: #999;
+            font-size: 0.95em;
+        }
+        
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h2 {
+                font-size: 1.4em;
+            }
+            
+            header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 VedaAide RAG 评估系统调研报告</h1>
+            <p>基于现有代码库的架构分析、数据集集成方案与评估系统设计</p>
+            <p class="date-info">生成时间：2026-08-12 | 评估版本 v1.0</p>
+        </header>
+
+        <div class="toc">
+            <h2>📋 目录</h2>
+            <ol>
+                <li><a href="#current-state">当前评估系统现状分析</a></li>
+                <li><a href="#architecture">代码结构修改建议</a></li>
+                <li><a href="#dataset">HuggingFace 数据集集成方案</a></li>
+                <li><a href="#evaluation-system">评估系统功能与指标设计</a></li>
+                <li><a href="#implementation">实现路线图</a></li>
+                <li><a href="#conclusion">总结与建议</a></li>
+            </ol>
+        </div>
+
+        <!-- Section 1: Current State -->
+        <section id="current-state">
+            <h2>当前评估系统现状分析</h2>
+            
+            <h3>1.1 已有的评估框架</h3>
+            <p>VedaAide 已经建立了一个相对完整的评估系统基础，包括：</p>
+            
+            <div class="success-box">
+                <strong>✅ 已实现的核心组件：</strong>
+                <ul>
+                    <li><strong>Veda.Evaluation 项目</strong>：独立的评估模块，包含 <code>EvaluationRunner</code> 和多个 Scorer</li>
+                    <li><strong>三维评分体系</strong>：
+                        <ul>
+                            <li><code>Faithfulness</code>（忠实度）：答案是否仅基于检索上下文，使用 LLM 判断</li>
+                            <li><code>AnswerRelevancy</code>（答案相关性）：答案是否与问题相关，使用 Embedding 相似度</li>
+                            <li><code>ContextRecall</code>（上下文召回）：检索结果是否包含所需信息，使用 Embedding 相似度对比期望答案</li>
+                        </ul>
+                    </li>
+                    <li><strong>Golden Dataset 支持</strong>：<code>IEvalDatasetRepository</code> 提供 CRUD 操作，支持标准问答对存储</li>
+                    <li><strong>评估报告生成</strong>：<code>EvaluationReport</code> 聚合结果并计算整体得分</li>
+                </ul>
+            </div>
+
+            <h3>1.2 当前的不足与改进空间</h3>
+            <div class="danger-box">
+                <strong>⚠️ 现有限制：</strong>
+                <ul>
+                    <li><strong>数据集来源单一</strong>：只支持通过 REST API 手动输入 Golden Dataset，没有自动化导入机制</li>
+                    <li><strong>缺少外部数据集集成</strong>：不支持从 HuggingFace、Local 或其他开源数据源直接加载</li>
+                    <li><strong>指标体系不够完整</strong>：
+                        <ul>
+                            <li>缺少 <code>Precision@K</code>、<code>Recall@K</code> 等检索层级指标</li>
+                            <li>缺少 <code>BLEU</code>、<code>ROUGE</code> 等文本相似度指标</li>
+                            <li>缺少 <code>F1-Score</code> 综合评估</li>
+                            <li>缺少成本/延迟指标跟踪</li>
+                        </ul>
+                    </li>
+                    <li><strong>无版本管理机制</strong>：无法清晰追踪不同版本（模型、prompt、检索策略）的评估对比</li>
+                    <li><strong>缺少自动化评估流程</strong>：未集成 CI/CD 评估检查点</li>
+                </ul>
+            </div>
+
+            <h3>1.3 架构优势</h3>
+            <div class="info-box">
+                <strong>✨ 可复用的架构基础：</strong>
+                <ul>
+                    <li><strong>DIP 原则严格实施</strong>：所有接口定义在 <code>Veda.Core</code>，实现分散在各层，便于扩展和测试</li>
+                    <li><strong>分层架构清晰</strong>：
+                        <ul>
+                            <li><code>Veda.Core</code>：评估接口定义（<code>IQueryService</code>、<code>IEmbeddingService</code> 等）</li>
+                            <li><code>Veda.Services</code>：检索和生成实现</li>
+                            <li><code>Veda.Evaluation</code>：评分逻辑</li>
+                            <li><code>Veda.Storage</code>：数据持久化</li>
+                        </ul>
+                    </li>
+                    <li><strong>强大的 Mock 支持</strong>：已有完整的 unit tests（<code>Veda.Evaluation.Tests</code>），便于集成新功能</li>
+                    <li><strong>LLM 路由灵活</strong>：<code>LlmRouter</code> 支持多个模型切换，便于交叉模型评估</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Section 2: Architecture -->
+        <section id="architecture">
+            <h2>代码结构修改建议</h2>
+
+            <h3>2.1 当前架构状态</h3>
+            <p>现有架构采用严格的分层设计，整体结构已经很好地支持了 RAG 核心算法与应用层的分离：</p>
+            
+            <div class="diagram">查询流程（当前）：
+
+API Layer (Veda.Api)
+    ↓
+QueryService (Veda.Services)
+    ├→ SemanticEnhancer (查询扩展)
+    ├→ HybridRetriever (检索)
+    ├→ ContextWindowBuilder (上下文构建)
+    ├→ LlmRouter (LLM 路由)
+    └→ HallucinationGuard (幻觉检测)
+    
+Evaluation Layer (Veda.Evaluation)
+    ├→ FaithfulnessScorer
+    ├→ AnswerRelevancyScorer
+    └→ ContextRecallScorer
+            </div>
+
+            <h3>2.2 分析：是否需要修改结构？</h3>
+            
+            <table class="comparison-table">
+                <tr>
+                    <th>维度</th>
+                    <th>当前状态</th>
+                    <th>改进建议</th>
+                </tr>
+                <tr>
+                    <td><strong>核心算法隔离</strong></td>
+                    <td>✅ 良好。<code>QueryService</code> 封装检索生成逻辑</td>
+                    <td>⚡ 轻微：提取 <code>RetrieverPipeline</code> 为独立接口</td>
+                </tr>
+                <tr>
+                    <td><strong>应用层独立性</strong></td>
+                    <td>✅ 很好。API 层通过接口调用服务</td>
+                    <td>✅ 无需改动</td>
+                </tr>
+                <tr>
+                    <td><strong>评估框架集成</strong></td>
+                    <td>⚠️ 尚可。Evaluation 与 Services 有依赖</td>
+                    <td>🔨 需要：建立 <code>IEvaluationDatasetProvider</code> 接口进行数据解耦</td>
+                </tr>
+                <tr>
+                    <td><strong>多版本管理</strong></td>
+                    <td>❌ 无。缺少版本追踪</td>
+                    <td>🔨 需要：<code>IEvalVersionStore</code> 存储评估元数据</td>
+                </tr>
+                <tr>
+                    <td><strong>数据流独立性</strong></td>
+                    <td>⚠️ 一般。数据集与 Service 耦合</td>
+                    <td>🔨 需要：<code>IEvalDatasetProvider</code> 统一数据源</td>
+                </tr>
+            </table>
+
+            <h3>2.3 推荐的最小改动方案</h3>
+            
+            <div class="recommendation">
+                <h4>🎯 方案：建立"评估数据源"抽象层</h4>
+                <p><strong>核心思路：</strong> 不修改现有的 RAG 核心实现，只在 Evaluation 层添加新接口来解耦数据源。</p>
+                
+                <p><strong>改动点：</strong></p>
+                <ol>
+                    <li><strong>在 Veda.Core 中新增接口</strong>：
+                        <div class="code-block">
+// 统一数据源提供接口
+public interface IEvalDatasetProvider
+{
+    Task&lt;IReadOnlyList&lt;EvalQuestion&gt;&gt; LoadAsync(
+        EvalDatasetSource source,    // HuggingFace / Local / Database
+        EvalDatasetConfig config,
+        CancellationToken ct = default);
+}
+
+// 数据源配置
+public record EvalDatasetConfig
+{
+    public string? RepoId { get; init; }           // huggingface repo
+    public string? LocalPath { get; init; }        // local file path
+    public string? Split { get; init; }            // "train" / "test" / "validation"
+    public int? MaxRecords { get; init; }
+}
+                        </div>
+                    </li>
+                    <li><strong>在 Veda.Services 中实现多个 Provider</strong>：
+                        <ul>
+                            <li><code>DatabaseEvalDatasetProvider</code>：从 DB 读取（现有逻辑）</li>
+                            <li><code>HuggingFaceEvalDatasetProvider</code>：从 HF 加载并转换</li>
+                            <li><code>LocalFileEvalDatasetProvider</code>：从本地 JSON/CSV 读取</li>
+                        </ul>
+                    </li>
+                    <li><strong>修改 EvaluationRunner</strong>：
+                        <div class="code-block">
+// 改用
+public sealed class EvaluationRunner
+{
+    public async Task&lt;EvaluationReport&gt; RunAsync(
+        IEvalDatasetProvider datasetProvider,
+        EvalDatasetSource source,
+        EvalRunOptions options,
+        CancellationToken ct = default)
+    {
+        var questions = await datasetProvider.LoadAsync(source, options.DatasetConfig, ct);
+        // ... rest of logic remains same
+    }
+}
+                        </div>
+                    </li>
+                </ol>
+                
+                <p><strong>优势：</strong></p>
+                <ul>
+                    <li>✅ 无侵入性：不改变现有 RAG 查询流程</li>
+                    <li>✅ 高扩展性：支持新数据源无需改动核心代码</li>
+                    <li>✅ 易于测试：Mock <code>IEvalDatasetProvider</code> 即可</li>
+                    <li>✅ 双向兼容：同时支持 DB 和外部数据源</li>
+                </ul>
+            </div>
+
+            <h3>2.4 可选的高级改动：检索管道隔离</h3>
+            
+            <div class="info-box">
+                <strong>（非必须，但长期有益）</strong>
+                <p>如果未来需要独立测试检索算法（不通过 LLM），可考虑：</p>
+                <div class="code-block">
+public interface IRetrieverPipeline
+{
+    Task&lt;IReadOnlyList&lt;RankedChunk&gt;&gt; RetrieveAsync(
+        string query,
+        RagQueryRequest request,
+        CancellationToken ct = default);
+}
+
+// 重构 QueryService
+public sealed class QueryService
+{
+    private readonly IRetrieverPipeline _retrieverPipeline;
+    
+    public async Task&lt;RagQueryResponse&gt; QueryAsync(...)
+    {
+        var candidates = await _retrieverPipeline.RetrieveAsync(...);
+        // ... rest LLM generation logic
+    }
+}
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Dataset -->
+        <section id="dataset">
+            <h2>HuggingFace 数据集集成方案</h2>
+
+            <h3>3.1 推荐的 HuggingFace 数据集</h3>
+            
+            <table>
+                <tr>
+                    <th>数据集名称</th>
+                    <th>样本数</th>
+                    <th>领域</th>
+                    <th>特点</th>
+                    <th>推荐度</th>
+                </tr>
+                <tr>
+                    <td><strong>MTEB-RAGAS</strong><br/>ragas-v1/code-generated</td>
+                    <td>~20K</td>
+                    <td>通用（代码、文档）</td>
+                    <td>专为 RAG 评估设计；包含 Q、A、Context 三元组；高质量</td>
+                    <td>⭐⭐⭐⭐⭐</td>
+                </tr>
+                <tr>
+                    <td><strong>Natural Questions</strong><br/>google-research-datasets/natural_questions</td>
+                    <td>~323K</td>
+                    <td>开放域问答</td>
+                    <td>来自真实 Google 搜索日志；多跳推理需求</td>
+                    <td>⭐⭐⭐⭐</td>
+                </tr>
+                <tr>
+                    <td><strong>MS MARCO</strong><br/>ms-marco</td>
+                    <td>~1M</td>
+                    <td>问答 + 排序</td>
+                    <td>大规模真实 Bing 查询；适合检索评估</td>
+                    <td>⭐⭐⭐⭐</td>
+                </tr>
+                <tr>
+                    <td><strong>SQuAD 2.0</strong><br/>squad_v2</td>
+                    <td>~150K</td>
+                    <td>阅读理解</td>
+                    <td>包含无法回答问题；上下文精确匹配</td>
+                    <td>⭐⭐⭐</td>
+                </tr>
+                <tr>
+                    <td><strong>CMMLU (中文)</strong><br/>haonan-li/cmmlu</td>
+                    <td>~14K</td>
+                    <td>多学科中文选择题</td>
+                    <td>中文基准；可转换为 QA 对</td>
+                    <td>⭐⭐⭐⭐ (中文场景)</td>
+                </tr>
+                <tr>
+                    <td><strong>ZhQuAD (中文)</strong><br/>sil-ai/ZhQuAD</td>
+                    <td>~90K</td>
+                    <td>中文阅读理解</td>
+                    <td>中文 SQuAD 风格；覆盖多个领域</td>
+                    <td>⭐⭐⭐⭐ (中文场景)</td>
+                </tr>
+            </table>
+
+            <div class="highlight">
+                <strong>🎯 推荐方案：分阶段使用多个数据集</strong>
+                <ul>
+                    <li><strong>Phase 1（快速验证）</strong>：使用 RAGAS，~500 样本子集</li>
+                    <li><strong>Phase 2（全面测试）</strong>：使用 RAGAS 全集 + Natural Questions 样本</li>
+                    <li><strong>Phase 3（长期跟踪）</strong>：添加自建 Golden Dataset + 定期审计 MS MARCO 子集</li>
+                </ul>
+            </div>
+
+            <h3>3.2 数据集转换与预处理</h3>
+            
+            <div class="recommendation">
+                <h4>🔨 实现方案：Python 预处理脚本</h4>
+                
+                <p><strong>位置：</strong> <code>scripts/eval-dataset-import.py</code></p>
+                
+                <p><strong>核心功能：</strong></p>
+                <div class="code-block">
+# 伪代码示例
+from datasets import load_dataset
+import json
+
+class DatasetImporter:
+    def load_ragas(repo_id="ragas-v1/code-generated", split="test"):
+        """加载 RAGAS 数据集"""
+        dataset = load_dataset(repo_id, split=split)
+        questions = []
+        for item in dataset:
+            questions.append({
+                "id": f"ragas-{item['id']}",
+                "question": item["question"],
+                "expected_answer": item["answer"],
+                "context": item["contexts"],
+                "source": "ragas"
+            })
+        return questions
+
+    def load_natural_questions(max_samples=1000):
+        """加载 Natural Questions"""
+        dataset = load_dataset("google-research-datasets/natural_questions")
+        # 转换格式...
+        return questions
+
+    def export_to_json(questions, output_file):
+        """导出为 JSON 格式"""
+        with open(output_file, 'w') as f:
+            json.dump(questions, f, ensure_ascii=False, indent=2)
+            
+    def export_to_sqlite(questions, db_path):
+        """直接导入 SQLite（通过 HTTP 调用 Veda API）"""
+        for q in questions:
+            # POST /api/evaluation/questions
+            pass
+                </div>
+                
+                <p><strong>使用流程：</strong></p>
+                <ol>
+                    <li>用户运行：<code>python scripts/eval-dataset-import.py --dataset ragas --split test --output-format json</code></li>
+                    <li>脚本下载、转换、验证数据集</li>
+                    <li>输出 JSON 或通过 API 导入数据库</li>
+                </ol>
+            </div>
+
+            <h3>3.3 数据转换格式规范</h3>
+            
+            <div class="info-box">
+                <strong>标准转换格式（EvalQuestion）：</strong>
+                <div class="code-block">
+{
+  "id": "ragas-001",
+  "question": "What is machine learning?",
+  "expected_answer": "Machine learning is ...",
+  "context": ["Context chunk 1", "Context chunk 2"],  // 可选
+  "source_dataset": "ragas",
+  "tags": ["beginner", "general"],
+  "created_at": "2026-08-12T00:00:00Z"
+}
+                </div>
+            </div>
+
+            <h3>3.4 动态加载策略</h3>
+            
+            <table>
+                <tr>
+                    <th>加载方式</th>
+                    <th>延迟</th>
+                    <th>成本</th>
+                    <th>适用场景</th>
+                </tr>
+                <tr>
+                    <td><strong>完全预下载</strong><br/>脚本一次性下载到本地</td>
+                    <td>~5-10 min (首次)</td>
+                    <td>磁盘空间 ~500MB-2GB</td>
+                    <td>CI/CD 评估、离线场景</td>
+                </tr>
+                <tr>
+                    <td><strong>部分缓存</strong><br/>下载子集，LRU 缓存</td>
+                    <td>~1-2 min</td>
+                    <td>磁盘 ~100-200MB</td>
+                    <td>开发/测试迭代</td>
+                </tr>
+                <tr>
+                    <td><strong>流式加载</strong><br/>HF Hub 直接流式读取</td>
+                    <td>~变长</td>
+                    <td>网络 I/O</td>
+                    <td>一次性报告生成</td>
+                </tr>
+            </table>
+
+            <div class="success-box">
+                <strong>✅ 推荐：混合方案</strong>
+                <ul>
+                    <li>默认使用 <strong>部分缓存</strong>：预下载 500 个样本到 <code>data/eval-datasets/</code></li>
+                    <li>支持 <code>--refresh</code> 参数重新下载</li>
+                    <li>在 <code>.gitignore</code> 中忽略缓存文件（防止仓库膨胀）</li>
+                </ul>
+            </div>
+
+            <h3>3.5 多场景数据覆盖</h3>
+            
+            <div class="grid">
+                <div class="grid-item">
+                    <h4>📚 技术文档场景</h4>
+                    <p><strong>推荐数据集：</strong> RAGAS / StackOverflow QA</p>
+                    <p><strong>数据来源：</strong> Github Docs, API References</p>
+                    <p><strong>评估重点：</strong> 精确性、上下文忠实度</p>
+                </div>
+                <div class="grid-item">
+                    <h4>❓ 开放域QA</h4>
+                    <p><strong>推荐数据集：</strong> Natural Questions / MS MARCO</p>
+                    <p><strong>数据来源：</strong> 真实搜索日志</p>
+                    <p><strong>评估重点：</strong> 检索召回、多跳推理</p>
+                </div>
+                <div class="grid-item">
+                    <h4>💼 商业场景</h4>
+                    <p><strong>推荐数据集：</strong> 自建 Golden Dataset</p>
+                    <p><strong>数据来源：</strong> 合同、报告、会议记录</p>
+                    <p><strong>评估重点：</strong> 领域特定精度、幻觉检测</p>
+                </div>
+                <div class="grid-item">
+                    <h4>🌐 多语言场景</h4>
+                    <p><strong>推荐数据集：</strong> CMMLU / ZhQuAD (中文)</p>
+                    <p><strong>数据来源：</strong> 区域 QA 平台</p>
+                    <p><strong>评估重点：</strong> 跨语言准确性、文化适配</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Evaluation System -->
+        <section id="evaluation-system">
+            <h2>评估系统功能与指标设计</h2>
+
+            <h3>4.1 评估维度扩展</h3>
+            
+            <p>当前系统的三维评分（Faithfulness、AnswerRelevancy、ContextRecall）已经很好，但需要补充更多维度和粒度指标：</p>
+
+            <h4>当前维度（保留）</h4>
+            <div class="metric-card">
+                <h4>1️⃣ Faithfulness（忠实度）- 0-1</h4>
+                <p><strong>定义：</strong> 答案是否仅基于检索上下文，不含虚构信息</p>
+                <p><strong>方法：</strong> LLM 判断（当前实现）或句子级验证</p>
+                <p><strong>权重建议：</strong> 30%</p>
+            </div>
+
+            <div class="metric-card">
+                <h4>2️⃣ Answer Relevancy（答案相关性）- 0-1</h4>
+                <p><strong>定义：</strong> 答案与问题的语义相关性</p>
+                <p><strong>方法：</strong> Embedding 余弦相似度（当前实现）</p>
+                <p><strong>权重建议：</strong> 20%</p>
+            </div>
+
+            <div class="metric-card">
+                <h4>3️⃣ Context Recall（上下文召回）- 0-1</h4>
+                <p><strong>定义：</strong> 检索结果是否包含所需信息</p>
+                <p><strong>方法：</strong> Expected answer vs. Retrieved chunks 相似度（当前实现）</p>
+                <p><strong>权重建议：</strong> 20%</p>
+            </div>
+
+            <h4>扩展维度（新增）</h4>
+            
+            <table>
+                <tr>
+                    <th>维度</th>
+                    <th>指标名称</th>
+                    <th>定义</th>
+                    <th>计算方法</th>
+                    <th>权重</th>
+                </tr>
+                <tr>
+                    <td rowspan="3"><strong>检索层</strong></td>
+                    <td><code>Precision@K</code></td>
+                    <td>Top-K 结果中相关的比例</td>
+                    <td>相关结果数 / K</td>
+                    <td>10%</td>
+                </tr>
+                <tr>
+                    <td><code>Recall@K</code></td>
+                    <td>检索到的相关结果 / 所有相关结果</td>
+                    <td>相关结果数 / 总相关数</td>
+                    <td>10%</td>
+                </tr>
+                <tr>
+                    <td><code>NDCG@K</code></td>
+                    <td>考虑排序的召回（归一化）</td>
+                    <td>DCG@K / IDCG@K</td>
+                    <td>5%</td>
+                </tr>
+                <tr>
+                    <td rowspan="3"><strong>生成层</strong></td>
+                    <td><code>ROUGE-L</code></td>
+                    <td>答案与期望答案的最长公共子序列比</td>
+                    <td>LCS / (ref_len)</td>
+                    <td>5%</td>
+                </tr>
+                <tr>
+                    <td><code>Semantic F1</code></td>
+                    <td>答案语义的精准度（基于 STS 模型）</td>
+                    <td>2*P*R/(P+R)，P/R 基于 STS 相似度</td>
+                    <td>10%</td>
+                </tr>
+                <tr>
+                    <td><code>Token Overlap</code></td>
+                    <td>答案与期望答案的词汇重叠率</td>
+                    <td>交集词数 / 期望答案词数</td>
+                    <td>5%</td>
+                </tr>
+                <tr>
+                    <td rowspan="2"><strong>效率层</strong></td>
+                    <td><code>Latency (ms)</code></td>
+                    <td>端到端查询时间</td>
+                    <td>单位：毫秒</td>
+                    <td>-（跟踪）</td>
+                </tr>
+                <tr>
+                    <td><code>Token Cost</code></td>
+                    <td>LLM API 成本</td>
+                    <td>输入输出 token 和×单价</td>
+                    <td>-（跟踪）</td>
+                </tr>
+            </table>
+
+            <h3>4.2 综合评分计算</h3>
+            
+            <div class="highlight">
+                <strong>加权综合评分公式：</strong>
+                <div class="code-block">
+Overall Score = 
+  0.30 × Faithfulness +
+  0.20 × AnswerRelevancy +
+  0.20 × ContextRecall +
+  0.10 × Precision@5 +
+  0.10 × Semantic F1 +
+  0.05 × NDCG@10 +
+  0.05 × ROUGE-L
+
+范围：[0, 1]
+                </div>
+                
+                <p><strong>解读：</strong></p>
+                <ul>
+                    <li><strong>&gt;0.8：</strong> 优秀（生产可用）</li>
+                    <li><strong>0.6-0.8：</strong> 良好（需要优化）</li>
+                    <li><strong>0.4-0.6：</strong> 一般（有明显问题）</li>
+                    <li><strong>&lt;0.4：</strong> 差（需要重构）</li>
+                </ul>
+            </div>
+
+            <h3>4.3 评估系统核心功能</h3>
+
+            <table>
+                <tr>
+                    <th>功能模块</th>
+                    <th>功能描述</th>
+                    <th>实现位置</th>
+                </tr>
+                <tr>
+                    <td><strong>数据集管理</strong></td>
+                    <td>
+                        • 导入多源数据集（HF / Local / DB）<br/>
+                        • 数据集版本控制<br/>
+                        • 子集采样与分层
+                    </td>
+                    <td><code>IEvalDatasetProvider</code> (Veda.Core)<br/><code>EvalDatasetService</code> (Veda.Services)</td>
+                </tr>
+                <tr>
+                    <td><strong>评分器</strong></td>
+                    <td>
+                        • Faithfulness（LLM 判断）<br/>
+                        • AnswerRelevancy（Embedding）<br/>
+                        • ContextRecall（Embedding）<br/>
+                        • Precision@K / NDCG / ROUGE（新增）
+                    </td>
+                    <td><code>Veda.Evaluation/Scorers/</code></td>
+                </tr>
+                <tr>
+                    <td><strong>评估运行器</strong></td>
+                    <td>
+                        • 批量评估执行<br/>
+                        • 并行/串行模式<br/>
+                        • 错误恢复与重试
+                    </td>
+                    <td><code>EvaluationRunner</code> (Veda.Evaluation)</td>
+                </tr>
+                <tr>
+                    <td><strong>版本对比</strong></td>
+                    <td>
+                        • 存储评估元数据（模型、prompt、时间戳）<br/>
+                        • 对比不同版本的指标差异<br/>
+                        • 生成变化趋势图表
+                    </td>
+                    <td><code>IEvalVersionStore</code> (Veda.Core)<br/><code>EvalVersionStore</code> (Veda.Storage)</td>
+                </tr>
+                <tr>
+                    <td><strong>报告生成</strong></td>
+                    <td>
+                        • 文本摘要报告<br/>
+                        • 可视化仪表板（HTML）<br/>
+                        • JSON 导出
+                    </td>
+                    <td><code>EvaluationReportGenerator</code> (Veda.Evaluation)</td>
+                </tr>
+                <tr>
+                    <td><strong>CI/CD 集成</strong></td>
+                    <td>
+                        • 评估检查点（PR 合并前）<br/>
+                        • 自动回归检测<br/>
+                        • 通过/失败判定
+                    </td>
+                    <td><code>Veda.Api</code> (评估 endpoints)</td>
+                </tr>
+            </table>
+
+            <h3>4.4 可视化与报告</h3>
+            
+            <div class="info-box">
+                <strong>📊 评估报告包含内容：</strong>
+                <ul>
+                    <li><strong>摘要卡片</strong>
+                        <ul>
+                            <li>总体得分 + 趋势（较上版本 ↑/↓）</li>
+                            <li>各维度得分分布</li>
+                            <li>问卷数、平均延迟、总成本</li>
+                        </ul>
+                    </li>
+                    <li><strong>细节表格</strong>
+                        <ul>
+                            <li>逐问题得分明细</li>
+                            <li>排序：低分优先（帮助定位问题）</li>
+                        </ul>
+                    </li>
+                    <li><strong>对比分析</strong>
+                        <ul>
+                            <li>vs. 基准版本：得分、延迟、成本对比</li>
+                            <li>vs. 多个模型：交叉模型评估</li>
+                        </ul>
+                    </li>
+                    <li><strong>失败案例分析</strong>
+                        <ul>
+                            <li>低分问题的根因分析</li>
+                            <li>检索失败 vs. 生成失败 vs. 幻觉</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <h3>4.5 可扩展的评分器架构</h3>
+            
+            <div class="code-block">
+// Veda.Core/Interfaces
+public interface IEvalScorer
+{
+    string Name { get; }                    // "faithfulness", "precision@5"
+    ScoreType Type { get; }                 // LLM / Embedding / Rule-based
+    
+    Task&lt;float&gt; ScoreAsync(
+        EvalContext context,                // 包含 question, answer, contexts 等
+        CancellationToken ct = default);
+}
+
+// EvalContext 包含
+public record EvalContext
+{
+    public required string Question { get; init; }
+    public required string ActualAnswer { get; init; }
+    public required string ExpectedAnswer { get; init; }
+    public required IReadOnlyList&lt;string&gt; RetrievedChunks { get; init; }
+    public required IReadOnlyList&lt;SourceReference&gt; Sources { get; init; }
+}
+
+// 使用示例
+var scorers = new List&lt;IEvalScorer&gt;
+{
+    new FaithfulnessScorer(...),
+    new PrecisionAtKScorer(k: 5),
+    new ROUGEScorer(),
+    new SemanticF1Scorer()
+};
+
+foreach (var scorer in scorers)
+{
+    var score = await scorer.ScoreAsync(context);
+    results[scorer.Name] = score;
+}
+            </div>
+
+        </section>
+
+        <!-- Section 5: Implementation -->
+        <section id="implementation">
+            <h2>实现路线图</h2>
+
+            <h3>5.1 分阶段实现计划</h3>
+            
+            <table>
+                <tr>
+                    <th>阶段</th>
+                    <th>时间</th>
+                    <th>核心工作</th>
+                    <th>交付物</th>
+                </tr>
+                <tr>
+                    <td><strong>Phase 1<br/>基础架构</strong></td>
+                    <td>1-2 周</td>
+                    <td>
+                        ✅ 添加 <code>IEvalDatasetProvider</code> 接口<br/>
+                        ✅ 实现 <code>HuggingFaceEvalDatasetProvider</code><br/>
+                        ✅ Python 预处理脚本<br/>
+                        ✅ 单元测试
+                    </td>
+                    <td>
+                        • 可从 HF 加载数据集<br/>
+                        • 数据格式转换工具<br/>
+                        • 完整的 Unit Tests
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 2<br/>指标扩展</strong></td>
+                    <td>2-3 周</td>
+                    <td>
+                        ✅ 实现 Precision@K、Recall@K<br/>
+                        ✅ 实现 NDCG、ROUGE-L<br/>
+                        ✅ 实现 Semantic F1<br/>
+                        ✅ 版本对比逻辑
+                    </td>
+                    <td>
+                        • 6+ 个新 Scorer<br/>
+                        • 综合评分计算<br/>
+                        • 版本对比报告
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 3<br/>可视化</strong></td>
+                    <td>2 周</td>
+                    <td>
+                        ✅ HTML 报告生成<br/>
+                        ✅ 仪表板前端<br/>
+                        ✅ 失败案例分析 UI<br/>
+                    </td>
+                    <td>
+                        • 美观的 HTML 报告<br/>
+                        • 交互式仪表板<br/>
+                        • 数据导出（CSV）
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 4<br/>CI/CD 集成</strong></td>
+                    <td>1-2 周</td>
+                    <td>
+                        ✅ GitHub Actions 工作流<br/>
+                        ✅ 评估检查点<br/>
+                        ✅ 回归检测规则<br/>
+                    </td>
+                    <td>
+                        • PR 自动评估<br/>
+                        • 通过/失败判定<br/>
+                        • 评估报告评论
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 5<br/>优化与文档</strong></td>
+                    <td>1 周</td>
+                    <td>
+                        ✅ 性能优化<br/>
+                        ✅ 完整文档<br/>
+                        ✅ 用户指南<br/>
+                    </td>
+                    <td>
+                        • 文档齐全<br/>
+                        • 示例代码<br/>
+                        • 故障排除指南
+                    </td>
+                </tr>
+            </table>
+
+            <h3>5.2 Phase 1 详细设计：快速启动</h3>
+            
+            <div class="recommendation">
+                <h4>🚀 目标：2 周内实现 HF 数据集导入 + 基础评估</h4>
+                
+                <p><strong>Step 1. 添加接口 (Veda.Core/Interfaces)</strong></p>
+                <div class="code-block">
+// IEvalDatasetProvider.cs
+public interface IEvalDatasetProvider
+{
+    Task&lt;IReadOnlyList&lt;EvalQuestion&gt;&gt; LoadAsync(
+        EvalDatasetSource source,
+        EvalDatasetConfig config,
+        CancellationToken ct = default);
+}
+
+public enum EvalDatasetSource
+{
+    Database,           // 从 DB
+    HuggingFace,       // 从 HF Hub
+    LocalFile,         // 从本地 JSON/CSV
+}
+
+public record EvalDatasetConfig
+{
+    public string? RepoId { get; init; }            // e.g., "ragas-v1/code-generated"
+    public string? LocalPath { get; init; }         // e.g., "./data/eval.json"
+    public string? Split { get; init; }             // "train", "test", "validation"
+    public int? MaxRecords { get; init; }           // 采样限制
+    public bool PreferCache { get; init; } = true;  // 使用缓存
+}
+                </div>
+                
+                <p><strong>Step 2. 实现提供器 (Veda.Services)</strong></p>
+                <div class="code-block">
+// HuggingFaceEvalDatasetProvider.cs
+public sealed class HuggingFaceEvalDatasetProvider : IEvalDatasetProvider
+{
+    public async Task&lt;IReadOnlyList&lt;EvalQuestion&gt;&gt; LoadAsync(
+        EvalDatasetConfig config,
+        CancellationToken ct)
+    {
+        // 使用 huggingface-hub SDK
+        var dataset = await HfHub.LoadDatasetAsync(config.RepoId, config.Split);
+        
+        var questions = new List&lt;EvalQuestion&gt;();
+        int count = 0;
+        
+        foreach (var item in dataset)
+        {
+            if (config.MaxRecords.HasValue &amp;&amp; count &gt;= config.MaxRecords)
+                break;
+                
+            var q = ConvertToEvalQuestion(item);
+            questions.Add(q);
+            count++;
+        }
+        
+        return questions;
+    }
+    
+    private EvalQuestion ConvertToEvalQuestion(dynamic item)
+    {
+        // 数据集格式变换逻辑
+        // 处理不同的字段名（question/query, answer/response 等）
+        ...
+    }
+}
+                </div>
+                
+                <p><strong>Step 3. 修改 EvaluationRunner</strong></p>
+                <div class="code-block">
+public sealed class EvaluationRunner
+{
+    private readonly IEvalDatasetProvider _datasetProvider;
+    // ... 其他依赖
+    
+    public async Task&lt;EvaluationReport&gt; RunAsync(
+        EvalRunOptions options,
+        CancellationToken ct = default)
+    {
+        // 支持 options 中指定数据源
+        var datasetSource = options.DatasetSource ?? EvalDatasetSource.Database;
+        var datasetConfig = options.DatasetConfig ?? new();
+        
+        var questions = await _datasetProvider.LoadAsync(
+            datasetSource,
+            datasetConfig,
+            ct);
+        
+        // 继续原有逻辑...
+        var results = new List&lt;EvalResult&gt;(questions.Count);
+        foreach (var question in questions)
+        {
+            // ... 评估逻辑不变
+        }
+        
+        return new EvaluationReport { Results = results };
+    }
+}
+                </div>
+                
+                <p><strong>Step 4. Python 预处理脚本</strong></p>
+                <div class="code-block">
+#!/usr/bin/env python3
+# scripts/eval-dataset-import.py
+
+import argparse
+import json
+from datasets import load_dataset
+from pathlib import Path
+
+def import_ragas(output_dir: str):
+    dataset = load_dataset("ragas-v1/code-generated", split="test")
+    questions = []
+    for i, item in enumerate(dataset):
+        q = {
+            "id": f"ragas-{i:05d}",
+            "question": item["question"],
+            "expected_answer": item["answer"],
+            "context": item.get("contexts", []),
+            "source_dataset": "ragas"
+        }
+        questions.append(q)
+    
+    output_path = Path(output_dir) / "ragas-test.json"
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(questions, f, ensure_ascii=False, indent=2)
+    
+    print(f"✅ Imported {len(questions)} questions to {output_path}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", choices=["ragas", "nq", "squad"], default="ragas")
+    parser.add_argument("--output-dir", default="data/eval-datasets")
+    args = parser.parse_args()
+    
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    
+    if args.dataset == "ragas":
+        import_ragas(args.output_dir)
+                </div>
+                
+                <p><strong>Step 5. 集成测试</strong></p>
+                <div class="code-block">
+[Test]
+public async Task LoadFromHuggingFace_RAGAS_ShouldReturnValidQuestions()
+{
+    var provider = new HuggingFaceEvalDatasetProvider(...);
+    
+    var questions = await provider.LoadAsync(
+        new EvalDatasetConfig 
+        { 
+            RepoId = "ragas-v1/code-generated",
+            Split = "test",
+            MaxRecords = 10
+        },
+        CancellationToken.None);
+    
+    questions.Should().HaveCount(10);
+    questions.Should().AllSatisfy(q =&gt;
+    {
+        q.Question.Should().NotBeNullOrEmpty();
+        q.ExpectedAnswer.Should().NotBeNullOrEmpty();
+    });
+}
+                </div>
+            </div>
+
+            <h3>5.3 技术栈选择</h3>
+            
+            <table>
+                <tr>
+                    <th>组件</th>
+                    <th>推荐技术</th>
+                    <th>原因</th>
+                </tr>
+                <tr>
+                    <td><strong>数据集加载</strong></td>
+                    <td><code>huggingface-hub</code> (Python SDK)<br/>or<br/><code>Hugging.NET</code> (C#)</td>
+                    <td>HF 官方支持；轻量级；缓存友好</td>
+                </tr>
+                <tr>
+                    <td><strong>文本相似度</strong></td>
+                    <td><code>SentenceTransformers</code> (Python)<br/>via<br/><code>EmbeddingService</code> (已有)</td>
+                    <td>复用现有 Embedding 服务；高效</td>
+                </tr>
+                <tr>
+                    <td><strong>ROUGE/BLEU</strong></td>
+                    <td><code>rouge-score</code> (Python)<br/>or<br><code>ROUGE-dotnet</code> (C#)</code></td>
+                    <td>标准实现；可信度高</td>
+                </tr>
+                <tr>
+                    <td><strong>HTML 报告</strong></td>
+                    <td><code>Scriban</code> (C# 模板)<br/>or<br/><code>Razor</code></td>
+                    <td>集成到 ASP.NET 生态；动态生成</td>
+                </tr>
+                <tr>
+                    <td><strong>可视化</strong></td>
+                    <td><code>Chart.js</code> (前端)<br/>生成 HTML 图表</td>
+                    <td>轻量级；无依赖；美观</td>
+                </tr>
+            </table>
+
+        </section>
+
+        <!-- Section 6: Conclusion -->
+        <section id="conclusion">
+            <h2>总结与建议</h2>
+
+            <h3>6.1 核心结论</h3>
+            
+            <div class="success-box">
+                <strong>✅ 好消息：VedaAide 已具备评估系统基础</strong>
+                <ul>
+                    <li>评估框架已实现（<code>Veda.Evaluation</code>）</li>
+                    <li>三维评分体系已就位</li>
+                    <li>分层架构支持扩展</li>
+                    <li>DIP 原则严格遵循，易于新增功能</li>
+                </ul>
+            </div>
+
+            <div class="highlight">
+                <strong>🎯 改进方向：重点落在集成与自动化</strong>
+                <ul>
+                    <li>✅ <strong>无需大规模重构</strong>：现有代码结构已足够优秀</li>
+                    <li>⚡ <strong>轻量级改动</strong>：仅需添加 <code>IEvalDatasetProvider</code> 抽象</li>
+                    <li>🚀 <strong>快速获益</strong>：Phase 1（2 周）即可支持 HF 数据集 + 基础评估</li>
+                    <li>📊 <strong>逐步增强</strong>：可分阶段补充指标和可视化</li>
+                </ul>
+            </div>
+
+            <h3>6.2 立即可行的行动项</h3>
+            
+            <div class="recommendation">
+                <h4>🚦 优先级 P0（下周执行）</h4>
+                <ol>
+                    <li>
+                        <strong>设计 <code>IEvalDatasetProvider</code> 接口</strong>
+                        <ul>
+                            <li>定义数据源枚举和配置类</li>
+                            <li>在 <code>Veda.Core</code> 中声明</li>
+                            <li>评审接口设计</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>实现 <code>HuggingFaceEvalDatasetProvider</code></strong>
+                        <ul>
+                            <li>添加 <code>huggingface-hub</code> NuGet 包</li>
+                            <li>实现 RAGAS 数据集适配</li>
+                            <li>编写单元测试（Mock）</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>创建 Python 预处理脚本</strong>
+                        <ul>
+                            <li><code>scripts/eval-dataset-import.py</code></li>
+                            <li>支持 --dataset 和 --output-dir 参数</li>
+                            <li>生成标准 JSON 格式</li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+
+            <div class="recommendation">
+                <h4>📈 优先级 P1（第 2-3 周）</h4>
+                <ol>
+                    <li>实现 6+ 个新评分器（Precision@K、NDCG、ROUGE 等）</li>
+                    <li>版本对比逻辑与数据存储</li>
+                    <li>综合评分计算</li>
+                </ol>
+            </div>
+
+            <div class="recommendation">
+                <h4>🎨 优先级 P2（第 4-5 周）</h4>
+                <ol>
+                    <li>HTML 报告生成与可视化</li>
+                    <li>CI/CD 集成与 PR 评估</li>
+                    <li>完整文档与用户指南</li>
+                </ol>
+            </div>
+
+            <h3>6.3 数据集使用建议</h3>
+            
+            <table>
+                <tr>
+                    <th>用途</th>
+                    <th>推荐数据集</th>
+                    <th>样本量</th>
+                    <th>使用方式</th>
+                </tr>
+                <tr>
+                    <td><strong>快速验证<br/>（开发阶段）</strong></td>
+                    <td>RAGAS 子集</td>
+                    <td>100-200</td>
+                    <td>本地缓存；快速迭代</td>
+                </tr>
+                <tr>
+                    <td><strong>持续评估<br/>（每次 commit）</strong></td>
+                    <td>RAGAS 完整集 + 自建 Golden</td>
+                    <td>500-1000</td>
+                    <td>CI/CD 检查点；自动运行</td>
+                </tr>
+                <tr>
+                    <td><strong>压力测试<br/>（版本发布）</strong></td>
+                    <td>Natural Questions / MS MARCO</td>
+                    <td>5000+</td>
+                    <td>完整评估；生成完整报告</td>
+                </tr>
+                <tr>
+                    <td><strong>中文场景</strong></td>
+                    <td>CMMLU / ZhQuAD / 自建</td>
+                    <td>500+</td>
+                    <td>定期更新；领域特定</td>
+                </tr>
+            </table>
+
+            <h3>6.4 指标体系建议</h3>
+            
+            <div class="info-box">
+                <strong>推荐的指标优先级：</strong>
+                <ol>
+                    <li>
+                        <strong>Phase 1（必须）</strong>
+                        <ul>
+                            <li>Faithfulness（已有）</li>
+                            <li>Answer Relevancy（已有）</li>
+                            <li>Context Recall（已有）</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Phase 2（重要）</strong>
+                        <ul>
+                            <li>Precision@5 / Recall@5</li>
+                            <li>Semantic F1</li>
+                            <li>ROUGE-L</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Phase 3（可选但有用）</strong>
+                        <ul>
+                            <li>NDCG@10</li>
+                            <li>成本/延迟追踪</li>
+                            <li>多跳推理检测</li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+
+            <h3>6.5 成功指标</h3>
+            
+            <div class="metric-card">
+                <h4>🎯 6 周后的目标状态</h4>
+                <p>✅ 支持从 HuggingFace 自动导入 3+ 种数据集<br/>
+                   ✅ 提供 9+ 维度的量化评分<br/>
+                   ✅ 生成美观的 HTML 报告与版本对比<br/>
+                   ✅ 集成 CI/CD（每个 PR 自动评估）<br/>
+                   ✅ 文档完整、示例可运行<br/>
+                   ✅ 团队能在 1 次迭代内清晰看到改动效果</p>
+            </div>
+
+            <h3>6.6 风险与缓解</h3>
+            
+            <table>
+                <tr>
+                    <th>风险</th>
+                    <th>缓解方案</th>
+                </tr>
+                <tr>
+                    <td><strong>HF 数据下载缓慢</strong></td>
+                    <td>• 使用部分缓存方案<br/>• 支持 --no-cache 离线模式<br/>• 提供镜像源配置</td>
+                </tr>
+                <tr>
+                    <td><strong>指标计算成本高</strong></td>
+                    <td>• 采用并行评估<br/>• LLM 调用缓存<br/>• 支持子集快速验证</td>
+                </tr>
+                <tr>
+                    <td><strong>报告生成耗时长</strong></td>
+                    <td>• 异步后台任务<br/>• 增量报告更新<br/>• 报告模板优化</td>
+                </tr>
+                <tr>
+                    <td><strong>数据质量问题</strong></td>
+                    <td>• 数据验证 pass<br/>• 支持手动审核和标注<br/>• 记录数据源版本</td>
+                </tr>
+            </table>
+
+            <h3>6.7 最终建议</h3>
+            
+            <div class="recommendation">
+                <h4>💡 综合建议</h4>
+                <p><strong>代码结构：</strong> 无需大改，仅添加 <code>IEvalDatasetProvider</code> 抽象，保持现有的优秀分层架构。</p>
+                
+                <p><strong>数据集选择：</strong> 采用分层方案，从 RAGAS 100 样本开始（2-3 天获得反馈），逐步扩展到 1000+ 样本的混合数据集。中文场景补充 ZhQuAD。</p>
+                
+                <p><strong>评估系统：</strong> 保留现有三维评分，补充检索层级指标（Precision@K、NDCG）和文本相似度指标（ROUGE、Semantic F1），最终形成 9 维的综合评分体系。</p>
+                
+                <p><strong>实现节奏：</strong> Phase 1（2 周）实现 HF 导入 → Phase 2（3 周）指标扩展 → Phase 3（2 周）可视化与 CI/CD。</p>
+                
+                <p><strong>预期收益：</strong> 每次改动后能在 5-10 分钟内看到量化效果变化，建立"测试驱动的 RAG 优化"工作流。</p>
+            </div>
+
+        </section>
+
+    </div>
+
+    <footer>
+        <p>📄 VedaAide RAG 评估系统调研报告 v1.0</p>
+        <p>生成时间：2026-08-12 | 文档格式：HTML</p>
+        <p><a href="#" style="color: #fff;">返回顶部</a></p>
+    </footer>
+</body>
+</html>
