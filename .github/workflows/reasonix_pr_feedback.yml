@@ -50,7 +50,15 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.x'
-          cache: true
+
+      # Cache NuGet packages (setup-dotnet's built-in cache requires packages.lock.json)
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', '**/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
