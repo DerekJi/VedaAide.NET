@@ -1,0 +1,221 @@
+name: Reasonix AI Developer
+
+# Trigger: auto-develop when an Issue gets the "ai-dev" label
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  ai_development:
+    if: github.event.label.name == 'ai-dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout code ──────────────────────────────────────
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      # ── 2. Set up .NET 10 + Node ──────────────────────────
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── 3. Extract model + level + type from the Issue ────────
+      # Two independent dimensions, both specified as yaml-style fields
+      # in the Issue body:
+      #   model: deepseek-flash  (default) | deepseek-pro
+      #   level: low / medium (default) / high
+      #   type:  code (default) | docs
+      - name: Extract Config
+        id: config
+        shell: bash
+        run: |
+          BODY='${{ github.event.issue.body }}'
+
+          # Extract the model: field
+          MODEL=$(echo "$BODY" | grep -im1 '^model:' | sed 's/.*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | xargs || echo "")
+          if [ -z "$MODEL" ]; then MODEL="deepseek-flash"; fi
+          case "$MODEL" in
+            pro|deepseek-pro)
+              MODEL="deepseek-pro";;
+            flash|deepseek-flash|*)
+              MODEL="deepseek-flash";;
+          esac
+          echo "model=$MODEL" >> $GITHUB_OUTPUT
+
+          # Extract the level: field
+          RAW_LVL=$(echo "$BODY" | grep -im1 '^level:' | sed 's/.*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | xargs || echo "")
+          if [ -z "$RAW_LVL" ]; then RAW_LVL="medium"; fi
+          case "$RAW_LVL" in
+            low|medium|high) echo "level=$RAW_LVL" >> $GITHUB_OUTPUT;;
+            *) echo "level=medium" >> $GITHUB_OUTPUT;;
+          esac
+
+          # Extract the type: field (code / docs, default code)
+          RAW_TYPE=$(echo "$BODY" | grep -im1 '^type:' | sed 's/.*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | xargs || echo "")
+          if [ -z "$RAW_TYPE" ]; then RAW_TYPE="code"; fi
+          case "$RAW_TYPE" in
+            code|docs) echo "type=$RAW_TYPE" >> $GITHUB_OUTPUT;;
+            *) echo "type=code" >> $GITHUB_OUTPUT;;
+          esac
+
+      # ── 4. Assemble the task prompt ───────────────────────────────
+      #    Choose a different instruction set based on type: code / docs.
+      #    Prompts live under $RUNNER_TEMP so they never pollute the diff.
+      - name: Formulate Task Prompt
+        id: prompt
+        shell: bash
+        run: |
+          TASK_TYPE=${{ steps.config.outputs.type }}
+          PROMPT_FILE="$RUNNER_TEMP/task_prompt.txt"
+
+          cat > "$PROMPT_FILE" << PROMPT_EOF
+          # $([ "$TASK_TYPE" = "docs" ] && echo "Documentation task" || echo "Development task")
+
+          ## Issue Description
+          Title: ${{ github.event.issue.title }}
+          Requirements:
+          ${{ github.event.issue.body }}
+          PROMPT_EOF
+
+          if [ "$TASK_TYPE" = "docs" ]; then
+            # ── Documentation-specific instructions ──
+            cat >> "$PROMPT_FILE" << 'DOCS_EOF'
+
+          ## Documentation Writing Standards
+          - Use Markdown with line length ≤ 100 characters
+          - Annotate code blocks with a language (```csharp / ```bash / ```json etc.)
+          - Use GFM tables (| col | col |)
+          - Wrap file paths and commands in backticks
+          - This repo keeps bilingual docs: English as primary, Chinese mirrors under *.cn.md
+
+          ## Execution Requirements
+          1. Read the Issue requirements and structure the document
+          2. Create or update the corresponding file(s) under docs/
+          3. If example code is involved, make sure the syntax is correct
+          4. Review readability when finished
+          DOCS_EOF
+          else
+            # ── Code-specific instructions ──
+            cat >> "$PROMPT_FILE" << 'CODE_EOF'
+
+          ## Project Development Standards
+          Strictly follow the standards defined by this repository when completing the task.
+
+          ### develop.md — Development flow
+          CODE_EOF
+            cat .reasonix/commands/develop.md >> "$PROMPT_FILE"
+            printf '\n\n### code-review.md — Code review standards\n' >> "$PROMPT_FILE"
+            cat .reasonix/commands/code-review.md >> "$PROMPT_FILE"
+            printf '\n\n### fix-bug.md — Bug fix flow\n' >> "$PROMPT_FILE"
+            cat .reasonix/commands/fix-bug.md >> "$PROMPT_FILE"
+            printf '\n\n### feature.md — Feature implementation flow\n' >> "$PROMPT_FILE"
+            cat .reasonix/commands/feature.md >> "$PROMPT_FILE"
+            cat >> "$PROMPT_FILE" << 'CODE_EOF'
+
+          ## Project Background
+          This repository is VedaAide.NET — a production-grade RAG (Retrieval-Augmented Generation)
+          platform built in C# / .NET 10.
+          - Language: C# / .NET 10, ASP.NET Core
+          - Solution: VedaAide.slnx (build & test via dotnet CLI)
+          - Testing: NUnit + FluentAssertions + Moq (tests/ per project)
+          - Projects: src/Veda.Core, src/Veda.Services, src/Veda.Storage, src/Veda.Agents,
+            src/Veda.Evaluation, src/Veda.MCP, src/Veda.Api, src/Veda.Web, src/Veda.Prompts
+          - Storage: CosmosDB (DiskANN) + SQLite-VSS (EF Core)
+          - AI: Microsoft.Extensions.AI (IChatClient / IEmbeddingGenerator), Ollama + Azure OpenAI
+          - Plan docs: docs/designs/, docs/rag-internals/
+
+          ## Execution Requirements
+          1. Follow the feature.md flow: launch an independent subagent for each subtask
+          2. After each piece of code, run `dotnet build VedaAide.slnx` then
+             `dotnet test VedaAide.slnx -q` to verify
+          3. Continue to the next subtask only after code review passes
+          4. When everything is done, run `dotnet build VedaAide.slnx`
+             and `dotnet test VedaAide.slnx -q` once more to ensure all pass
+          5. Fix any issues you find yourself until everything is green
+          CODE_EOF
+          fi
+
+          printf '\n### effort level: ${{ steps.config.outputs.level }}\n' >> "$PROMPT_FILE"
+
+          echo "Task prompt assembled ($(wc -l < "$PROMPT_FILE") lines, type=$TASK_TYPE)"
+
+      # ── 5. Run Reasonix autonomous development ─────────────────────────
+      - name: Run Reasonix Developer Agent
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          MODEL="${{ steps.config.outputs.model }}"
+          npx reasonix@1.2.0 run --model "$MODEL" "$(cat "$RUNNER_TEMP/task_prompt.txt")"
+        shell: bash
+
+      # ── 6. Verify the build and tests ───────────────────────────
+      - name: Verify Build & Tests
+        continue-on-error: false
+        run: |
+          echo "### dotnet build + test" >> $GITHUB_STEP_SUMMARY
+          dotnet build VedaAide.slnx --no-restore 2>&1 | tail -5
+          dotnet test VedaAide.slnx --no-build --no-restore --logger "console;verbosity=minimal" 2>&1 | tail -5
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build & tests verified (any changes will be committed in the next step)." >> $GITHUB_STEP_SUMMARY
+
+      # ── 7. Configure Git identity ─────────────────────────────────
+      - name: Configure Git
+        run: |
+          git config --global user.name "Reasonix-AI-Developer"
+          git config --global user.email "ai-developer@github.com"
+
+      # ── 8. Create Pull Request ───────────────────────────
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GH_PAT }}
+          commit-message: |
+            feat: ${{ github.event.issue.title }}
+
+            🤖 Auto-generated by Reasonix + DeepSeek
+            Closes #${{ github.event.issue.number }}
+          branch: "reasonix-dev/issue-${{ github.event.issue.number }}"
+          title: "🤖 ${{ github.event.issue.title }}"
+          body: |
+            ## 🤖 Auto-generated by AI
+
+            Developed automatically from Issue #${{ github.event.issue.number }}.
+
+            ### Verification status
+            - [ ] Code generated by Reasonix, pending verification by an independent workflow
+            - [ ] Final static checks run automatically by the independent workflow (`reasonix_pr_pipeline.yml`)
+            - [ ] Final test coverage reported automatically by CI
+
+            Please review the code and merge.
+          labels: |
+            ai-generated
+            ready-for-review
+
+      # ── 9. Reply to Issue ──────────────────────────────────
+      - name: Reply to Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNum = context.payload.issue.number;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🤖 **Reasonix** has completed the development task!\n\nPlease review the code in the Pull Request:\n#${prNum}`
+            });

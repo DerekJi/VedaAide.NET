@@ -1,0 +1,333 @@
+name: Reasonix PR Pipeline
+
+# Trigger: run the full pipeline on PR create/update/re-review
+on:
+  pull_request:
+    types: [opened, synchronize]
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: pr-pipeline-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  pipeline:
+    # Avoid bot self-loop: skip if the PR creator is a bot
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 0. Check latest commit author (prevent self-loop) ────
+      - name: Check Latest Commit Author
+        id: check_author
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 1
+            });
+            const author = commits[0]?.author?.login || '';
+            const isBot = author === 'github-actions[bot]';
+            core.setOutput('skip', isBot ? 'true' : 'false');
+            core.setOutput('author', author);
+
+      # ── 0b. Skip if the latest commit is from the bot ──────────
+      - name: Skip if Bot Commit
+        if: steps.check_author.outputs.skip == 'true'
+        run: |
+          echo "Latest commit is from bot (${{ steps.check_author.outputs.author }}), skipping." >> $GITHUB_STEP_SUMMARY
+          exit 0
+
+      # ── 1. Checkout code + full git history ──────────────────
+      - name: Checkout Code
+        if: steps.check_author.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Set up .NET 10 + Node ────────────────────────────
+      - name: Setup .NET 10
+        if: steps.check_author.outputs.skip != 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+          cache: true
+
+      - name: Setup Node.js
+        if: steps.check_author.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── 3. Restore dependencies ──────────────────────────────
+      - name: Restore Dependencies
+        if: steps.check_author.outputs.skip != 'true'
+        run: dotnet restore VedaAide.slnx
+
+      # ── 4. Extract model config from the PR body ─────────────
+      - name: Extract Model Config
+        id: model_cfg
+        if: steps.check_author.outputs.skip != 'true'
+        shell: bash
+        run: |
+          BODY='${{ github.event.pull_request.body }}'
+          MODEL=$(echo "$BODY" | grep -im1 '^model:' | sed 's/.*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | xargs || echo "")
+          if [ -z "$MODEL" ]; then
+            MODEL="deepseek-flash"
+            echo "⚠️ No model specified, using default deepseek-flash" >> $GITHUB_STEP_SUMMARY
+          fi
+          case "$MODEL" in
+            pro|deepseek-pro)
+              MODEL="deepseek-pro";;
+            flash|deepseek-flash|*)
+              MODEL="deepseek-flash";;
+          esac
+          echo "model=$MODEL" >> $GITHUB_OUTPUT
+          echo "Using model: $MODEL"
+
+      # ══════════════════════════════════════════════════════
+      # Phase 1: Static checks (build / test)
+      # ══════════════════════════════════════════════════════
+
+      # ── 5. Run build check ────────────────────────────────
+      - name: Build Check
+        id: build
+        if: steps.check_author.outputs.skip != 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "### dotnet build" >> $GITHUB_STEP_SUMMARY
+          dotnet build VedaAide.slnx --no-restore -c Release 2>&1 | tail -10
+
+      # ── 6. Run tests ────────────────────────────────────
+      - name: Run Tests
+        id: test
+        if: steps.check_author.outputs.skip != 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "### dotnet test" >> $GITHUB_STEP_SUMMARY
+          dotnet test VedaAide.slnx --no-build --no-restore -c Release --logger "console;verbosity=minimal" 2>&1 | tail -20
+
+      # ── 7. Comment static check results on the PR ─────────
+      - name: Post Check Results
+        if: steps.check_author.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const bld = '${{ steps.build.outcome }}';
+            const tst = '${{ steps.test.outcome }}';
+            const emoji = (s) => s === 'success' ? '✅' : '❌';
+            const label = (s) => s === 'success' ? 'Pass' : 'Fail';
+            const passCount = (bld === 'success' ? 1 : 0) + (tst === 'success' ? 1 : 0);
+
+            const body = `## 🔍 Static Check Results\n\n| Check | Status |\n|-------|--------|\n| ${emoji(bld)} dotnet build | ${label(bld)} |\n| ${emoji(tst)} dotnet test | ${label(tst)} |\n\n**${passCount}/2 checks passed**\n`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+      # ── 8. Auto-fix static check failures (if needed) ──────
+      - name: Auto-fix Static Issues
+        if: |
+          steps.check_author.outputs.skip != 'true' &&
+          (steps.build.outcome == 'failure' || steps.test.outcome == 'failure')
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        shell: bash
+        run: |
+          echo "Checks failed, running AI auto-fix..." >> $GITHUB_STEP_SUMMARY
+
+          cat > "$RUNNER_TEMP/fix_static.txt" << 'FIX_EOF'
+          Static checks or tests failed. Read the errors above and fix them item by item:
+
+          1. Fix build errors / test failures
+          2. Run dotnet build VedaAide.slnx --no-restore && dotnet test VedaAide.slnx -q to confirm passing
+          3. Repeat until everything is green
+
+          Follow the fix workflow in .reasonix/commands/fix-bug.md.
+          FIX_EOF
+
+          npx reasonix@1.2.0 run --model "${{ steps.model_cfg.outputs.model }}" "$(cat "$RUNNER_TEMP/fix_static.txt")"
+
+      # ══════════════════════════════════════════════════════
+      # Phase 2: Code Review (based on code after static fixes)
+      # ══════════════════════════════════════════════════════
+
+      # ── 10. Generate the final PR diff (incl. Phase 1 changes) ─
+      - name: Generate PR Diff for Review
+        if: steps.check_author.outputs.skip != 'true'
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > "$RUNNER_TEMP/pr_changes.diff"
+          echo "Diff size: $(wc -l < "$RUNNER_TEMP/pr_changes.diff") lines"
+
+      # ── 11. Run code review ───────────────────────────────
+      - name: Run Code Review
+        id: review
+        if: steps.check_author.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/review"
+          cat > "$RUNNER_TEMP/review_prompt.txt" << 'PROMPT_END'
+          # PR code review
+
+          Review the diff below strictly against the project-level review standards.
+
+          ## Review Standards
+          PROMPT_END
+          cat .reasonix/commands/code-review.md >> "$RUNNER_TEMP/review_prompt.txt"
+          printf '\n\n## Code Change Diff\n\n' >> "$RUNNER_TEMP/review_prompt.txt"
+          cat "$RUNNER_TEMP/pr_changes.diff" >> "$RUNNER_TEMP/review_prompt.txt"
+
+          npx reasonix@1.2.0 run \
+            --model deepseek-pro \
+            "$(cat "$RUNNER_TEMP/review_prompt.txt")" > "$RUNNER_TEMP/review/review-report.md"
+
+      # ── 12. Post the review report to the PR ──────────────────
+      - name: Post Review Comment
+        if: steps.check_author.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '';
+            try {
+              report = fs.readFileSync(process.env.RUNNER_TEMP + '/review/review-report.md', 'utf8');
+            } catch (e) {
+              report = '';
+            }
+            const body = report.length > 0
+              ? report
+              : "🤖 **Reasonix** review complete, no issues to report.";
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+      # ── 13. Auto-fix based on review results (if needed) ────
+      - name: Auto-fix Review Issues
+        if: steps.check_author.outputs.skip != 'true'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          if [ ! -f "$RUNNER_TEMP/review/review-report.md" ] || [ ! -s "$RUNNER_TEMP/review/review-report.md" ]; then
+            echo "No review report, skipping fix." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "Review found issues, running AI fix..." >> $GITHUB_STEP_SUMMARY
+
+          cat > "$RUNNER_TEMP/fix_review.txt" << 'PROMPT_END'
+          # Auto-fix based on review results
+
+          Below are the code review report and the PR code changes. Please:
+          1. Read every issue in the review report
+          2. Fix the code following the fix-bug.md workflow
+          3. After fixing, run dotnet build VedaAide.slnx && dotnet test VedaAide.slnx -q
+          4. If tests fail, read the errors and continue fixing
+          5. Repeat until everything is green
+          6. Finally, report which files were changed
+
+          ## Fix Standards
+          PROMPT_END
+          cat .reasonix/commands/fix-bug.md >> "$RUNNER_TEMP/fix_review.txt"
+          printf '\n\n## Review Report\n\n' >> "$RUNNER_TEMP/fix_review.txt"
+          cat "$RUNNER_TEMP/review/review-report.md" >> "$RUNNER_TEMP/fix_review.txt"
+          printf '\n\n## Code Change Diff\n\n' >> "$RUNNER_TEMP/fix_review.txt"
+          cat "$RUNNER_TEMP/pr_changes.diff" >> "$RUNNER_TEMP/fix_review.txt"
+
+          npx reasonix@1.2.0 run \
+            --model deepseek-pro \
+            "$(cat "$RUNNER_TEMP/fix_review.txt")"
+
+      # ══════════════════════════════════════════════════════
+      # Phase 3: Final verification + push
+      # ══════════════════════════════════════════════════════
+
+      # ── 14. Final verification ───────────────────────────────────
+      - name: Final Verification
+        id: verify
+        if: steps.check_author.outputs.skip != 'true'
+        continue-on-error: true
+        run: |
+          dotnet build VedaAide.slnx --no-restore -c Release
+          dotnet test VedaAide.slnx --no-build --no-restore -c Release --logger "console;verbosity=minimal" | tail -15
+
+      # ── 15. Round 2 fix (if verification fails) ────────────────────
+      - name: Round 2 Fix if Needed
+        if: steps.check_author.outputs.skip != 'true' && steps.verify.outcome == 'failure'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          echo "Verification failed, running round-2 fix..." >> $GITHUB_STEP_SUMMARY
+          cat > "$RUNNER_TEMP/repair2.txt" << 'PROMPT_END'
+          The fixes still do not pass all checks. Please:
+          1. Run dotnet build VedaAide.slnx && dotnet test VedaAide.slnx -q
+          2. Fix all failing items
+          3. Repeat until everything is green
+          PROMPT_END
+          npx reasonix@1.2.0 run \
+            --model deepseek-pro \
+            "$(cat "$RUNNER_TEMP/repair2.txt")"
+
+          # Verify once more
+          dotnet build VedaAide.slnx --no-restore -c Release
+          dotnet test VedaAide.slnx --no-build --no-restore -c Release
+
+      # ── 16. Commit and push all fixes in one shot ──────────
+      - name: Commit and Push All Fixes
+        if: steps.check_author.outputs.skip != 'true'
+        run: |
+          git config --global user.name "Reasonix-AI-Developer"
+          git config --global user.email "ai-developer@github.com"
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "fix: auto-fix pipeline
+
+            🤖 Auto-fix by Reasonix"
+            git push origin ${{ github.head_ref }}
+            echo "FIXES_PUSHED=true" >> $GITHUB_ENV
+            echo "Fixes pushed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "FIXES_PUSHED=false" >> $GITHUB_ENV
+            echo "No code changes produced." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # ── 17. Post the fix summary to the PR ──────────────────
+      - name: Post Pipeline Summary
+        if: steps.check_author.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pushed = process.env.FIXES_PUSHED === 'true';
+            const body = pushed
+              ? "🔧 **Pipeline**: issues auto-fixed and pushed; refresh to see the latest Diff."
+              : "✅ **Pipeline**: all checks passed, no fixes needed.";
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });

@@ -1,0 +1,200 @@
+name: Reasonix PR Follow-up Developer
+
+# Trigger: when someone comments on a PR
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  ai_followup:
+    # Filter conditions:
+    # 1. Must be a comment on a Pull Request (not a regular Issue)
+    # 2. The comment contains the /fix command
+    # 3. The author is not the bot itself (prevent infinite loops)
+    if: |
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '/fix') &&
+      github.event.comment.user.type != 'Bot'
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Get PR branch info ──────────────────────────────
+      - name: Get PR Branch
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            core.setOutput('branch', pr.data.head.ref);
+            core.setOutput('title', pr.data.title);
+            core.setOutput('number', context.issue.number);
+
+      # ── 2. Checkout PR branch ──────────────────────────────────
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+
+      # ── 3. Set up .NET 10 + Node ──────────────────────────
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── 4. Extract model + level from the PR's parent Issue ─────
+      # The PR's issue body can set level: low / medium / high
+      # Default medium; model defaults to deepseek-flash
+      - name: Extract Config
+        id: config
+        shell: bash
+        run: |
+          BODY=$(gh issue view ${{ github.event.issue.number }} --json body --jq .body 2>/dev/null || echo "")
+
+          # model: field
+          MODEL=$(echo "$BODY" | grep -im1 '^model:' | sed 's/.*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | xargs || echo "")
+          if [ -z "$MODEL" ]; then MODEL="deepseek-flash"; fi
+          case "$MODEL" in pro|deepseek-pro) MODEL="deepseek-pro";; *) MODEL="deepseek-flash";; esac
+          echo "model=$MODEL" >> $GITHUB_OUTPUT
+
+          # level: field
+          RAW_LVL=$(echo "$BODY" | grep -im1 '^level:' | sed 's/.*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]' | xargs || echo "")
+          if [ -z "$RAW_LVL" ]; then RAW_LVL="medium"; fi
+          case "$RAW_LVL" in low|medium|high) echo "level=$RAW_LVL" >> $GITHUB_OUTPUT;; *) echo "level=medium" >> $GITHUB_OUTPUT;; esac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 5. Assemble the fix prompt ───────────────────────────────
+      #    Extract the feedback after /fix + inject engineering standards
+      - name: Formulate Fix Prompt
+        id: prompt
+        shell: bash
+        run: |
+          # Extract the content after /fix in the user comment
+          RAW_COMMENT='${{ github.event.comment.body }}'
+          FEEDBACK=$(echo "$RAW_COMMENT" | sed 's/\/fix//g' | xargs)
+
+          PROMPT_FILE="$RUNNER_TEMP/fix_prompt.txt"
+
+          cat > "$PROMPT_FILE" << 'PROMPT_END'
+          # AI online fix task
+
+          ## User Review Feedback
+          PROMPT_END
+          echo "$FEEDBACK" >> "$PROMPT_FILE"
+
+          # Inject project standards
+          printf '\n\n## Project Fix Standards (fix-bug.md)\n' >> "$PROMPT_FILE"
+          cat .reasonix/commands/fix-bug.md >> "$PROMPT_FILE"
+          printf '\n\n## Project Development Standards (develop.md)\n' >> "$PROMPT_FILE"
+          cat .reasonix/commands/develop.md >> "$PROMPT_FILE"
+
+          cat >> "$PROMPT_FILE" << 'PROMPT_END'
+
+          ## Project Background
+          - C# / .NET 10, ASP.NET Core; solution: VedaAide.slnx
+          - Testing: NUnit + FluentAssertions + Moq (tests/ per project)
+          - Projects: src/Veda.Core, src/Veda.Services, src/Veda.Storage, src/Veda.Agents,
+            src/Veda.Evaluation, src/Veda.MCP, src/Veda.Api, src/Veda.Web, src/Veda.Prompts
+          - Storage: CosmosDB (DiskANN) + SQLite-VSS (EF Core)
+
+          ## Execution Requirements
+          1. Read the user's review feedback and understand what needs to change
+          2. Modify the files directly in the current codebase
+          3. Run `dotnet build VedaAide.slnx` then `dotnet test VedaAide.slnx -q` to confirm tests pass
+          4. If tests fail, read the errors and fix them yourself until everything is green
+          5. Finally, report which files and what logic were changed
+          PROMPT_END
+
+          echo "Fix prompt assembled ($(wc -l < "$PROMPT_FILE") lines)"
+
+      # ── 6. Run Reasonix online fix ─────────────────────────
+      - name: Run Reasonix to Fix Code
+        id: fix
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          npx reasonix@1.2.0 run --model "${{ steps.config.outputs.model }}" "$(cat "$RUNNER_TEMP/fix_prompt.txt")"
+
+      # ── 7. Verify the fix result ──────────────────────────────────
+      - name: Run Checks After Fix
+        id: verify
+        continue-on-error: true
+        run: |
+          dotnet build VedaAide.slnx --no-restore
+          dotnet test VedaAide.slnx --no-build --no-restore --logger "console;verbosity=minimal" | tail -15
+
+      # ── 8. If verification fails, let the AI self-repair once ────
+      - name: Auto-fix Round 2
+        if: steps.verify.outcome == 'failure'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          echo "Tests still failing after fix, running auto-repair..." >> $GITHUB_STEP_SUMMARY
+          cat > "$RUNNER_TEMP/repair_prompt.txt" << 'PROMPT_END'
+          # Self-repair
+
+          Tests or format checks still fail. Please:
+          1. Read the error output from the previous step
+          2. Locate the failing tests or build errors
+          3. Fix the code
+          4. Run dotnet build VedaAide.slnx && dotnet test VedaAide.slnx -q
+          5. Repeat until everything is green
+          PROMPT_END
+          npx reasonix@1.2.0 run --model "${{ steps.config.outputs.model }}" "$(cat "$RUNNER_TEMP/repair_prompt.txt")"
+
+          # Run verification once more
+          dotnet build VedaAide.slnx --no-restore
+          dotnet test VedaAide.slnx --no-build --no-restore | tail -5
+
+      # ── 9. Commit and push ─────────────────────────────────
+      - name: Commit and Push Fixes
+        run: |
+          git config --global user.name "Reasonix-AI-Developer"
+          git config --global user.email "ai-developer@github.com"
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "fix: address review feedback
+
+            🤖 Auto-fix by Reasonix + DeepSeek
+            Responds to: #${{ steps.pr.outputs.number }}"
+
+            git push origin ${{ steps.pr.outputs.branch }}
+            echo "CHANGED=true" >> $GITHUB_ENV
+          else
+            echo "CHANGED=false" >> $GITHUB_ENV
+            echo "No code changes detected." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # ── 10. Reply to the user ────────────────────────────────────
+      - name: Reply to Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const changed = process.env.CHANGED === 'true';
+            const body = changed
+              ? "🤖 **Reasonix** has modified the code per your review feedback and it passes verification.\n\nRefresh the PR to see the latest Diff."
+              : "🤖 **Reasonix** evaluated your feedback but no code changes were produced. The current code may already meet the requirements, or check the description after the /fix command.";
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
