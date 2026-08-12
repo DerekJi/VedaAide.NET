@@ -3,7 +3,7 @@ using Veda.Core.Extensions;
 namespace Veda.Services;
 
 /// <summary>
-/// RAG 同步问答查询服务（SRP：只负责检索 + 生成完整答案）。
+/// RAG synchronous Q&A query service (SRP: only responsible for retrieval + generating the complete answer).
 /// </summary>
 public sealed class QueryService(
     IEmbeddingService embeddingService,
@@ -18,8 +18,9 @@ public sealed class QueryService(
 {
 
     /// <summary>
-    /// 动态生成 System Prompt：优先从数据库加载 "rag-system" 模板，fallback 到硬编码默认内容。
-    /// 模板内容支持 {today} 占位符。根据问题语言自动调整语言规则指令。
+    /// Dynamically builds the System Prompt: prefers loading the "rag-system" template from the database,
+    /// falling back to hard-coded default content. The template supports the {today} placeholder,
+    /// and the language-rule instruction is adjusted automatically based on the question language.
     /// </summary>
     internal async Task<string> BuildSystemPromptAsync(string question, CancellationToken ct)
     {
@@ -50,12 +51,12 @@ public sealed class QueryService(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Question);
         logger.LogInformation("RAG query: {Question}", request.Question);
 
-        // 语义增强：查询扩展
+        // Semantic enhancement: query expansion
         var expandedQuestion = await semanticEnhancer.ExpandQueryAsync(request.Question, ct);
         var embeddingVector = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
         logger.LogInformation("Generated embeddingVector with length: {Length}", embeddingVector.Length);
 
-        // 检查语义缓存
+        // Check the semantic cache
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
         var cachedAnswer = string.IsNullOrWhiteSpace(request.EphemeralContext)
             ? await semanticCache.GetAsync(queryEmbedding, ct)
@@ -66,7 +67,7 @@ public sealed class QueryService(
             return new RagQueryResponse { Answer = cachedAnswer, AnswerConfidence = 1f, IsHallucination = false };
         }
 
-        // 检索并排名
+        // Retrieve and rerank
         var candidates = await helper.RetrieveCandidatesAsync(expandedQuestion, embeddingVector, request, ct);
         var rerankedResults = await helper.RerankAndBoostAsync(candidates, request.Question, request.TopK, request.UserId, ct);
 
@@ -82,7 +83,7 @@ public sealed class QueryService(
             };
         }
 
-        // 构建上下文并生成答案
+        // Build the context and generate the answer
         var contextChunks = contextWindowBuilder.Build(rerankedResults);
         var context = helper.BuildContext(contextChunks, request.EphemeralContext);
         var systemPrompt = await BuildSystemPromptAsync(request.Question, ct);
@@ -100,14 +101,14 @@ public sealed class QueryService(
         var chatService = llmRouter.Resolve(request.Mode);
         var answer = await chatService.CompleteAsync(systemPrompt, userMessage, ct);
 
-        // 检测幻觉
+        // Detect hallucinations
         var isHallucination = await helper.DetectHallucinationAsync(answer, context, request, rerankedResults, ct);
 
-        // 缓存非幻觉答案
+        // Cache the non-hallucinated answer
         if (!isHallucination && string.IsNullOrWhiteSpace(request.EphemeralContext))
             await semanticCache.SetAsync(queryEmbedding, answer, ct);
 
-        // 构建响应
+        // Build the response
         var confidence = rerankedResults.Count > 0 ? rerankedResults.Max(r => r.Similarity) : 0f;
         return new RagQueryResponse
         {
@@ -127,7 +128,7 @@ public sealed class QueryService(
         };
     }
 
-    /// <summary>构建结构化输出 Prompt，强制 LLM 返回特定 JSON 格式。</summary>
+    /// <summary>Builds the structured-output Prompt that forces the LLM to return a specific JSON format.</summary>
     private static string BuildStructuredPrompt(
         string question,
         string context,

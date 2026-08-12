@@ -1,8 +1,8 @@
 namespace Veda.MCP.Tools;
 
 /// <summary>
-/// MCP 知识库检索工具。提供向量搜索和文档列表两个工具。
-/// 通过 DI 构造函数注入所需服务。
+/// MCP knowledge base retrieval tools. Provide two tools: vector search and document listing.
+/// Required services are injected through the DI constructor.
 /// </summary>
 [McpServerToolType]
 public sealed class KnowledgeBaseTools(IEmbeddingService embeddingService, IVectorStore vectorStore)

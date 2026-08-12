@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# start-api.sh — 启动 Veda.Api 开发服务器
+# start-api.sh — Start the Veda.Api development server
 #
-# 用途：后台启动 API，并等待其就绪后返回。
-# 使用：
+# Purpose: start the API in the background and return once it is ready.
+# Usage:
 #   chmod +x scripts/start-api.sh
 #   ./scripts/start-api.sh [PORT]
 #
-# 参数：
-#   PORT  可选，默认读取 launchSettings 配置（通常 5126）
+# Arguments:
+#   PORT  Optional; defaults to the launchSettings configuration (usually 5126)
 # =============================================================================
 set -euo pipefail
 
@@ -17,7 +17,7 @@ API_PROJECT="$REPO_ROOT/src/Veda.Api"
 PORT="${1:-5126}"
 MAX_WAIT=30
 
-# 停掉旧的 Veda.Api（如果在跑），不影响其他项目
+# Stop the old Veda.Api instance (if running), without affecting other projects
 pkill -f "Veda.Api" 2>/dev/null && echo "Stopped previous Veda.Api." || true
 
 echo "Starting Veda.Api on port $PORT..."
@@ -25,7 +25,7 @@ dotnet run --project "$API_PROJECT" &
 API_PID=$!
 echo "PID: $API_PID"
 
-# 等待 API 就绪
+# Wait for the API to become ready
 elapsed=0
 until curl -s -o /dev/null "http://localhost:$PORT/swagger/index.html"; do
   sleep 1

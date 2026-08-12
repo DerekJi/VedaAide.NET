@@ -5,9 +5,9 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// 用户记忆层服务——基于 SQLite 的轻量实现。
-/// 生产环境可替换为 CosmosDB 实现（UserBehaviors 容器）。
-/// 符合隐私设计：仅存储匿名 chunkId + userId，不记录文档原始内容。
+/// User memory layer service — a lightweight SQLite-based implementation.
+/// In production this can be replaced by the CosmosDB implementation (UserBehaviors container).
+/// Privacy by design: only stores anonymous chunkId + userId, never the raw document content.
 /// </summary>
 public sealed class UserMemoryStore(
     VedaDbContext db,

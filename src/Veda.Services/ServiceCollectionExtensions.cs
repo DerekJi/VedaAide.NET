@@ -14,9 +14,9 @@ public static class ServiceCollectionExtensions
     /// <summary>Keyed DI key for the vision <see cref="IChatCompletionService"/> instance.</summary>
     public const string VisionServiceKey = "vision";
     /// <summary>
-    /// 注册 AI 服务（Embedding + Chat LLM）。
-    /// 通过 Veda:EmbeddingProvider / Veda:LlmProvider 配置项选择提供商：
-    /// "Ollama"（默认，本地）或 "AzureOpenAI"（云端）。
+    /// Registers the AI services (Embedding + Chat LLM).
+    /// The provider is selected via the Veda:EmbeddingProvider / Veda:LlmProvider settings:
+    /// "Ollama" (default, local) or "AzureOpenAI" (cloud).
     /// </summary>
     public static IServiceCollection AddVedaAiServices(
         this IServiceCollection services, IConfiguration cfg)
@@ -65,40 +65,40 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmbeddingService, EmbeddingService>();
         services.AddScoped<IDocumentProcessor, TextDocumentProcessor>();
 
-        // DIP 适配器：将 SK 的 IChatCompletionService 包装为领域接口 IChatService
-        // optional ITokenUsageRepository + ICurrentUserService 由 DI 自动注入
+        // DIP adapter: wraps SK's IChatCompletionService as the domain interface IChatService
+        // optional ITokenUsageRepository + ICurrentUserService are injected automatically by DI
         services.AddScoped<IChatService>(sp =>
             new OllamaChatService(
                 sp.GetRequiredService<IChatCompletionService>(),
                 sp.GetService<ITokenUsageRepository>(),
                 sp.GetService<ICurrentUserService>()));
-        // LLM Router: 根据 QueryMode 分发到 simple / advanced 服务
+        // LLM Router: dispatches to simple / advanced services based on QueryMode
         services.AddScoped<ILlmRouter, LlmRouterService>();
 
-        // Phase 2: 防幻觉服务
+        // Phase 2: hallucination prevention service
         services.AddScoped<IHallucinationGuardService, HallucinationGuardService>();
 
-        // RAG 查询的共用辅助服务
+        // Shared helper service for RAG queries
         services.AddScoped<IRagQueryHelper, RagQueryHelper>();
 
-        // ISP 拆分的具体服务
+        // Concrete services split by ISP
         services.AddScoped<IDocumentIngestor, DocumentIngestService>();
         services.AddScoped<IQueryStreamService, QueryStreamService>();
         services.AddScoped<IQueryService, QueryService>();
         services.AddScoped<IPublicResumeTailoringService, PublicResumeTailoringService>();
 
-        // 多模态文件提取器（文件上传管线）
-        services.AddSingleton<AzureDiQuotaState>();  // 跨请求持久化配额超限状态
+        // Multimodal file extractors (file upload pipeline)
+        services.AddSingleton<AzureDiQuotaState>();  // Persists quota-exceeded state across requests
         services.AddScoped<DocumentIntelligenceFileExtractor>();
         services.AddScoped<VisionModelFileExtractor>();
         services.AddScoped<PdfTextLayerExtractor>();
         services.AddScoped<EphemeralContextExtractor>();
 
-        // 混合检索（双通道 RRF 融合）
+        // Hybrid retrieval (dual-channel RRF fusion)
         services.AddScoped<IHybridRetriever, HybridRetriever>();
 
-        // 语义增强层（查询扩展 + 别名标签）
-        // 有词库文件配置时注入 PersonalVocabularyEnhancer，否则透传 NoOp
+        // Semantic enhancement layer (query expansion + alias tags)
+        // Injects PersonalVocabularyEnhancer when a vocabulary file is configured, otherwise passes through NoOp
         services.AddScoped<ISemanticEnhancer>(sp =>
         {
             var semanticOpts = sp.GetRequiredService<IOptions<SemanticsOptions>>().Value;
@@ -107,10 +107,10 @@ public static class ServiceCollectionExtensions
             return new NoOpSemanticEnhancer();
         });
 
-        // 文档版本对比服务
+        // Document version diff service
         services.AddScoped<IDocumentDiffService, DocumentDiffService>();
 
-        // Sprint 4: 反馈 boost service（不依赖 DB，仅包装 IUserMemoryStore）
+        // Sprint 4: feedback boost service (no DB dependency, just wraps IUserMemoryStore)
         services.AddScoped<IFeedbackBoostService, FeedbackBoostService>();
 
         return services;

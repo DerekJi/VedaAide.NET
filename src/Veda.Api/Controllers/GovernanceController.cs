@@ -4,8 +4,8 @@ using Veda.Core.Interfaces;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// 知识治理管理端点。
-/// 管理共享组、文档授权共享、共识候选审核。
+/// Knowledge governance management endpoints.
+/// Manages sharing groups, document sharing grants, and consensus candidate review.
 /// </summary>
 [ApiController]
 [Authorize(Policy = "AdminOnly")]
@@ -14,7 +14,7 @@ public sealed class GovernanceController(
     IKnowledgeGovernanceService governanceService,
     ILogger<GovernanceController> logger) : ControllerBase
 {
-    /// <summary>创建知识共享组。</summary>
+    /// <summary>Creates a knowledge sharing group.</summary>
     [HttpPost("groups")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateGroup(
@@ -27,7 +27,7 @@ public sealed class GovernanceController(
         return Created($"/api/governance/groups/{groupId}", new { groupId });
     }
 
-    /// <summary>授权文档对共享组可见。</summary>
+    /// <summary>Grants a group visibility to a document.</summary>
     [HttpPut("documents/{documentId}/share")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -52,7 +52,7 @@ public sealed class GovernanceController(
         }
     }
 
-    /// <summary>获取待审核的共识候选列表（管理员）。</summary>
+    /// <summary>Gets the pending consensus candidates (admin).</summary>
     [HttpGet("consensus/pending")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPendingCandidates(CancellationToken ct)
@@ -61,7 +61,7 @@ public sealed class GovernanceController(
         return Ok(candidates);
     }
 
-    /// <summary>审核共识候选（管理员）。</summary>
+    /// <summary>Reviews a consensus candidate (admin).</summary>
     [HttpPost("consensus/{candidateId}/review")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -78,7 +78,7 @@ public sealed class GovernanceController(
         return Ok(new { message = $"Candidate {(request.Approved ? "approved" : "rejected")}." });
     }
 
-    /// <summary>检查文档对用户是否可见（隐私隔离验证）。</summary>
+    /// <summary>Checks whether a document is visible to a user (privacy isolation verification).</summary>
     [HttpGet("documents/{documentId}/visible")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> CheckVisibility(

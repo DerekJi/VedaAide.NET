@@ -8,8 +8,8 @@ using Veda.Core.Interfaces;
 namespace Veda.Storage;
 
 /// <summary>
-/// CosmosDB-backed 会话持久化仓储。
-/// Partition Key = /userId，天然隔离不同用户数据；所有查询均携带 PartitionKey 约束。
+/// CosmosDB-backed chat session persistence repository.
+/// Partition Key = /userId naturally isolates each user's data; every query carries a PartitionKey constraint.
 /// </summary>
 public sealed class CosmosDbChatSessionRepository(
     CosmosClient client,

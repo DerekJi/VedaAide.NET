@@ -1,18 +1,18 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 当前已认证用户的身份服务。
-/// 五期前：匿名访问，UserId = null。
-/// 五期后（B2C）：JWT Bearer 中间件验证后从 Token claims 提取。
+/// Identity service for the currently authenticated user.
+/// Before phase 5: anonymous access, UserId = null.
+/// From phase 5 onward (B2C): extracted from token claims after JWT Bearer middleware validation.
 /// </summary>
 public interface ICurrentUserService
 {
-    /// <summary>用户唯一 ID（来自 JWT oid/sub claim）。null = 未登录 / 匿名。</summary>
+    /// <summary>Unique user ID (from the JWT oid/sub claim). null = not signed in / anonymous.</summary>
     string? UserId { get; }
 
-    /// <summary>是否已通过身份验证。</summary>
+    /// <summary>Whether the user has been authenticated.</summary>
     bool IsAuthenticated { get; }
 
-    /// <summary>是否拥有管理员角色（JWT roles claim 包含 "Admin"）。</summary>
+    /// <summary>Whether the user holds the admin role (the JWT roles claim contains "Admin").</summary>
     bool IsAdmin { get; }
 }

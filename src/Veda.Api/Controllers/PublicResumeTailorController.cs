@@ -7,9 +7,9 @@ using Microsoft.Extensions.Options;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// 公开简历定制端点：POST /api/public/resume/tailor
-/// 无需登录，专为 resume 站（derekji.github.io）提供的免认证 SSE 接口。
-/// 防滥用：CORS 白名单（仅允许 resume 站 origin）+ per-IP 固定窗口限流。
+/// Public resume tailoring endpoint: POST /api/public/resume/tailor
+/// No login required; an unauthenticated SSE interface built for the resume site (derekji.github.io).
+/// Abuse prevention: CORS whitelist (only the resume site origin) + per-IP fixed-window rate limiting.
 /// </summary>
 [ApiController]
 [Route("api/public/resume")]
@@ -21,7 +21,7 @@ public sealed class PublicResumeTailorController(
     IOptions<VedaOptions> options) : ControllerBase
 {
     /// <summary>
-    /// 轻量健康探针，用于前端检测 Container App 是否已从冷启动恢复。
+    /// Lightweight health probe used by the frontend to detect whether the Container App has recovered from a cold start.
     /// GET /api/public/resume/ping → 200 OK { "status": "ok" }
     /// </summary>
     [HttpGet("ping")]
@@ -63,7 +63,7 @@ public sealed class PublicResumeTailorController(
     }
 }
 
-/// <summary>公开简历定制请求体。</summary>
+/// <summary>Public resume tailoring request body.</summary>
 public record PublicTailorRequest(
     string JobDescription,
     int TopK = 8);

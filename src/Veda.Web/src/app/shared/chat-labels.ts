@@ -1,7 +1,7 @@
 /**
- * Chat 页辅助标签的双语字典。
- * 根据回答内容检测语言（中文/英文），动态切换所有辅助 UI 文字。
- * 不引入 Angular i18n 框架，保持轻量。
+ * Bilingual dictionary of helper labels for the Chat page.
+ * Detects the answer language (Chinese/English) and dynamically switches all helper UI text.
+ * Stays lightweight by avoiding the Angular i18n framework.
  */
 
 export type ChatLang = 'zh' | 'en';
@@ -32,8 +32,8 @@ export const CHAT_LABELS: Record<ChatLang, ChatLabels> = {
 };
 
 /**
- * 启发式语言检测：CJK 字符占比 > 20% 判定为中文。
- * 仅用于辅助 UI，误判不影响核心功能。
+ * Heuristic language detection: if CJK characters exceed 20%, classify as Chinese.
+ * Only used for helper UI; a misdetection does not affect core functionality.
  */
 export function detectChatLang(text: string): ChatLang {
   if (!text) return 'zh';

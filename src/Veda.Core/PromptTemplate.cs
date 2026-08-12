@@ -1,7 +1,7 @@
 namespace Veda.Core;
 
 /// <summary>
-/// Prompt 模板领域模型（不可变 record）。
+/// Domain model for a prompt template (an immutable record).
 /// </summary>
 public record PromptTemplate
 {
@@ -10,7 +10,7 @@ public record PromptTemplate
     public required string Version { get; init; }
     public required string Content { get; init; }
 
-    /// <summary>可选：绑定特定文档类型（null 表示通用模板）。</summary>
+    /// <summary>Optional: binds to a specific document type (null means a generic template).</summary>
     public DocumentType? DocumentType { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;

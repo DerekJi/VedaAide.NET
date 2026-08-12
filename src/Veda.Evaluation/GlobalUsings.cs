@@ -1,4 +1,4 @@
-// Veda.Evaluation 全局 using
+// Veda.Evaluation global usings
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Logging;
 global using Veda.Core;

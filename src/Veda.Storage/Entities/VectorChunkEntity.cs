@@ -1,7 +1,7 @@
 namespace Veda.Storage.Entities;
 
 /// <summary>
-/// SQLite 存储的向量块实体。Embedding 序列化为 BLOB。
+/// Vector chunk entity stored in SQLite. The Embedding is serialized as BLOB.
 /// </summary>
 public class VectorChunkEntity
 {
@@ -13,13 +13,13 @@ public class VectorChunkEntity
     public int ChunkIndex      { get; set; }
     public string ContentHash  { get; set; } = string.Empty;  // SHA256 for dedup
     public byte[] EmbeddingBlob { get; set; } = Array.Empty<byte>();  // float[] as little-endian bytes
-    public string EmbeddingModel { get; set; } = string.Empty;  // 记录生成 Embedding 时使用的模型版本，切换模型时用于重新索引
+    public string EmbeddingModel { get; set; } = string.Empty;  // model version used when generating the Embedding; used to re-index when the model is switched
     public string MetadataJson { get; set; } = "{}";
     public long CreatedAtTicks { get; set; }
-    /// <summary>文档版本号，首次摄取为 1，每次内容变更递增。</summary>
+    /// <summary>Document version, starting at 1 on first ingestion and incremented on every content change.</summary>
     public int Version { get; set; } = 1;
-    /// <summary>本 chunk 被取代的 UTC Tick；0 表示当前有效。</summary>
+    /// <summary>UTC ticks when this chunk was superseded; 0 means it is currently active.</summary>
     public long SupersededAtTicks { get; set; } = 0;
-    /// <summary>取代本 chunk 的新文档 ID（版本升级时填充）。</summary>
+    /// <summary>New document ID that superseded this chunk (populated on version upgrades).</summary>
     public string SupersededByDocId { get; set; } = string.Empty;
 }

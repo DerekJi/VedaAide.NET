@@ -5,13 +5,13 @@ using System.Text;
 namespace Veda.Services.DataSources;
 
 /// <summary>
-/// MCP Client 实现之一：从本地文件系统目录批量摄取文档到 VedaAide 知识库。
-/// 配置节：<c>Veda:DataSources:FileSystem</c>
-/// 通过 <see cref="ISyncStateStore"/> 跟踪内容哈希，跳过内容未变更的文件。
-/// 支持三类文件：
-/// - 文本文件（.txt / .md）→ <see cref="IDocumentIngestor.IngestAsync"/>
-/// - 邮件文件（.eml / .msg）→ <see cref="EmailTextExtractor"/> 提取后 → <see cref="IDocumentIngestor.IngestAsync"/>
-/// - 二进制文件（PDF / 图片）→ <see cref="IDocumentIngestor.IngestFileAsync"/>
+/// First MCP Client implementation: bulk-ingests documents from a local file system directory into the VedaAide knowledge base.
+/// Config section: <c>Veda:DataSources:FileSystem</c>
+/// Tracks content hashes via <see cref="ISyncStateStore"/> and skips files whose content has not changed.
+/// Supports three kinds of files:
+/// - Text files (.txt / .md) → <see cref="IDocumentIngestor.IngestAsync"/>
+/// - Email files (.eml / .msg) → extracted by <see cref="EmailTextExtractor"/> then → <see cref="IDocumentIngestor.IngestAsync"/>
+/// - Binary files (PDF / images) → <see cref="IDocumentIngestor.IngestFileAsync"/>
 /// </summary>
 public sealed class FileSystemConnector(
     IDocumentIngestor                       documentIngestor,

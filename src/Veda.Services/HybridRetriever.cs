@@ -2,12 +2,13 @@ using Veda.Core.Options;
 namespace Veda.Services;
 
 /// <summary>
-/// 混合检索双通道融合实现。
-/// 并发执行向量通道与关键词通道，使用 RRF（Reciprocal Rank Fusion）或加权合并策略。
+/// Hybrid retrieval dual-channel fusion implementation.
+/// Runs the vector channel and keyword channel concurrently, then fuses them using RRF
+/// (Reciprocal Rank Fusion) or a weighted-merge strategy.
 /// </summary>
 public sealed class HybridRetriever(IVectorStore vectorStore) : IHybridRetriever
 {
-    /// <summary>RRF 公式中的常数 k，标准值 60 可有效抑制头部集中效应。</summary>
+    /// <summary>Constant k in the RRF formula; the standard value of 60 effectively suppresses head-ranking concentration.</summary>
     private const int RrfK = 60;
 
     public async Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> RetrieveAsync(
@@ -24,8 +25,9 @@ public sealed class HybridRetriever(IVectorStore vectorStore) : IHybridRetriever
     {
         var candidateK = topK * 4;
 
-        // SQLite 实现的 IVectorStore 底层共享同一个 DbContext（Scoped），
-        // EF Core DbContext 不支持并发操作。顺序执行两个通道，确保兼容 SQLite 和 CosmosDB。
+        // The SQLite IVectorStore shares a single Scoped DbContext underneath, and EF Core
+        // DbContext does not support concurrent operations. Run the two channels sequentially
+        // to stay compatible with both SQLite and CosmosDB.
         var vectorResults = await vectorStore.SearchAsync(
             queryEmbedding, topK: candidateK, minSimilarity: minSimilarity,
             filterType: filterType, dateFrom: dateFrom, dateTo: dateTo,

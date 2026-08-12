@@ -1,8 +1,9 @@
 namespace Veda.Services;
 
 /// <summary>
-/// 防幻觉第二层：调用 LLM 逐句审核回答是否有文档依据。
-/// 由 Veda:Rag:EnableSelfCheckGuard 配置项控制是否调用。
+/// Second layer of hallucination prevention: calls the LLM to verify claim-by-claim whether the
+/// answer is supported by the documents.
+/// Controlled by the Veda:Rag:EnableSelfCheckGuard setting.
 /// </summary>
 public sealed class HallucinationGuardService(IChatService chatService) : IHallucinationGuardService
 {

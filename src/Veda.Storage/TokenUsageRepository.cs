@@ -4,7 +4,7 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// SQLite-backed token 消耗记录仓储。
+/// SQLite-backed token usage recording repository.
 /// </summary>
 public sealed class TokenUsageRepository(VedaDbContext db) : ITokenUsageRepository
 {

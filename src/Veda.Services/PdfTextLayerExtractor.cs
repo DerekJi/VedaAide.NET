@@ -4,28 +4,30 @@ using UglyToad.PdfPig.Content;
 namespace Veda.Services;
 
 /// <summary>
-/// 纯文字层 PDF 直通提取器。
-/// 使用 PdfPig（MIT 协议，零外部依赖）直接读取 PDF 文字层，跳过 OCR 管线。
+/// Pure text-layer PDF pass-through extractor.
+/// Uses PdfPig (MIT license, zero external dependencies) to read the PDF text layer directly,
+/// skipping the OCR pipeline.
 ///
-/// 扫描件检测：若平均每页字符数低于 <see cref="MinCharsPerPage"/>，
-/// 判定为扫描件并返回 null，由调用方降级到 Azure DI / Vision。
+/// Scanned-document detection: if the average characters per page is below <see cref="MinCharsPerPage"/>,
+/// the document is treated as scanned and null is returned so the caller can fall back to Azure DI / Vision.
 /// </summary>
 public sealed class PdfTextLayerExtractor(ILogger<PdfTextLayerExtractor> logger)
 {
     /// <summary>
-    /// 每页字符数阈值，低于此值视为扫描件。
-    /// 20 为经验值：真正的扫描件在文字层提取时得到 0–5 字符（噪点），
-    /// 而稀疏文字型 PDF（如证书、单页通知）可能只有 50–100 字符，应走文字路径。
-    /// 原值 100 会误判证书类稀疏文字 PDF 为扫描件，导致不必要地触发 Vision 模型。
+    /// Characters-per-page threshold; below this value the PDF is treated as scanned.
+    /// 20 is an empirical value: a true scanned PDF yields 0–5 characters (noise) from the text layer,
+    /// while sparse text PDFs (e.g. certificates, single-page notices) may have only 50–100 characters
+    /// and should still take the text path. The former value of 100 misclassified sparse-text PDFs like
+    /// certificates as scanned, unnecessarily triggering the Vision model.
     /// </summary>
     private const int MinCharsPerPage = 20;
 
     /// <summary>
-    /// 尝试从 PDF 文字层提取文本。
+    /// Attempts to extract text from the PDF text layer.
     /// </summary>
     /// <returns>
-    /// 提取的文本（非空字符串）表示成功；
-    /// null 表示文字层为空（扫描件），调用方应降级到 OCR。
+    /// The extracted text (a non-empty string) indicates success;
+    /// null means the text layer is empty (scanned document), and the caller should fall back to OCR.
     /// </returns>
     public string? TryExtract(Stream pdfStream, string fileName)
     {
@@ -43,7 +45,7 @@ public sealed class PdfTextLayerExtractor(ILogger<PdfTextLayerExtractor> logger)
             var sb = new System.Text.StringBuilder();
             foreach (var page in pages)
             {
-                // GetWords() 比 Letters 合并更准确地保留词序
+                // GetWords() preserves word order more accurately than merging Letters
                 var words = page.GetWords().Select(w => w.Text);
                 sb.AppendLine(string.Join(" ", words));
             }

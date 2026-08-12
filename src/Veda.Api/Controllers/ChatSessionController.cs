@@ -5,7 +5,7 @@ using Veda.Core.Interfaces;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// 会话持久化端点。所有端点从 JWT 提取身份，不信任请求体中的 userId。
+/// Chat session persistence endpoints. All endpoints derive identity from the JWT and do not trust the userId in the request body.
 /// </summary>
 [ApiController]
 [Route("api/chat/sessions")]

@@ -1,1 +1,1 @@
-// 测试项目公共全局 using —— 由 tests/Directory.Build.props 自动注入到每个测试项目
+// Shared global usings for test projects — auto-injected into every test project by tests/Directory.Build.props

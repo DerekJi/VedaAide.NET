@@ -3,11 +3,11 @@ using Microsoft.Extensions.Configuration;
 namespace Veda.Api.Services;
 
 /// <summary>
-/// 从 HttpContext.User 提取当前用户身份。
-/// Entra ID JWT Bearer 验证后，oid claim 用作 UserId（对象 ID）。
-/// 未配置 Entra ID 时（匿名访问），UserId 始终为 null。
-/// IsAdmin 优先从 JWT roles claim 读取（需配置 App Role）；
-/// 同时支持通过 AzureAd:AdminOids 配置白名单（适合 CIAM token 无 roles claim 的场景）。
+/// Extracts the current user identity from HttpContext.User.
+/// After Entra ID JWT Bearer validation, the oid claim is used as the UserId (object ID).
+/// When Entra ID is not configured (anonymous access), UserId is always null.
+/// IsAdmin is read primarily from the JWT roles claim (requires an App Role to be configured);
+/// also supports an allowlist configured via AzureAd:AdminOids (for CIAM tokens without a roles claim).
 /// </summary>
 public sealed class HttpContextCurrentUserService(
     IHttpContextAccessor accessor,

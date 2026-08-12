@@ -1,8 +1,8 @@
 namespace Veda.Services;
 
 /// <summary>
-/// 语义增强默认透传实现——不修改查询和内容。
-/// 当未配置词库文件时由 DI 注入此实现。
+/// Default pass-through semantic enhancer — does not modify the query or content.
+/// Injected by DI when no vocabulary file is configured.
 /// </summary>
 public sealed class NoOpSemanticEnhancer : ISemanticEnhancer
 {

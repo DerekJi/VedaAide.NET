@@ -1,16 +1,16 @@
 namespace Veda.Core.Options;
 
 /// <summary>
-/// DeepSeek（OpenAI 兼容）LLM 配置，绑定到 appsettings.json 的 "Veda:DeepSeek" 节。
+/// DeepSeek (OpenAI-compatible) LLM configuration, bound to the "Veda:DeepSeek" section of appsettings.json.
 /// </summary>
 public sealed class DeepSeekOptions
 {
-    /// <summary>API 基础 URL，默认 deepseek.com 官方端点。</summary>
+    /// <summary>API base URL; defaults to the official deepseek.com endpoint.</summary>
     public string BaseUrl { get; set; } = "https://api.deepseek.com/v1";
 
-    /// <summary>DeepSeek API Key；留空则系统自动降级到 Simple 模式。</summary>
+    /// <summary>DeepSeek API key; if left empty the system automatically falls back to Simple mode.</summary>
     public string ApiKey { get; set; } = string.Empty;
 
-    /// <summary>模型名称，默认 deepseek-chat。</summary>
+    /// <summary>Model name; defaults to deepseek-chat.</summary>
     public string ChatModel { get; set; } = "deepseek-chat";
 }

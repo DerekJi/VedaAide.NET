@@ -4,8 +4,8 @@ using System.Text.RegularExpressions;
 namespace Veda.Services;
 
 /// <summary>
-/// LLM 结构化输出解析器。
-/// 尝试从 LLM 回答（JSON 格式）中提取 StructuredFinding，解析失败则安全降级为 null。
+/// Parser for LLM structured output.
+/// Attempts to extract a StructuredFinding from the LLM's JSON-formatted answer; on parse failure it safely falls back to null.
 /// </summary>
 public sealed class StructuredOutputParser
 {
@@ -15,8 +15,8 @@ public sealed class StructuredOutputParser
     };
 
     /// <summary>
-    /// 尝试从 LLM 的 JSON 回答中解析结构化推理结果。
-    /// 实现可容错：若 JSON 提取失败，返回 null 而非抛出异常。
+    /// Attempts to parse the structured reasoning result from the LLM's JSON answer.
+    /// The implementation is fault-tolerant: if JSON extraction fails, it returns null instead of throwing.
     /// </summary>
     public StructuredFinding? TryParse(
         string llmOutput,
@@ -48,14 +48,14 @@ public sealed class StructuredOutputParser
         }
         catch
         {
-            // 降级：返回 null，让调用方使用纯文本 Answer
+            // Fallback: return null so the caller uses the plain-text Answer
             return null;
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>从 LLM 输出中提取第一个 JSON 对象（容忍前后有自由文本）。</summary>
+    /// <summary>Extracts the first JSON object from the LLM output (tolerates surrounding free text).</summary>
     private static string? ExtractJson(string text)
     {
         var match = Regex.Match(text, @"\{[\s\S]*\}", RegexOptions.Singleline);

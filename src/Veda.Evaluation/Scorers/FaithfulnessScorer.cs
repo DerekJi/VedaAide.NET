@@ -1,8 +1,8 @@
 namespace Veda.Evaluation.Scorers;
 
 /// <summary>
-/// 忠实度评分器：通过 LLM 审核回答是否仅基于检索到的上下文，
-/// 避免捏造内容。返回 [0, 1] 的浮点分数。
+/// Faithfulness scorer: uses an LLM to verify that the answer is based only on the retrieved context,
+/// preventing fabricated content. Returns a float score in [0, 1].
 /// </summary>
 public sealed class FaithfulnessScorer(IChatService chatService, ILogger<FaithfulnessScorer> logger)
 {

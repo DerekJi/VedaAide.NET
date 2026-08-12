@@ -1,6 +1,6 @@
 namespace Veda.Core.Interfaces;
 
-/// <summary>Golden Dataset 的 CRUD 仓储接口。</summary>
+/// <summary>CRUD repository interface for the Golden Dataset.</summary>
 public interface IEvalDatasetRepository
 {
     Task<IReadOnlyList<EvalQuestion>> ListAsync(CancellationToken ct = default);

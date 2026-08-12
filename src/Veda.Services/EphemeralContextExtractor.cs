@@ -1,18 +1,20 @@
 namespace Veda.Services;
 
 /// <summary>
-/// 临时上下文提取器（Ephemeral RAG / Context Augmentation）。
+/// Ephemeral context extractor (Ephemeral RAG / Context Augmentation).
 ///
-/// 职责：根据文件 MIME 类型自动选择提取器，将文件内容转为纯文本，
-/// 不触发 Chunk / Embed / 向量写库流程，提取结果仅返回给调用方。
+/// Responsibility: automatically selects an extractor based on the file MIME type and
+/// converts the file content to plain text without triggering the Chunk / Embed / vector-store
+/// pipeline; the extracted result is returned only to the caller.
 ///
-/// DocumentType 推断规则（用户无需手动选择）：
+/// DocumentType inference rules (no manual selection needed):
 ///   image/*                          → RichMedia  → VisionModelFileExtractor
 ///   application/pdf                  → Other      → PdfTextLayerExtractor → Vision fallback
-///   text/plain / text/csv / text/xml → Other      → 直接读取字符串
-///   其他（DOCX、EML 等）              → Other      → DocumentIntelligenceFileExtractor → Vision fallback
+///   text/plain / text/csv / text/xml → Other      → read the string directly
+///   Others (DOCX, EML, etc.)         → Other      → DocumentIntelligenceFileExtractor → Vision fallback
 ///
-/// Context window 保护：提取结果超过 <see cref="MaxChars"/> 字符时截断并追加说明。
+/// Context window protection: when the extraction exceeds <see cref="MaxChars"/> characters,
+/// it is truncated and a note is appended.
 /// </summary>
 public sealed class EphemeralContextExtractor(
     VisionModelFileExtractor visionExtractor,
@@ -20,17 +22,17 @@ public sealed class EphemeralContextExtractor(
     PdfTextLayerExtractor pdfTextLayerExtractor,
     ILogger<EphemeralContextExtractor> logger)
 {
-    /// <summary>单次临时上传最大字符数（约 32K tokens），超出后截断。</summary>
+    /// <summary>Maximum characters for a single ephemeral upload (roughly 32K tokens); truncated beyond that.</summary>
     internal const int MaxChars = 60_000;
 
     /// <summary>
-    /// 从文件流提取纯文本，不写数据库。
+    /// Extracts plain text from a file stream without writing to the database.
     /// </summary>
-    /// <param name="fileStream">文件流（不要求 seekable，方法内部缓冲）。</param>
-    /// <param name="fileName">原始文件名，用于日志和归属展示。</param>
-    /// <param name="mimeType">MIME 类型，用于路由提取器。</param>
-    /// <param name="ct">取消令牌。</param>
-    /// <returns>提取的纯文本；提取失败或结果为空时返回 null。</returns>
+    /// <param name="fileStream">The file stream (need not be seekable; buffered internally).</param>
+    /// <param name="fileName">Original file name, used for logging and attribution display.</param>
+    /// <param name="mimeType">MIME type, used to route to the appropriate extractor.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The extracted plain text, or null if extraction failed or the result is empty.</returns>
     public async Task<string?> ExtractAsync(
         Stream fileStream,
         string fileName,
@@ -41,7 +43,7 @@ public sealed class EphemeralContextExtractor(
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(mimeType);
 
-        // 缓冲：允许在降级路径中重置并重读
+        // Buffer so we can reset and re-read on fallback paths
         using var buffered = new MemoryStream();
         await fileStream.CopyToAsync(buffered, ct);
         buffered.Position = 0;
@@ -60,8 +62,8 @@ public sealed class EphemeralContextExtractor(
             return null;
         }
 
-        // 如果 Vision 模型实际上是纯文字模型（如 qwen3:8b），它会返回
-        // "无法直接查看图片" 之类的说明而非真实内容。检测此类失败，返回 null。
+        // If the Vision model is actually a text-only model (e.g. qwen3:8b), it returns
+        // an explanation like "cannot view the image" instead of real content. Detect such failures and return null.
         if (IsVisionFailureResponse(text))
         {
             logger.LogWarning(
@@ -87,13 +89,13 @@ public sealed class EphemeralContextExtractor(
     private async Task<string?> ExtractByMimeAsync(
         MemoryStream buffered, string fileName, string mime, CancellationToken ct)
     {
-        // ── 图片：直接走 Vision 模型 ──────────────────────────────────────────────
+        // ── Images: use the Vision model directly ──────────────────────────────────────────────
         if (mime.StartsWith("image/", StringComparison.Ordinal))
         {
             return await TryVisionAsync(buffered, fileName, mime, DocumentType.RichMedia, ct);
         }
 
-        // ── 纯文本：直接读字符串 ───────────────────────────────────────────────────
+        // ── Plain text: read the string directly ───────────────────────────────────────────────────
         if (mime is "text/plain" or "text/csv" or "text/xml" or "text/html")
         {
             buffered.Position = 0;
@@ -101,7 +103,7 @@ public sealed class EphemeralContextExtractor(
             return await reader.ReadToEndAsync(ct);
         }
 
-        // ── PDF：文字层直通 → Vision fallback ────────────────────────────────────
+        // ── PDF: pass-through text layer → Vision fallback ────────────────────────────────────
         if (mime == "application/pdf")
         {
             buffered.Position = 0;
@@ -109,14 +111,14 @@ public sealed class EphemeralContextExtractor(
             if (textLayer is not null)
                 return textLayer;
 
-            // 扫描件：降级 Vision
+            // Scanned PDF: fall back to Vision
             logger.LogInformation(
                 "EphemeralContextExtractor: '{Name}' is scanned PDF, falling back to Vision", fileName);
             buffered.Position = 0;
             return await TryVisionAsync(buffered, fileName, mime, DocumentType.Other, ct);
         }
 
-        // ── 其他（DOCX / EML / MSG 等）：Azure DI → Vision fallback ─────────────
+        // ── Others (DOCX / EML / MSG, etc.): Azure DI → Vision fallback ─────────────
         try
         {
             buffered.Position = 0;
@@ -151,12 +153,12 @@ public sealed class EphemeralContextExtractor(
     }
 
     /// <summary>
-    /// 检测 Vision 模型返回了"看不到图片"的说明文字而非实际内容。
-    /// 常见于纯文字模型（如 qwen3:8b）被误用为 Vision 服务时。
+    /// Detects when the Vision model returns an explanation saying it cannot "see" the image
+    /// rather than actual content. Common when a text-only model (e.g. qwen3:8b) is misused as a Vision service.
     /// </summary>
     private static bool IsVisionFailureResponse(string text)
     {
-        // 检测常见的中英文"无法查看图片"类回复
+        // Detect common Chinese/English "cannot view the image" style responses
         ReadOnlySpan<string> indicators =
         [
             "无法直接查看图片",

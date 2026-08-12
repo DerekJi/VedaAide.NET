@@ -4,8 +4,8 @@ using Veda.Core.Interfaces;
 namespace Veda.Services;
 
 /// <summary>
-/// 基于 Microsoft.Extensions.AI IEmbeddingGenerator 的 Embedding 服务。
-/// 捕获 M.E.AI Usage 并写入 ITokenUsageRepository。
+/// Embedding service built on Microsoft.Extensions.AI IEmbeddingGenerator.
+/// Captures M.E.AI Usage and writes it to ITokenUsageRepository.
 /// </summary>
 public sealed class EmbeddingService : IEmbeddingService
 {

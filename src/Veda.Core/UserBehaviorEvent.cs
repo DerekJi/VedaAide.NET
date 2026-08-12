@@ -1,6 +1,6 @@
 namespace Veda.Core;
 
-/// <summary>用户行为事件，记录用户与 RAG 系统的交互动作。</summary>
+/// <summary>A user behavior event, recording a user's interaction with the RAG system.</summary>
 public record UserBehaviorEvent(
     string UserId,
     string SessionId,
@@ -14,12 +14,12 @@ public record UserBehaviorEvent(
     public string Id { get; init; } = Guid.NewGuid().ToString();
 }
 
-/// <summary>用户行为类型。</summary>
+/// <summary>User behavior type.</summary>
 public enum BehaviorType
 {
-    ResultAccepted,   // 用户采纳了推荐结果
-    ResultRejected,   // 用户标记结果无关
-    AnswerEdited,     // 用户修改了 AI 输出
-    SourceClicked,    // 用户点击了来源链接
-    QueryRefined      // 用户细化了查询（追问）
+    ResultAccepted,   // the user accepted the recommended result
+    ResultRejected,   // the user marked the result as irrelevant
+    AnswerEdited,     // the user edited the AI output
+    SourceClicked,    // the user clicked a source link
+    QueryRefined      // the user refined the query (follow-up)
 }

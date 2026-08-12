@@ -3,8 +3,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace Veda.Api.HealthChecks;
 
 /// <summary>
-/// 验证 Azure OpenAI 端点配置是否存在（不调用 API，避免消耗 token）。
-/// 真正的连通性在第一次 query 时验证。
+/// Verifies that the Azure OpenAI endpoint configuration is present (without calling the API, to avoid consuming tokens).
+/// Real connectivity is validated on the first query.
 /// </summary>
 public sealed class AzureOpenAIConfigHealthCheck(IConfiguration cfg) : IHealthCheck
 {

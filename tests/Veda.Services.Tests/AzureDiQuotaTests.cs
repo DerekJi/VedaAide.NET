@@ -13,7 +13,7 @@ using Veda.Services;
 
 namespace Veda.Services.Tests;
 
-// ── AzureDiQuotaState 单元测试 ──────────────────────────────────────────────
+// ── AzureDiQuotaState unit tests ──────────────────────────────────────────────
 
 [TestFixture]
 public class AzureDiQuotaStateTests
@@ -81,12 +81,12 @@ public class AzureDiQuotaStateTests
     }
 }
 
-// ── DocumentIntelligenceFileExtractor 配额路径测试 ─────────────────────────
+// ── DocumentIntelligenceFileExtractor quota path tests ─────────────────────────
 
 [TestFixture]
 public class DocumentIntelligenceExtractorQuotaTests
 {
-    /// <summary>测试用子类：重写 CallAzureDiAsync 可注入任意响应或异常。</summary>
+    /// <summary>Test subclass: overriding CallAzureDiAsync lets tests inject any response or exception.</summary>
     private sealed class StubDiExtractor(
         AzureDiQuotaState state,
         Func<Task<string>> azureCall)
@@ -152,7 +152,7 @@ public class DocumentIntelligenceExtractorQuotaTests
     }
 }
 
-// ── DocumentIngestService Azure DI 降级测试 ────────────────────────────────
+// ── DocumentIngestService Azure DI fallback tests ────────────────────────────────
 
 [TestFixture]
 public class DocumentIngestServiceFallbackTests

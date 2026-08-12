@@ -30,11 +30,11 @@ export class ChatComponent implements OnInit, OnDestroy {
   busy     = signal(false);
 
   // ── Ephemeral attachment state ────────────────────────────────────────────────
-  /** 当前附件：提取文本已就绪；null 表示无附件。 */
+  /** Current attachment: extracted text is ready; null means no attachment. */
   attachment     = signal<EphemeralAttachment | null>(null);
-  /** 正在提取文件文本中（loading 状态）。 */
+  /** Extracting file text (loading state). */
   attachLoading  = signal(false);
-  /** 提取错误信息；null 表示无错误。 */
+  /** Extraction error message; null means no error. */
   attachError    = signal<string | null>(null);
 
   /** Messages waiting to be sent after the current stream finishes. */
@@ -60,7 +60,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.copyListener = () => this.reportLastSourcesAs('ResultAccepted');
     document.addEventListener('copy', this.copyListener);
 
-    // 全局粘贴：支持 Ctrl+V 粘贴截图
+    // Global paste: support Ctrl+V to paste screenshots
     this.pasteListener = (e: Event) => this.handlePaste(e as ClipboardEvent);
     document.addEventListener('paste', this.pasteListener);
   }
@@ -156,7 +156,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     };
     this.chatSession.addMessage(userMsg);
     this.question.set('');
-    // 附件仅用于当前这次提问，提交后清除
+    // The attachment is only used for this one question; clear it after submitting
     this.attachment.set(null);
     this.attachError.set(null);
 
@@ -183,8 +183,8 @@ export class ChatComponent implements OnInit, OnDestroy {
       query:     q
     };
     this.chatSession.addMessage(assistantMsg);
-    // 固定住本次流对应的 assistant 消息 ID，防止后续入队的用户消息
-    // 导致 refreshLastMessage 写错消息（"最后一条"已不是本 assistant 消息）
+    // Pin the assistant message ID for this stream so later queued user messages
+    // cannot make refreshLastMessage update the wrong message ("last" is no longer this assistant message)
     const assistantMsgId = assistantMsg.id;
 
     let streamingText = '';

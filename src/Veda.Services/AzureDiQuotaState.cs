@@ -1,16 +1,17 @@
 namespace Veda.Services;
 
 /// <summary>
-/// 单例：跨请求持久化 Azure AI Document Intelligence 配额超限状态。
-/// 超限后自动将截止时间设为下个自然月 1 日 00:00 UTC（对齐 Azure DI 免费配额周期）。
-/// 线程安全：通过 Interlocked 操作保护 long 字段。
+/// Singleton: persists the Azure AI Document Intelligence quota-exceeded state across requests.
+/// When exceeded, the deadline is automatically set to the 1st of the next calendar month at 00:00 UTC
+/// (aligned with the Azure DI free quota period).
+/// Thread-safe: the long field is guarded by Interlocked operations.
 /// </summary>
 public sealed class AzureDiQuotaState
 {
-    // 0 = 未超限；> 0 = 超限截止时间的 UTC Ticks
+    // 0 = not exceeded; > 0 = UTC ticks of the quota-exceeded deadline
     private long _quotaExceededUntilTicks;
 
-    /// <summary>当前是否处于配额超限状态。</summary>
+    /// <summary>Whether the quota is currently exceeded.</summary>
     public bool IsExceeded
     {
         get
@@ -20,7 +21,7 @@ public sealed class AzureDiQuotaState
         }
     }
 
-    /// <summary>标记配额超限，截止时间为下个自然月 1 日 00:00 UTC。</summary>
+    /// <summary>Marks the quota as exceeded with a deadline of the 1st of the next calendar month at 00:00 UTC.</summary>
     public void MarkExceeded()
     {
         var now = DateTimeOffset.UtcNow;
@@ -30,7 +31,7 @@ public sealed class AzureDiQuotaState
         Interlocked.Exchange(ref _quotaExceededUntilTicks, nextMonth.UtcTicks);
     }
 
-    /// <summary>仅供测试使用：直接设置截止时间。</summary>
+    /// <summary>For tests only: directly sets the deadline.</summary>
     internal void SetExceededUntilForTest(DateTimeOffset? until) =>
         Interlocked.Exchange(ref _quotaExceededUntilTicks, until?.UtcTicks ?? 0L);
 }

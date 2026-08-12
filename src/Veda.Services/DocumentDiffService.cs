@@ -1,8 +1,8 @@
 namespace Veda.Services;
 
 /// <summary>
-/// 基于 LLM 的文档版本对比服务。
-/// 通过分析新旧内容的关键词差异生成结构化变更摘要。
+/// LLM-based document version diff service.
+/// Generates a structured change summary by analyzing keyword differences between the old and new content.
 /// </summary>
 public sealed class DocumentDiffService(IChatService chatService) : IDocumentDiffService
 {
@@ -12,7 +12,7 @@ public sealed class DocumentDiffService(IChatService chatService) : IDocumentDif
         string newContent,
         CancellationToken ct = default)
     {
-        // 向量差异估算：通过词集合差异统计变化
+        // Vector diff estimation: quantify changes via the difference between word sets
         var oldWords = GetWordSet(oldContent);
         var newWords = GetWordSet(newContent);
 
@@ -21,9 +21,9 @@ public sealed class DocumentDiffService(IChatService chatService) : IDocumentDif
         var shared  = oldWords.Intersect(newWords).Count();
         var total   = Math.Max(oldWords.Count, newWords.Count);
         var changeRatio = total > 0 ? (float)(added + removed) / (total * 2) : 0f;
-        var modifiedChunks = (int)Math.Round(changeRatio * 5); // 估算修改 chunk 数量
+        var modifiedChunks = (int)Math.Round(changeRatio * 5); // estimate the number of modified chunks
 
-        // 使用 LLM 生成变更主题摘要
+        // Use the LLM to generate a summary of the changed topics
         var changedTopics = await ExtractChangedTopicsAsync(oldContent, newContent, ct);
 
         return new DocumentChangeSummary(
@@ -54,7 +54,7 @@ public sealed class DocumentDiffService(IChatService chatService) : IDocumentDif
         try
         {
             var result = await chatService.CompleteAsync(system, prompt, ct);
-            // 简单提取 JSON 数组
+            // Simply extract the JSON array
             var match = System.Text.RegularExpressions.Regex.Match(result, @"\[.*?\]", System.Text.RegularExpressions.RegexOptions.Singleline);
             if (match.Success)
             {
@@ -64,7 +64,7 @@ public sealed class DocumentDiffService(IChatService chatService) : IDocumentDif
         }
         catch
         {
-            // 降级：返回空列表
+            // Fallback: return an empty list
         }
 
         return [];

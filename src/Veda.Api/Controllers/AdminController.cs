@@ -5,9 +5,9 @@ using Veda.Storage;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// 开发管理端点，需 Admin API Key（Veda:Security:AdminApiKey）。
-/// 支持查看 DB 状态、分页浏览 chunks、清空数据、删除指定文档。
-/// CosmosDB 模式：stats/clear 通过 IVectorStore 接口操作；chunks 分页仅支持 SQLite。
+/// Development admin endpoints, guarded by the Admin API Key (Veda:Security:AdminApiKey).
+/// Supports viewing DB status, paging through chunks, clearing data, and deleting specific documents.
+/// CosmosDB mode: stats/clear operate through the IVectorStore interface; chunks paging is SQLite-only.
 /// </summary>
 [ApiController]
 [Route("api/admin")]
@@ -17,7 +17,7 @@ public sealed class AdminController(
     VedaDbContext db,
     ILogger<AdminController> logger) : ControllerBase
 {
-    /// <summary>返回向量库统计信息（chunk 总数、文档数、缓存条目数）。</summary>
+    /// <summary>Returns vector store statistics (chunk count, document count, cache entry count).</summary>
     [HttpGet("stats")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Stats(CancellationToken ct)
@@ -39,7 +39,7 @@ public sealed class AdminController(
         });
     }
 
-    /// <summary>分页查看所有 chunks（SQLite 模式专用）。</summary>
+    /// <summary>Views all chunks with paging (SQLite mode only).</summary>
     [HttpGet("chunks")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ListChunks(
@@ -81,7 +81,7 @@ public sealed class AdminController(
     }
 
     /// <summary>
-    /// 清空所有向量数据和同步状态。需附加 X-Confirm: yes 请求头防误操作。
+    /// Clears all vector data and sync state. Requires the X-Confirm: yes header to prevent accidental deletion.
     /// </summary>
     [HttpDelete("data")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -106,7 +106,7 @@ public sealed class AdminController(
         });
     }
 
-    /// <summary>清空语义缓存。</summary>
+    /// <summary>Clears the semantic cache.</summary>
     [HttpDelete("cache")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ClearCache(CancellationToken ct)
@@ -116,7 +116,7 @@ public sealed class AdminController(
         return Ok(new { message = "Semantic cache cleared." });
     }
 
-    /// <summary>删除指定文档的所有 chunks。</summary>
+    /// <summary>Deletes all chunks of the specified document.</summary>
     [HttpDelete("documents/{documentId}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteDocument(string documentId, CancellationToken ct)
@@ -127,7 +127,7 @@ public sealed class AdminController(
         return Ok(new { message = $"Document '{documentId}' deleted." });
     }
 
-    /// <summary>返回指定文档名称的版本历史（含已取代的版本）。</summary>
+    /// <summary>Returns version history for the given document name (including superseded versions).</summary>
     [HttpGet("documents/{documentName}/history")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

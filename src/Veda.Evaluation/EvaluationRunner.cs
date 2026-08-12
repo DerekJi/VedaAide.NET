@@ -4,8 +4,8 @@ using Veda.Core.Options;
 namespace Veda.Evaluation;
 
 /// <summary>
-/// 评估运行器：从 Golden Dataset 中加载问题 → 调用 RAG 管道 →
-/// 为每个答案打三维评分 → 汇总为 <see cref="EvaluationReport"/>。
+/// Evaluation runner: loads questions from the Golden Dataset → calls the RAG pipeline →
+/// scores each answer along three dimensions → aggregates the results into an <see cref="EvaluationReport"/>.
 /// </summary>
 public sealed class EvaluationRunner(
     IEvalDatasetRepository datasetRepo,

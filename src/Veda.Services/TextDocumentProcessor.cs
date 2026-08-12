@@ -2,13 +2,13 @@ using Veda.Core.Options;
 namespace Veda.Services;
 
 /// <summary>
-/// 纯文本分块器。按 ChunkingOptions 指定的 token 预算进行滑动窗口分割。
-/// Phase 1 以空格/换行为分词边界近似 token 数量（1 word ≈ 1.3 tokens）。
+/// Plain-text chunker. Splits text using a sliding window according to the token budget in ChunkingOptions.
+/// Phase 1 approximates token count by splitting on spaces/newlines (1 word ≈ 1.3 tokens).
 /// </summary>
 public sealed class TextDocumentProcessor : IDocumentProcessor
 {
     /// <summary>
-    /// 每个 token 约对应的单词数倒数：1 word ≈ 1.3 tokens（保守估算，避免超出 token 预算）。
+    /// Words per token estimate: 1 word ≈ 1.3 tokens (a conservative estimate to avoid exceeding the token budget).
     /// </summary>
     private const double WordsPerTokenEstimate = 1.3;
 

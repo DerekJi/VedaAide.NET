@@ -8,8 +8,8 @@ using Veda.Storage;
 namespace Veda.Services.Tests;
 
 /// <summary>
-/// 集成测试：ChatSessionRepository（SQLite in-memory）。
-/// 验证用户隔离、CRUD 正确性及越权访问防护。
+/// Integration tests for ChatSessionRepository (SQLite in-memory).
+/// Verifies user isolation, CRUD correctness, and protection against unauthorized access.
 /// </summary>
 [TestFixture]
 public class ChatSessionRepositoryTests

@@ -5,10 +5,10 @@ using Veda.Services;
 namespace Veda.Api.Middleware;
 
 /// <summary>
-/// API Key 认证中间件。
-/// 从请求头 X-Api-Key 读取密钥，与 Veda:Security:ApiKey 比对。
-/// /api/admin/* 和 /mcp 端点使用 Veda:Security:AdminApiKey 进行鉴权。
-/// 密钥未配置时跳过验证（方便本地开发）。
+/// API Key authentication middleware.
+/// Reads the key from the X-Api-Key request header and compares it with Veda:Security:ApiKey.
+/// /api/admin/* and /mcp endpoints are authenticated with Veda:Security:AdminApiKey.
+/// Skips validation when no key is configured (convenient for local development).
 /// </summary>
 public sealed class ApiKeyMiddleware(RequestDelegate next, IOptions<VedaOptions> options)
 {

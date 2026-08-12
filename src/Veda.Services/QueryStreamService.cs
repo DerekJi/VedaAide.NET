@@ -3,8 +3,9 @@ using Veda.Core.Extensions;
 namespace Veda.Services;
 
 /// <summary>
-/// 流式问答服务：先 yield sources，再逐 token yield LLM 输出，最后 yield done（含幻觉标志）。
-/// 使用 RagQueryHelper 实现代码复用，核心逻辑拆分为单一职责的小方法。
+/// Streaming Q&A service: yields sources first, then yields the LLM output token by token,
+/// and finally yields done (with the hallucination flag). Reuses RagQueryHelper for code reuse,
+/// with the core logic split into small single-responsibility methods.
 /// </summary>
 public sealed class QueryStreamService(
     IEmbeddingService embeddingService,
@@ -27,7 +28,7 @@ public sealed class QueryStreamService(
         var expandedQuestion = await embeddingService.ExpandQueryAsync(request.Question, ct);
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(expandedQuestion, ct);
 
-        // 尝试返回缓存答案
+        // Try to return the cached answer
         var cachedAnswer = await GetCachedAnswerAsync(request, queryEmbedding, ct);
         if (cachedAnswer is not null)
         {
@@ -37,11 +38,11 @@ public sealed class QueryStreamService(
             yield break;
         }
 
-        // 检索并排名候选
+        // Retrieve and rerank candidates
         var candidates = await ragQueryHelper.RetrieveCandidatesAsync(expandedQuestion, queryEmbedding, request, ct);
         var results = await ragQueryHelper.RerankAndBoostAsync(candidates, request.Question, request.TopK, request.UserId, ct);
 
-        // 无结果且无临时上下文时提前结束
+        // Finish early when there are no results and no ephemeral context
         if (results.Count == 0 && string.IsNullOrWhiteSpace(request.EphemeralContext))
         {
             yield return new RagStreamChunk { Type = "sources", Sources = [] };
@@ -50,18 +51,18 @@ public sealed class QueryStreamService(
             yield break;
         }
 
-        // 发送源列表给前端
+        // Send the source list to the frontend
         yield return BuildSourcesChunk(results);
 
-        // 生成流式答案
+        // Generate the streaming answer
         var (answer, isHallucination) = await GenerateStreamAnswerAsync(
             expandedQuestion, results, request, ct);
 
-        // 缓存非幻觉答案
+        // Cache the non-hallucinated answer
         if (!isHallucination && string.IsNullOrWhiteSpace(request.EphemeralContext))
             await semanticCache.SetAsync(queryEmbedding, answer, ct);
 
-        // 发送完成信号
+        // Send the done signal
         var confidence = results.Count > 0 ? results.Max(r => r.Similarity) : 0f;
         yield return new RagStreamChunk
         {
@@ -71,7 +72,7 @@ public sealed class QueryStreamService(
         };
     }
 
-    /// <summary>从缓存中获取答案（如果有）。</summary>
+    /// <summary>Gets the answer from the cache, if any.</summary>
     private async Task<string?> GetCachedAnswerAsync(
         RagQueryRequest request,
         float[] queryEmbedding,
@@ -88,8 +89,9 @@ public sealed class QueryStreamService(
     }
 
     /// <summary>
-    /// 动态生成 System Prompt：优先从数据库加载 "rag-system" 模板，fallback 到硬编码默认内容。
-    /// 模板内容支持 {today} 占位符。根据问题语言自动调整语言规则指令。
+    /// Dynamically builds the System Prompt: prefers loading the "rag-system" template from the database,
+    /// falling back to hard-coded default content. The template supports the {today} placeholder,
+    /// and the language-rule instruction is adjusted automatically based on the question language.
     /// </summary>
     private async Task<string> BuildSystemPromptAsync(string question, CancellationToken ct)
     {
@@ -115,7 +117,7 @@ public sealed class QueryStreamService(
             """;
     }
 
-    /// <summary>构建源列表 chunk。</summary>
+    /// <summary>Builds the sources-list chunk.</summary>
     private static RagStreamChunk BuildSourcesChunk(
         IReadOnlyList<(DocumentChunk Chunk, float Similarity)> results)
     {
@@ -135,18 +137,18 @@ public sealed class QueryStreamService(
         };
     }
 
-    /// <summary>生成流式答案并检测幻觉。</summary>
+    /// <summary>Generates the streaming answer and detects hallucinations.</summary>
     private async Task<(string Answer, bool IsHallucination)> GenerateStreamAnswerAsync(
         string expandedQuestion,
         IReadOnlyList<(DocumentChunk Chunk, float Similarity)> results,
         RagQueryRequest request,
         CancellationToken ct)
     {
-        // 构建上下文
+        // Build the context
         var contextChunks = contextWindowBuilder.Build(results);
         var context = ragQueryHelper.BuildContext(contextChunks, request.EphemeralContext);
 
-        // 生成答案
+        // Generate the answer
         var systemPrompt = await BuildSystemPromptAsync(request.Question, ct);
         var userMessage = chainOfThought.Enhance(request.Question, context);
 
@@ -159,7 +161,7 @@ public sealed class QueryStreamService(
 
         var answer = fullAnswer.ToString();
 
-        // 检测幻觉
+        // Detect hallucinations
         var isHallucination = await ragQueryHelper.DetectHallucinationAsync(
             answer, context, request, results, ct);
 

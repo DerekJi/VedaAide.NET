@@ -4,9 +4,9 @@ using Veda.Core.Interfaces;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// 演示文档库端点。
-/// 列出 Blob Storage demo-documents/ 前缀的预置示例文档，支持一键 ingest。
-/// 招聘方可零上传直接体验 RAG 问答效果。
+/// Demo document library endpoints.
+/// Lists the preset sample documents under the Blob Storage demo-documents/ prefix and supports one-click ingestion.
+/// Recruiters can experience RAG Q&A directly without uploading anything.
 /// </summary>
 [ApiController]
 [Route("api/demo")]
@@ -16,7 +16,7 @@ public sealed class DemoController(
     ICurrentUserService        currentUser,
     ILogger<DemoController>    logger) : ControllerBase
 {
-    /// <summary>列出可用的示例文档。</summary>
+    /// <summary>Lists the available sample documents.</summary>
     [HttpGet("documents")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ListDemoDocuments(CancellationToken ct)
@@ -25,7 +25,7 @@ public sealed class DemoController(
         return Ok(docs);
     }
 
-    /// <summary>将指定示例文档 ingest 到当前用户的知识库（携带 OwnerId scope）。</summary>
+    /// <summary>Ingests the specified sample document into the current user's knowledge base (carrying the OwnerId scope).</summary>
     [HttpPost("documents/{name}/ingest")]
     [ProducesResponseType(typeof(IngestResult), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

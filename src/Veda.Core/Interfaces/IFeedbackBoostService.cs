@@ -1,14 +1,14 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 基于历史反馈的 chunk boost 服务接口。
-/// 在 Rerank 后对有正向反馈历史的 chunk 提升排名权重。
+/// Service interface for boosting chunks based on historical feedback.
+/// After reranking, raises the ranking weight of chunks with a history of positive feedback.
 /// </summary>
 public interface IFeedbackBoostService
 {
     /// <summary>
-    /// 对 Rerank 结果列表施加用户反馈 boost，返回重新排序的结果。
-    /// 无历史时各 chunk boost = 1.0，排序不变。
+    /// Applies the user-feedback boost to a reranked result list and returns the reordered results.
+    /// With no feedback history, every chunk keeps boost = 1.0 and the order is unchanged.
     /// </summary>
     Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> ApplyBoostAsync(
         string userId,

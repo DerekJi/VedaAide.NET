@@ -1,8 +1,8 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 外部数据源接入契约。实现此接口可将任意外部存储（本地文件系统、Azure Blob 等）
-/// 的文档批量摄取到 VedaAide 知识库，作为 MCP Client 的数据端。
+/// Contract for connecting to external data sources. Implementing this interface allows batch ingestion of documents
+/// from any external storage (local file system, Azure Blob, etc.) into the VedaAide knowledge base, serving as the data side of the MCP Client.
 /// </summary>
 public interface IDataSourceConnector
 {

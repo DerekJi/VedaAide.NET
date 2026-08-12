@@ -1,19 +1,19 @@
 namespace Veda.Core.Options;
 
 /// <summary>
-/// 语义缓存配置项（绑定到 Veda:SemanticCache 配置节）。
+/// Semantic cache configuration (bound to the Veda:SemanticCache configuration section).
 /// </summary>
 public sealed class SemanticCacheOptions
 {
-    /// <summary>是否启用语义缓存。默认禁用。</summary>
+    /// <summary>Whether to enable the semantic cache. Disabled by default.</summary>
     public bool Enabled { get; set; } = false;
 
     /// <summary>
-    /// 语义相似度阈值：问题 embedding 余弦相似度高于此值时命中缓存。
-    /// 值域 [0, 1]，默认 0.95。
+    /// Semantic similarity threshold: a cache hit occurs when the cosine similarity of the question embedding is above this value.
+    /// Range [0, 1], default 0.95.
     /// </summary>
     public float SimilarityThreshold { get; set; } = 0.95f;
 
-    /// <summary>缓存条目存活时间（秒）。默认 3600（1 小时）。</summary>
+    /// <summary>Cache entry time-to-live (seconds). Default 3600 (1 hour).</summary>
     public int TtlSeconds { get; set; } = 3600;
 }

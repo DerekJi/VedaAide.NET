@@ -4,10 +4,10 @@ public record RagQueryResponse
 {
     public string Answer              { get; init; } = string.Empty;
     public List<SourceReference> Sources { get; init; } = [];
-    /// <summary>true 表示检测到潜在幻觉；由防幻觉层设置，前端可据此决策是否显示警告。</summary>
+    /// <summary>true indicates a potential hallucination was detected; set by the anti-hallucination layer, the frontend can use it to decide whether to show a warning.</summary>
     public bool IsHallucination       { get; init; }
     public float AnswerConfidence     { get; init; }
-    /// <summary>结构化推理输出（仅当请求中 StructuredOutput=true 时填充）。</summary>
+    /// <summary>Structured reasoning output (populated only when StructuredOutput=true in the request).</summary>
     public StructuredFinding? StructuredOutput { get; init; }
 }
 

@@ -7,15 +7,15 @@ using MimeKit;
 namespace Veda.Services.DataSources;
 
 /// <summary>
-/// 从 .eml / .msg 邮件文件中提取纯文本，供摄取管道使用。
-/// .eml 由 MimeKit 解析；.msg 由 MsgReader 解析（Outlook CFB 格式）。
+/// Extracts plain text from .eml / .msg email files for the ingestion pipeline.
+/// .eml is parsed by MimeKit; .msg is parsed by MsgReader (Outlook CFB format).
 /// </summary>
 internal static class EmailTextExtractor
 {
-    /// <summary>从邮件文件提取可读纯文本。</summary>
-    /// <param name="filePath">文件完整路径</param>
-    /// <param name="extension">小写扩展名（".eml" 或 ".msg"）</param>
-    /// <param name="ct">取消令牌</param>
+    /// <summary>Extracts readable plain text from an email file.</summary>
+    /// <param name="filePath">Full path to the file</param>
+    /// <param name="extension">Lowercase extension (".eml" or ".msg")</param>
+    /// <param name="ct">Cancellation token</param>
     public static Task<string> ExtractAsync(string filePath, string extension, CancellationToken ct = default)
         => extension.Equals(".eml", StringComparison.OrdinalIgnoreCase)
             ? ExtractEmlAsync(filePath, ct)

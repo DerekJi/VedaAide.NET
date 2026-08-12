@@ -1,7 +1,7 @@
 namespace Veda.Core.Options;
 
 /// <summary>
-/// Vision 模型提取配置，绑定到 appsettings.json 的 "Veda:Vision" 节。
+/// Vision model extraction settings, bound to the "Veda:Vision" section of appsettings.json.
 /// </summary>
 public sealed class VisionOptions
 {

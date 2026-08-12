@@ -1,17 +1,17 @@
 namespace Veda.Agents.Orchestration;
 
 /// <summary>
-/// Agent 编排服务接口：协调 DocumentAgent / QueryAgent / EvalAgent 完成复杂多步任务。
+/// Agent orchestration service interface: coordinates DocumentAgent / QueryAgent / EvalAgent to complete complex multi-step tasks.
 /// </summary>
 public interface IOrchestrationService
 {
     /// <summary>
-    /// 执行智能问答流程：QueryAgent 检索 + 生成，EvalAgent 质量评估。
+    /// Runs the intelligent Q&A flow: QueryAgent retrieves + generates, EvalAgent assesses quality.
     /// </summary>
     Task<OrchestrationResult> RunQueryFlowAsync(string question, CancellationToken ct = default);
 
     /// <summary>
-    /// 执行文档摄取流程：DocumentAgent 决策 + 摄取，返回摄取摘要。
+    /// Runs the document ingestion flow: DocumentAgent decides + ingests, returning an ingestion summary.
     /// </summary>
     Task<OrchestrationResult> RunIngestFlowAsync(string content, string documentName, CancellationToken ct = default);
 }

@@ -6,21 +6,21 @@ public record RagQueryRequest
     public DocumentType? FilterDocumentType { get; init; }
     public int TopK                     { get; init; } = 5;
     public float MinSimilarity          { get; init; } = RagDefaults.DefaultMinSimilarity;
-    /// <summary>仅返回在此时间之后摄取的文档块（含边界），null 表示不限制。</summary>
+    /// <summary>Only returns document chunks ingested after this time (inclusive); null means no limit.</summary>
     public DateTimeOffset? DateFrom     { get; init; }
-    /// <summary>仅返回在此时间之前摄取的文档块（含边界），null 表示不限制。</summary>
+    /// <summary>Only returns document chunks ingested before this time (inclusive); null means no limit.</summary>
     public DateTimeOffset? DateTo       { get; init; }
-    /// <summary>LLM 复杂度模式：Simple（默认）或 Advanced（深度分析）。</summary>
+    /// <summary>LLM complexity mode: Simple (default) or Advanced (deep analysis).</summary>
     public QueryMode Mode               { get; init; } = QueryMode.Simple;
-    /// <summary>知识作用域过滤；null 表示不过滤，检索所有可见文档。</summary>
+    /// <summary>Knowledge scope filter; null means no filtering — retrieves all visible documents.</summary>
     public KnowledgeScope? Scope        { get; init; }
-    /// <summary>是否启用结构化推理输出（含 Evidence[] 和 Confidence）。</summary>
+    /// <summary>Whether to enable structured reasoning output (including Evidence[] and Confidence).</summary>
     public bool StructuredOutput        { get; init; } = false;
-    /// <summary>当前用户 ID（可选）；提供后启用个性化反馈 boost。</summary>
+    /// <summary>Current user ID (optional); enables personalized feedback boost when provided.</summary>
     public string? UserId               { get; init; }
     /// <summary>
-    /// 临时上下文（Ephemeral RAG）：前端上传文件提取的文本，直接注入 Prompt，不写数据库。
-    /// null 表示无临时附件。
+    /// Temporary context (Ephemeral RAG): text extracted from a file uploaded by the frontend, injected directly into the prompt without writing to the database.
+    /// null means no temporary attachment.
     /// </summary>
     public string? EphemeralContext     { get; init; }
 }

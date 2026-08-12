@@ -1,7 +1,7 @@
 namespace Veda.Core;
 
 /// <summary>
-/// 文档被分割后的单个文本块，携带向量和元数据。
+/// A single text block produced by splitting a document, carrying its vector and metadata.
 /// </summary>
 public class DocumentChunk
 {
@@ -12,16 +12,16 @@ public class DocumentChunk
     public string Content      { get; init; } = string.Empty;
     public int ChunkIndex      { get; init; }
     public float[]? Embedding  { get; set; }
-    /// <summary>生成此块向量时使用的 Embedding 模型名称，用于切换模型时的增量重新索引。</summary>
+    /// <summary>Name of the Embedding model used to generate this chunk's vector, for incremental re-indexing when switching models.</summary>
     public string EmbeddingModel { get; set; } = string.Empty;
     public Dictionary<string, string> Metadata { get; init; } = new();
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
-    /// <summary>知识作用域元数据，用于多维度过滤；null 表示无限制范围。</summary>
+    /// <summary>Knowledge-scope metadata used for multi-dimensional filtering; null means unrestricted scope.</summary>
     public KnowledgeScope? Scope { get; init; }
-    /// <summary>文档版本号，首次摄取为 1，每次内容变更递增。</summary>
+    /// <summary>Document version number, starting at 1 on first ingestion and incremented on every content change.</summary>
     public int Version { get; set; } = 1;
-    /// <summary>本 chunk 被新版本取代的时间；null 表示当前有效。</summary>
+    /// <summary>Time when this chunk was superseded by a newer version; null means it is currently valid.</summary>
     public DateTimeOffset? SupersededAt { get; init; }
-    /// <summary>取代本 chunk 的新 chunk ID；null 表示当前有效。</summary>
+    /// <summary>ID of the new chunk that supersedes this one; null means it is currently valid.</summary>
     public string? SupersededBy { get; init; }
 }

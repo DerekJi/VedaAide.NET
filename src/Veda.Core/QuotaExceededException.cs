@@ -1,8 +1,8 @@
 namespace Veda.Core;
 
 /// <summary>
-/// 当外部配额（如 Azure AI Document Intelligence 免费层）耗尽时抛出。
-/// 调用方可捕获此异常并降级到备用实现（如 Vision 模型）。
+/// Thrown when an external quota (e.g. the Azure AI Document Intelligence free tier) is exhausted.
+/// Callers can catch this exception and fall back to an alternative implementation (e.g. a Vision model).
 /// </summary>
 public sealed class QuotaExceededException : Exception
 {

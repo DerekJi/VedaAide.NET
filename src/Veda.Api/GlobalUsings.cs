@@ -1,4 +1,4 @@
-// Veda.Api 全局 using
+// Veda.Api global usings
 global using Microsoft.AspNetCore.Mvc;
 global using Veda.Api;
 global using Veda.Core;

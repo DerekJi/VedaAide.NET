@@ -6,8 +6,8 @@ using Veda.Core.Interfaces;
 namespace Veda.Services;
 
 /// <summary>
-/// DIP 适配器：将 SK 框架的 IChatCompletionService 包装为领域接口 IChatService。
-/// 同时捕获 SK 返回的 token 消耗 Metadata，写入 ITokenUsageRepository。
+/// DIP adapter: wraps the SK framework's IChatCompletionService as the domain interface IChatService.
+/// Also captures the token-usage Metadata returned by SK and writes it to ITokenUsageRepository.
 /// </summary>
 public sealed class OllamaChatService(
     IChatCompletionService inner,
@@ -47,7 +47,7 @@ public sealed class OllamaChatService(
                 lastMetadata = chunk.Metadata;
         }
 
-        // 流结束后记录 usage（最后一个 chunk 的 Metadata 通常含 usage）
+        // Record usage after the stream ends (the last chunk's Metadata usually contains usage)
         _ = TryRecordUsageAsync(modelId ?? "llm", "Chat", lastMetadata, ct: CancellationToken.None);
     }
 

@@ -1,25 +1,25 @@
 namespace Veda.Core.Options;
 
 /// <summary>
-/// Azure Entra ID (CIAM) 认证配置，绑定到 appsettings.json 的 "AzureAd" 节。
+/// Azure Entra ID (CIAM) authentication configuration, bound to the "AzureAd" section of appsettings.json.
 /// </summary>
 public sealed class AzureAdOptions
 {
-    /// <summary>OIDC 授权服务器基地址，默认 https://login.microsoftonline.com/</summary>
+    /// <summary>Base address of the OIDC authorization server, default https://login.microsoftonline.com/</summary>
     public string Instance { get; set; } = "https://login.microsoftonline.com/";
 
-    /// <summary>CIAM 域名，如 vedaaide.onmicrosoft.com。用于构造 OIDC 元数据 URL。</summary>
+    /// <summary>CIAM domain name, e.g. vedaaide.onmicrosoft.com. Used to construct the OIDC metadata URL.</summary>
     public string? Domain { get; set; }
 
-    /// <summary>Entra ID 租户 ID。</summary>
+    /// <summary>Entra ID tenant ID.</summary>
     public string? TenantId { get; set; }
 
-    /// <summary>应用注册的 Client ID（Application ID）。</summary>
+    /// <summary>The Client ID (Application ID) of the app registration.</summary>
     public string? ClientId { get; set; }
 
-    /// <summary>JWT audience，留空则使用 ClientId。</summary>
+    /// <summary>JWT audience; falls back to ClientId when left empty.</summary>
     public string? Audience { get; set; }
 
-    /// <summary>管理员 OID 白名单（适合 CIAM token 无 roles claim 的场景）。</summary>
+    /// <summary>Whitelist of administrator OIDs (for scenarios where CIAM tokens have no roles claim).</summary>
     public string[] AdminOids { get; set; } = [];
 }

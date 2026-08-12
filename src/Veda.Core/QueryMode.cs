@@ -1,10 +1,10 @@
 namespace Veda.Core;
 
 /// <summary>
-/// LLM 查询复杂度模式。
-/// Simple：使用轻量/快速模型（如 GPT-4o-mini）处理日常问答。
-/// Advanced：使用重量级模型（如 DeepSeek）处理复杂分析、多步推理任务。
-/// 由调用方根据业务语义显式指定，默认 Simple。
+/// LLM query complexity mode.
+/// Simple: uses a lightweight/fast model (e.g. GPT-4o-mini) for everyday Q&A.
+/// Advanced: uses a heavyweight model (e.g. DeepSeek) for complex analysis and multi-step reasoning tasks.
+/// Explicitly specified by the caller based on business semantics; defaults to Simple.
 /// </summary>
 public enum QueryMode
 {

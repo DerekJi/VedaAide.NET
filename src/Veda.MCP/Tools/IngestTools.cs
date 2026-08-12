@@ -1,7 +1,7 @@
 namespace Veda.MCP.Tools;
 
 /// <summary>
-/// MCP 文档摄取工具。允许通过 LLM 调用直接向知识库摄取文本。
+/// MCP document ingestion tools. Allow ingesting text directly into the knowledge base via LLM calls.
 /// </summary>
 [McpServerToolType]
 public sealed class IngestTools(IDocumentIngestor documentIngestor)

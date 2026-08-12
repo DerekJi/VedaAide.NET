@@ -3,8 +3,8 @@ using System.Runtime.CompilerServices;
 namespace Veda.Services;
 
 /// <summary>
-/// 公开简历定制服务实现。
-/// 流程：JD 向量化 → 检索 Public 简历片段 → 构建 Prompt → LLM 流式生成 Markdown 简历。
+/// Public resume tailoring service implementation.
+/// Pipeline: embed the JD → retrieve Public resume snippets → build the prompt → stream-generate a Markdown resume via LLM.
 /// </summary>
 public sealed class PublicResumeTailoringService(
     IEmbeddingService embeddingService,
@@ -29,23 +29,23 @@ public sealed class PublicResumeTailoringService(
         int topK,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        // 1. 向量化 JD
+        // 1. Embed the JD
         var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(jobDescription, ct);
 
-        // 2. 检索 Visibility=Public 的简历片段（无 OwnerId 过滤，仅公开内容）
+        // 2. Retrieve resume snippets with Visibility=Public (no OwnerId filter, public content only)
         var results = await vectorStore.SearchAsync(
             queryEmbedding,
             topK: topK,
-            minSimilarity: 0.2f,       // 简历素材相似度阈值可以低一些，保证召回率
+            minSimilarity: 0.2f,       // Resume-material similarity threshold can be lower to ensure recall
             scope: new KnowledgeScope(Visibility: Visibility.Public),
             ct: ct);
 
-        // 3. 构建上下文
+        // 3. Build the context
         var context = results.Count > 0
             ? string.Join("\n\n---\n\n", results.Select(r => r.Chunk.Content))
             : string.Empty;
 
-        // 4. 构建用户消息
+        // 4. Build the user message
         var userMessage = string.IsNullOrWhiteSpace(context)
             ? $"Job Description:\n{jobDescription}\n\nNote: No specific candidate profile was found. Generate a general professional resume structure."
             : $"""
@@ -58,7 +58,7 @@ public sealed class PublicResumeTailoringService(
               Generate a tailored Markdown resume for this candidate that highlights the most relevant experience and skills for this role.
               """;
 
-        // 5. 流式调用 LLM
+        // 5. Call the LLM in streaming mode
         var chatService = llmRouter.Resolve(QueryMode.Simple);
         await foreach (var token in chatService.CompleteStreamAsync(SystemPrompt, userMessage, ct))
         {

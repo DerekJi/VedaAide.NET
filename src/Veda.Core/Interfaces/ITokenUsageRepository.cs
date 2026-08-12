@@ -1,8 +1,8 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// Token 消耗记录仓储接口。
-/// 负责写入单条消耗记录和按用户聚合统计查询。
+/// Repository interface for token usage records.
+/// Responsible for writing individual usage records and querying per-user aggregated statistics.
 /// </summary>
 public interface ITokenUsageRepository
 {
@@ -11,7 +11,7 @@ public interface ITokenUsageRepository
     Task<TokenUsageSummary> GetSummaryAsync(string userId, CancellationToken ct = default);
 }
 
-/// <summary>单次 AI 调用的 token 消耗记录（领域值对象）。</summary>
+/// <summary>Token usage record for a single AI call (domain value object).</summary>
 public record TokenUsageRecord(
     string UserId,
     string ModelName,
@@ -20,7 +20,7 @@ public record TokenUsageRecord(
     int CompletionTokens
 );
 
-/// <summary>按用户汇总的 token 消耗报告。</summary>
+/// <summary>Per-user aggregated token usage report.</summary>
 public record TokenUsageSummary(
     TokenUsagePeriod ThisMonth,
     TokenUsagePeriod AllTime

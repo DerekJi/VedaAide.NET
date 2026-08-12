@@ -3,8 +3,8 @@ using Veda.Core;
 namespace Veda.Evaluation.Scorers;
 
 /// <summary>
-/// 答案相关性评分器：通过问题与回答的 Embedding 余弦相似度，
-/// 衡量回答是否切题。返回 [0, 1] 的浮点分数。
+/// Answer relevancy scorer: measures whether an answer stays on topic by computing
+/// the Embedding cosine similarity between the question and the answer. Returns a float score in [0, 1].
 /// </summary>
 public sealed class AnswerRelevancyScorer(IEmbeddingService embeddingService)
 {

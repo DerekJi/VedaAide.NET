@@ -1,4 +1,4 @@
-// Veda.Storage 全局 using
+// Veda.Storage global usings
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.Extensions.Logging;
 global using Veda.Core;

@@ -9,9 +9,9 @@ using System.Collections.ObjectModel;
 namespace Veda.Storage;
 
 /// <summary>
-/// 应用启动时确保 CosmosDB 数据库和所有容器存在且配置正确。
-/// VectorChunks：DiskANN 向量索引（余弦距离），Partition Key = /documentId。
-/// SemanticCache：简单容器，Partition Key = /id，按 TTL 自动过期。
+/// Ensures the CosmosDB database and all containers exist and are configured correctly at application startup.
+/// VectorChunks: DiskANN vector index (cosine distance), Partition Key = /documentId.
+/// SemanticCache: simple container, Partition Key = /id, auto-expired by TTL.
 /// </summary>
 public sealed class CosmosDbInitializer(
     CosmosClient client,
@@ -31,7 +31,7 @@ public sealed class CosmosDbInitializer(
             opts.DatabaseName, throughput: null, cancellationToken: ct);
         var db = dbResponse.Database;
 
-        // ── VectorChunks container（DiskANN 向量索引）──────────────────────
+        // ── VectorChunks container (DiskANN vector index)──────────────────────
         var chunksProps = new ContainerProperties
         {
             Id = opts.ChunksContainerName,
@@ -59,7 +59,7 @@ public sealed class CosmosDbInitializer(
         chunksProps.IndexingPolicy.ExcludedPaths.Add(new ExcludedPath { Path = "/embedding/*" });
         await db.CreateContainerIfNotExistsAsync(chunksProps, cancellationToken: ct);
 
-        // ── SemanticCache container（TTL 自动过期，无向量索引）──────────────
+        // ── SemanticCache container (TTL auto-expiry, no vector index)──────────────
         var cacheProps = new ContainerProperties
         {
             Id = opts.CacheContainerName,

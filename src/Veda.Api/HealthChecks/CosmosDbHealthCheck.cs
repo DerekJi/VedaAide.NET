@@ -7,10 +7,10 @@ using Veda.Storage;
 namespace Veda.Api.HealthChecks;
 
 /// <summary>
-/// 验证 CosmosDB 连接是否正常（仅在 StorageProvider=CosmosDb 时注册）。
-/// 执行轻量操作：读取数据库属性，不写入任何数据。
-/// 404 → Degraded（数据库尚未初始化，连接本身正常）
-/// 其他异常 → Unhealthy（真正的连接问题）
+/// Verifies that the CosmosDB connection is healthy (only registered when StorageProvider=CosmosDb).
+/// Performs a lightweight operation: reads database properties without writing any data.
+/// 404 → Degraded (database not yet initialized; connectivity itself is fine)
+/// Other exceptions → Unhealthy (genuine connection problem)
 /// </summary>
 public sealed class CosmosDbHealthCheck(CosmosClient client, CosmosDbOptions options) : IHealthCheck
 {

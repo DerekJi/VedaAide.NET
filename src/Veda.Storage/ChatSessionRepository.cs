@@ -5,7 +5,8 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// SQLite-backed 会话持久化仓储。userId 作为强制查询条件，确保用户数据隔离。
+/// SQLite-backed session persistence repository. userId is a mandatory query condition,
+/// ensuring user data isolation.
 /// </summary>
 public sealed class ChatSessionRepository(VedaDbContext db) : IChatSessionRepository
 {

@@ -18,7 +18,7 @@ public class DocumentsController(
         "image/tiff", "image/bmp", "application/pdf"
     };
 
-    /// <summary>列出当前用户已 Ingest 的文档（按 OwnerId 隔离）。</summary>
+    /// <summary>Lists the documents the current user has ingested (isolated by OwnerId).</summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ListDocuments(CancellationToken ct)
@@ -30,7 +30,7 @@ public class DocumentsController(
         return Ok(docs);
     }
 
-    /// <summary>获取指定文档的所有当前 chunk 内容（用于答案来源校验）。</summary>
+    /// <summary>Gets all current chunk content of the specified document (for answer source verification).</summary>
     [HttpGet("{documentName}/chunks")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -47,7 +47,7 @@ public class DocumentsController(
         }));
     }
 
-    /// <summary>摄取纯文本文档：分块 → Embedding → 去重 → 存储。</summary>
+    /// <summary>Ingests a plain-text document: chunking → Embedding → dedup → storage.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(IngestResult), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -63,8 +63,8 @@ public class DocumentsController(
     }
 
     /// <summary>
-    /// 摄取图片或 PDF 文件（multipart/form-data）：文件提取 → 分块 → Embedding → 去重 → 存储。
-    /// 路由策略：documentType=RichMedia → Vision 模型；其余 → Azure AI Document Intelligence。
+    /// Ingests image or PDF files (multipart/form-data): file extraction → chunking → Embedding → dedup → storage.
+    /// Routing policy: documentType=RichMedia → Vision model; everything else → Azure AI Document Intelligence.
     /// </summary>
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]

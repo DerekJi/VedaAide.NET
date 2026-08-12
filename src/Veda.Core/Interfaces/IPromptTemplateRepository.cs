@@ -1,7 +1,7 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// Prompt 模板持久化仓储接口。具体实现在 Veda.Storage（EF Core）。
+/// Repository interface for persisting prompt templates. The concrete implementation lives in Veda.Storage (EF Core).
 /// </summary>
 public interface IPromptTemplateRepository
 {

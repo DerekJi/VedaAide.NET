@@ -82,7 +82,7 @@ public class QueryServiceTests
         var ragOptions = Options.Create(new RagOptions { HallucinationSimilarityThreshold = 0f });
         _loggerHelper = new Mock<ILogger<RagQueryHelper>>();
 
-        // 创建 RagQueryHelper 实例
+        // Create a RagQueryHelper instance
         _ragQueryHelper = new RagQueryHelper(
             _vectorStore.Object,
             _hybridRetriever.Object,
@@ -92,7 +92,7 @@ public class QueryServiceTests
             ragOptions,
             _loggerHelper.Object);
 
-        // 创建 QueryService 实例
+        // Create a QueryService instance
         _sut = new QueryService(
             _embedding.Object,
             _llmRouter.Object,

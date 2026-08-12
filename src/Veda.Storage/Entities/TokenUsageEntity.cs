@@ -1,6 +1,6 @@
 namespace Veda.Storage.Entities;
 
-/// <summary>单次 AI 模型调用的 token 消耗持久化实体。</summary>
+/// <summary>Persisted entity for the token consumption of a single AI model call.</summary>
 public class TokenUsageEntity
 {
     public Guid   Id               { get; set; } = Guid.NewGuid();

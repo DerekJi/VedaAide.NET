@@ -8,8 +8,8 @@ namespace Veda.MCP;
 public static class McpServiceExtensions
 {
     /// <summary>
-    /// 注册 VedaAide MCP Server（HTTP/SSE 传输），挂载知识库只读工具。
-    /// IngestTools 已移除：/mcp 通道定位为公共知识库只读接口。
+    /// Registers the VedaAide MCP Server (HTTP/SSE transport) and mounts the knowledge base read-only tools.
+    /// IngestTools has been removed: the /mcp channel is positioned as a public read-only knowledge base interface.
     /// </summary>
     public static IServiceCollection AddVedaMcp(this IServiceCollection services)
     {
@@ -21,7 +21,7 @@ public static class McpServiceExtensions
     }
 
     /// <summary>
-    /// 将 MCP SSE 端点挂载到 /mcp。
+    /// Mounts the MCP SSE endpoint at /mcp.
     /// </summary>
     public static IEndpointRouteBuilder MapVedaMcp(this IEndpointRouteBuilder endpoints)
     {

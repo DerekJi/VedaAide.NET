@@ -14,9 +14,9 @@ namespace Veda.Storage;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// 注册存储服务。通过 Veda:StorageProvider 配置项选择后端：
-    /// "Sqlite"（默认，本地开发）或 "CosmosDb"（云端部署）。
-    /// 元数据仓储（PromptTemplate、SyncState、Eval）始终使用 SQLite。
+    /// Registers storage services. The backend is selected via the Veda:StorageProvider config setting:
+    /// "Sqlite" (default, local development) or "CosmosDb" (cloud deployment).
+    /// Metadata repositories (PromptTemplate, SyncState, Eval) always use SQLite.
     /// </summary>
     public static IServiceCollection AddVedaStorage(this IServiceCollection services, IConfiguration cfg)
     {

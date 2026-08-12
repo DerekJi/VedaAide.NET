@@ -8,9 +8,9 @@ using Veda.Services.DataSources;
 namespace Veda.Api;
 
 /// <summary>
-/// 后台服务：按配置的间隔自动触发所有已启用的 <see cref="IDataSourceConnector"/> 执行同步。
-/// 配置节：<c>Veda:DataSources:AutoSync</c>（Enabled + IntervalMinutes）。
-/// 通过 IServiceScopeFactory 创建 Scoped 作用域，确保每次同步获取独立的 DbContext / Service 实例。
+/// Background service: automatically triggers all enabled <see cref="IDataSourceConnector"/> connectors to sync at the configured interval.
+/// Configuration section: <c>Veda:DataSources:AutoSync</c> (Enabled + IntervalMinutes).
+/// Uses IServiceScopeFactory to create a Scoped scope so each sync cycle gets independent DbContext / Service instances.
 /// </summary>
 public sealed class DataSourceSyncBackgroundService(
     IServiceScopeFactory                    scopeFactory,

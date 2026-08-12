@@ -277,9 +277,10 @@ public class DocumentIngestServiceTests
     }
 
     /// <summary>
-    /// 回归测试：重复加载相同内容的文档时，所有 chunks 被语义去重跳过，
-    /// 此时不应调用 MarkDocumentSupersededAsync，否则原有 chunks 会被标记为已取代
-    /// 但没有新 chunks 写入，导致文档从列表消失（无法查询）。
+    /// Regression test: when a document with identical content is re-ingested and all chunks
+    /// are skipped by semantic dedup, MarkDocumentSupersededAsync must NOT be called —
+    /// otherwise the existing chunks would be marked as superseded without any new chunks
+    /// being written, causing the document to vanish from the list (and become unqueryable).
     /// </summary>
     [Test]
     public async Task IngestAsync_ReIngestSameContent_AllChunksDeduped_ShouldNotSupersedePreviousVersion()

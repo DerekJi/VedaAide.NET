@@ -5,7 +5,7 @@ using Veda.Services;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// Context Augmentation 端点：从用户上传的文件提取文本，不写数据库（Ephemeral RAG）。
+/// Context Augmentation endpoints: extract text from user-uploaded files without writing to the database (Ephemeral RAG).
 /// </summary>
 [ApiController]
 [Route("api/context")]
@@ -15,10 +15,10 @@ public class ContextController(
     ILogger<ContextController> logger) : ControllerBase
 {
     /// <summary>
-    /// 提取文件文本内容，仅返回给前端，不写向量数据库。
+    /// Extracts text content from a file, returning it to the frontend only, without writing to the vector store.
     /// </summary>
     [HttpPost("extract")]
-    [RequestSizeLimit(20 * 1024 * 1024)]  // 20 MB 上限
+    [RequestSizeLimit(20 * 1024 * 1024)]  // 20 MB limit
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]

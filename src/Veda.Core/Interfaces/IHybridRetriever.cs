@@ -2,8 +2,8 @@ using Veda.Core.Options;
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 混合检索双通道融合服务。
-/// 并发执行向量通道与关键词通道，通过 RRF 或加权合并策略返回融合排序结果。
+/// Hybrid retrieval service that fuses two channels.
+/// Runs the vector channel and the keyword channel concurrently, and returns fused, ranked results via an RRF or weighted merge strategy.
 /// </summary>
 public interface IHybridRetriever
 {

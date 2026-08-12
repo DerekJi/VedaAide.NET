@@ -7,19 +7,19 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// SQLite 向量存储实现。
-/// 通过将所有向量加载到内存后执行余弦相似度计算来实现向量检索。
-/// 适合中小规模（< 100K 块）场景；大规模时可替换为 Azure AI Search。
+/// SQLite vector store implementation.
+/// Performs vector retrieval by loading all vectors into memory and computing cosine similarity.
+/// Suitable for small-to-medium scale (< 100K chunks); for larger scale, replace with Azure AI Search.
 /// </summary>
 public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
 {
-    // DRY: 委托到 UpsertBatchAsync，不重复哈希+去重逻辑。
+    // DRY: delegate to UpsertBatchAsync rather than duplicating the hashing + dedup logic.
     public Task UpsertAsync(DocumentChunk chunk, CancellationToken ct = default)
         => UpsertBatchAsync([chunk], ct);
 
     public async Task UpsertBatchAsync(IEnumerable<DocumentChunk> chunks, CancellationToken ct = default)
     {
-        // 预先计算所有 hash，然后一次批量查询已存在的 hash，避免 N+1 问题。
+        // Precompute all hashes, then query existing hashes in one batch to avoid N+1 queries.
         var candidates = chunks
             .Select(c => (Chunk: c, Hash: ComputeHash(c.Content)))
             .ToList();
@@ -27,8 +27,8 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         if (candidates.Count == 0) return;
 
         var incomingHashes = candidates.Select(x => x.Hash).ToList();
-        // 仅检查当前有效（未被 supersede）的 chunks 的哈希，避免被 superseded 的历史数据
-        // 阻止相同内容重新写入（例如文档重新上传时需要恢复活跃状态）。
+        // Only check hashes of currently active (non-superseded) chunks so superseded history does not
+        // block re-insertion of identical content (e.g. a re-uploaded document needs to be reactivated).
         var existingHashes = await db.VectorChunks
             .Where(x => incomingHashes.Contains(x.ContentHash) && x.SupersededAtTicks == 0)
             .Select(x => x.ContentHash)
@@ -57,7 +57,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         CancellationToken ct = default)
     {
         var query = db.VectorChunks.AsNoTracking()
-            .Where(x => x.SupersededAtTicks == 0);  // 只检索当前有效块
+            .Where(x => x.SupersededAtTicks == 0);  // only retrieve currently active chunks
         if (filterType.HasValue)
             query = query.Where(x => x.DocumentType == (int)filterType.Value);
         if (dateFrom.HasValue)
@@ -121,7 +121,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
             return Array.Empty<(DocumentChunk, float)>();
 
         var dbQuery = db.VectorChunks.AsNoTracking()
-            .Where(x => x.SupersededAtTicks == 0);  // 只检索当前有效块
+            .Where(x => x.SupersededAtTicks == 0);  // only retrieve currently active chunks
         if (filterType.HasValue)
             dbQuery = dbQuery.Where(x => x.DocumentType == (int)filterType.Value);
         if (dateFrom.HasValue)
@@ -321,9 +321,9 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         return floats;
     }
 
-    // CosineSimilarity 已迁移到 VectorMath（SRP：数学运算不属于存储层）。
+    // CosineSimilarity has moved to VectorMath (SRP: math operations don't belong in the storage layer).
 
-    /// <summary>从 metadata 字典中读取 KnowledgeScope 字段。</summary>
+    /// <summary>Reads KnowledgeScope fields from the metadata dictionary.</summary>
     private static KnowledgeScope? ReadScope(Dictionary<string, string> metadata)
     {
         if (!metadata.ContainsKey("_scope_domain") &&
@@ -336,12 +336,12 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         metadata.TryGetValue("_scope_ownerId",    out var ownerId);
         metadata.TryGetValue("_scope_sourceType", out var sourceType);
         metadata.TryGetValue("_scope_visibility", out var visStr);
-        // null visibility = 历史文档，视为 Public（兼容旧数据）
+        // null visibility = legacy document, treated as Public (backward compat)
         Visibility? visibility = Enum.TryParse<Visibility>(visStr, out var v) ? v : null;
         return new KnowledgeScope(domain, sourceType, null, null, null, ownerId, visibility);
     }
 
-    /// <summary>判断 chunk 的 scope 是否满足过滤条件（null scope 不过滤）。</summary>
+    /// <summary>Checks whether a chunk's scope satisfies the filter conditions (null scope means no filtering).</summary>
     private static bool MatchesScope(KnowledgeScope? chunkScope, KnowledgeScope? filterScope)
     {
         if (filterScope is null) return true;
@@ -352,7 +352,7 @@ public sealed class SqliteVectorStore(VedaDbContext db) : IVectorStore
         if (filterScope.SourceType is not null && !string.Equals(chunkScope?.SourceType, filterScope.SourceType, StringComparison.OrdinalIgnoreCase)) return false;
         if (filterScope.Visibility is not null)
         {
-            // null visibility = 历史文档，无限制 → 兼容视为 Public
+            // null visibility = legacy document with no restriction → treated as Public for compatibility
             var effectiveVisibility = chunkScope?.Visibility ?? Visibility.Public;
             if (effectiveVisibility != filterScope.Visibility) return false;
         }

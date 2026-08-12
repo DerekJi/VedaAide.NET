@@ -5,8 +5,8 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// EF Core + SQLite 实现的数据源同步状态仓库。
-/// 记录每个连接器已同步文件的内容哈希，供下次 Sync 时比对，跳过未变更文件。
+/// Data source sync-state store implemented with EF Core + SQLite.
+/// Records the content hash of every file synced by each connector so unchanged files can be skipped on the next Sync.
 /// </summary>
 public sealed class SyncStateStore(VedaDbContext db) : ISyncStateStore
 {
@@ -52,7 +52,7 @@ public sealed class SyncStateStore(VedaDbContext db) : ISyncStateStore
     }
 
     /// <summary>
-    /// 计算字符串内容的 SHA-256 哈希（小写十六进制，与 SqliteVectorStore 保持一致）。
+    /// Computes the SHA-256 hash of a string (lowercase hex, consistent with SqliteVectorStore).
     /// </summary>
     public static string ComputeHash(string content)
     {

@@ -1,8 +1,8 @@
 namespace Veda.Services;
 
 /// <summary>
-/// 基于历史反馈的 chunk boost 服务。
-/// 在 Rerank 阶段之后，对有正向反馈历史的 chunk 提升排名。
+/// Chunk boost service based on historical feedback.
+/// After the Rerank stage, boosts the ranking of chunks that have positive feedback history.
 /// </summary>
 public sealed class FeedbackBoostService(IUserMemoryStore userMemoryStore) : IFeedbackBoostService
 {

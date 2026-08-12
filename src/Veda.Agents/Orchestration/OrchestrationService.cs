@@ -1,8 +1,8 @@
 namespace Veda.Agents.Orchestration;
 
 /// <summary>
-/// 手动调用链编排（比 AgentGroupChat 更可控、更易测试）。
-/// 流程：QueryAgent 生成答案 → EvalAgent 评估质量 → 返回结果。
+/// Manual call-chain orchestration (more controllable and easier to test than AgentGroupChat).
+/// Flow: QueryAgent generates the answer → EvalAgent assesses quality → result is returned.
 /// </summary>
 public sealed class OrchestrationService(
     IQueryService queryService,
@@ -13,13 +13,13 @@ public sealed class OrchestrationService(
     {
         var trace = new List<string>();
 
-        // Step 1: QueryAgent — RAG 检索 + LLM 生成
+        // Step 1: QueryAgent — RAG retrieval + LLM generation
         trace.Add("QueryAgent: executing RAG pipeline");
         var request = new RagQueryRequest { Question = question };
         var response = await queryService.QueryAsync(request, ct);
         trace.Add($"QueryAgent: answer generated (confidence={response.AnswerConfidence:P0}, hallucination={response.IsHallucination})");
 
-        // Step 2: EvalAgent — 自动评估（若答案非幻觉则验证上下文一致性）
+        // Step 2: EvalAgent — automatic evaluation (verifies context grounding when the answer is not a hallucination)
         string? evalSummary = null;
         if (!response.IsHallucination && response.Sources.Count > 0)
         {
@@ -49,7 +49,7 @@ public sealed class OrchestrationService(
     {
         var trace = new List<string>();
 
-        // DocumentAgent — 决策文档类型并摄取
+        // DocumentAgent — decides the document type and ingests
         trace.Add($"DocumentAgent: analyzing document '{documentName}'");
         var docType = InferDocumentType(documentName);
         trace.Add($"DocumentAgent: inferred type = {docType}");
@@ -65,7 +65,7 @@ public sealed class OrchestrationService(
         };
     }
 
-    // SRP: 文档类型推断逻辑独立于 Service 层
+    // SRP: document type inference logic is kept separate from the Service layer
     private static DocumentType InferDocumentType(string documentName)
     {
         var name = documentName.ToLowerInvariant();

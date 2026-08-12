@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace Veda.Storage.Entities;
 
 /// <summary>
-/// CosmosDB for NoSQL 中存储的向量块文档模型。
-/// 属性名称使用小驼峰以匹配 CosmosDB JSON 惯例。
+/// Vector chunk document model stored in CosmosDB for NoSQL.
+/// Property names use camelCase to match CosmosDB JSON conventions.
 /// </summary>
 internal sealed class CosmosChunkDocument
 {
@@ -51,18 +51,18 @@ internal sealed class CosmosChunkDocument
     public string SupersededByDocId { get; set; } = string.Empty;
 }
 
-/// <summary>仅包含 id + documentId 字段，用于删除/Patch 查询结果反序列化。</summary>
+/// <summary>Contains only id + documentId, used to deserialize delete/patch query results.</summary>
 internal sealed class CosmosIdOnly
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
-    /// <summary>Partition Key 字段——Patch/Delete 操作必须提供精确的 PartitionKey。</summary>
+    /// <summary>Partition Key field — Patch/Delete operations must supply the exact PartitionKey.</summary>
     [JsonPropertyName("documentId")]
     public string DocumentId { get; set; } = string.Empty;
 }
 
-/// <summary>文档列表查询用的轻量行结构（无 embedding/content），用于 GetAllDocumentsAsync。</summary>
+/// <summary>Lightweight row shape for document listing queries (no embedding/content), used by GetAllDocumentsAsync.</summary>
 internal sealed class CosmosDocRow
 {
     [JsonPropertyName("documentId")]
@@ -75,7 +75,7 @@ internal sealed class CosmosDocRow
     public int DocumentType { get; set; }
 }
 
-/// <summary>版本历史查询用的轻量行结构。</summary>
+/// <summary>Lightweight row shape for version-history queries.</summary>
 internal sealed class CosmosVersionRow
 {
     [JsonPropertyName("documentId")]
@@ -91,7 +91,7 @@ internal sealed class CosmosVersionRow
     public long SupersededAtTicks { get; set; }
 }
 
-/// <summary>向量检索查询结果，包含文档字段和向量距离分数。</summary>
+/// <summary>Vector search query result containing document fields and the vector distance score.</summary>
 internal sealed class CosmosSearchResult
 {
     [JsonPropertyName("id")]
@@ -124,7 +124,7 @@ internal sealed class CosmosSearchResult
     [JsonPropertyName("createdAtTicks")]
     public long CreatedAtTicks { get; set; }
 
-    /// <summary>VectorDistance 返回的余弦相似度（[-1,1]，越大越相似）</summary>
+    /// <summary>Cosine similarity returned by VectorDistance ([-1,1]; higher = more similar)</summary>
     [JsonPropertyName("distance")]
     public double Distance { get; set; }
 
@@ -135,7 +135,7 @@ internal sealed class CosmosSearchResult
     public long SupersededAtTicks { get; set; } = 0;
 }
 
-/// <summary>关键词检索结果，包含 BM25 相关分数。</summary>
+/// <summary>Keyword search result containing the BM25 relevance score.</summary>
 internal sealed class CosmosKeywordSearchResult
 {
     [JsonPropertyName("id")]

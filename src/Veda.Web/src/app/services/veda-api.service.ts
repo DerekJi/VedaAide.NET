@@ -29,8 +29,8 @@ export class VedaApiService {
   }
 
   /**
-   * 上传文件，仅提取文本，不写向量数据库（Ephemeral RAG / Context Augmentation）。
-   * 对应后端 POST /api/context/extract。
+   * Uploads a file and extracts its text only, without writing to the vector database (Ephemeral RAG / Context Augmentation).
+   * Corresponds to the backend POST /api/context/extract.
    */
   extractContextFile(file: File): Observable<ContextExtractResponse> {
     const formData = new FormData();

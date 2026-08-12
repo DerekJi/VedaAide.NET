@@ -28,7 +28,7 @@ public record QueryRequest(
     string? ScopeOwnerId = null,
     string? UserId = null);
 
-/// <summary>携带临时附件上下文的流式问答请求（POST /api/querystream）。</summary>
+/// <summary>Streaming QA request carrying transient attachment context (POST /api/querystream).</summary>
 public record QueryStreamRequest(
     [Required, MinLength(1)] string Question,
     string? ExtraContext,

@@ -1,15 +1,15 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 文档摄取服务契约（写操作）。
-/// ISP：与查询操作分离，Controller 只依赖它需要的接口。
+/// Document ingestion service contract (write operations).
+/// ISP: separated from query operations, so a Controller depends only on the interfaces it needs.
 /// </summary>
 public interface IDocumentIngestor
 {
     /// <summary>
-    /// 摄取纯文本文档：分块 → Embedding → 去重 → 存储。
+    /// Ingests plain-text documents: chunk → embed → deduplicate → store.
     /// </summary>
-    /// <returns>包含 DocumentId 的结果，调用方可用于后续删除操作。</returns>
+    /// <returns>A result containing the DocumentId, which callers can use for subsequent deletion.</returns>
     Task<IngestResult> IngestAsync(
         string content,
         string documentName,
@@ -18,13 +18,13 @@ public interface IDocumentIngestor
         CancellationToken ct = default);
 
     /// <summary>
-    /// 摄取二进制文件（图片 / PDF）：文件提取 → 分块 → Embedding → 去重 → 存储。
-    /// 路由策略：<see cref="DocumentType.RichMedia"/> 使用 Vision 模型；其余使用 Azure AI Document Intelligence。
+    /// Ingests binary files (images / PDFs): file extraction → chunking → embedding → deduplication → storage.
+    /// Routing strategy: <see cref="DocumentType.RichMedia"/> uses a Vision model; all other types use Azure AI Document Intelligence.
     /// </summary>
-    /// <param name="fileStream">图片或 PDF 文件流。</param>
-    /// <param name="fileName">原始文件名（含扩展名），用于日志与元数据。</param>
-    /// <param name="mimeType">MIME 类型（如 image/jpeg、application/pdf）。</param>
-    /// <param name="documentType">文档类型，决定提取模型与分块策略。</param>
+    /// <param name="fileStream">Image or PDF file stream.</param>
+    /// <param name="fileName">Original file name (including extension), used for logging and metadata.</param>
+    /// <param name="mimeType">MIME type (e.g. image/jpeg, application/pdf).</param>
+    /// <param name="documentType">Document type, which determines the extraction model and chunking strategy.</param>
     Task<IngestResult> IngestFileAsync(
         Stream fileStream,
         string fileName,

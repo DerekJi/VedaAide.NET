@@ -7,16 +7,16 @@ using Veda.Core;
 namespace Veda.Services;
 
 /// <summary>
-/// 基于 Azure AI Document Intelligence 的文件内容提取实现。
-/// 路由策略：
-///   - BillInvoice → "prebuilt-invoice"（结构化发票/账单提取）
-///   - 其余类型   → "prebuilt-read"（通用 OCR + 版式感知）
-/// 输出 <see cref="Azure.AI.FormRecognizer.DocumentAnalysis.AnalyzeResult.Content"/>，
-/// 即文档全文的 Markdown 表示，直接进入现有文本分块管线。
+/// File content extraction implementation based on Azure AI Document Intelligence.
+/// Routing strategy:
+///   - BillInvoice → "prebuilt-invoice" (structured invoice/bill extraction)
+///   - Other types → "prebuilt-read" (general OCR + layout-aware reading)
+/// Outputs <see cref="Azure.AI.FormRecognizer.DocumentAnalysis.AnalyzeResult.Content"/>,
+/// the Markdown representation of the full document text, which feeds directly into the existing text chunking pipeline.
 ///
-/// 配额感知：429 响应时自动标记 <see cref="AzureDiQuotaState"/> 并抛出
-/// <see cref="QuotaExceededException"/>，上层服务可捕获并降级到 Vision 模型。
-/// 后续同月请求优先读取内存状态，跳过对 Azure DI 的实际调用。
+/// Quota-aware: on a 429 response, marks <see cref="AzureDiQuotaState"/> and throws
+/// <see cref="QuotaExceededException"/> so that upper-layer services can catch it and fall back to the Vision model.
+/// Subsequent requests in the same month read the in-memory state first and skip the actual Azure DI call.
 /// </summary>
 public class DocumentIntelligenceFileExtractor(
     IOptions<DocumentIntelligenceOptions> options,
@@ -30,7 +30,7 @@ public class DocumentIntelligenceFileExtractor(
         DocumentType documentType,
         CancellationToken ct = default)
     {
-        // 配额超限快速路径：直接抛出，不消耗 fileStream
+        // Quota-exceeded fast path: throw immediately without consuming the fileStream
         if (quotaState.IsExceeded)
         {
             logger.LogWarning(
@@ -76,7 +76,7 @@ public class DocumentIntelligenceFileExtractor(
     }
 
     /// <summary>
-    /// 实际调用 Azure SDK 的隔离点。子类可重写以在测试中注入不同行为。
+    /// Isolation point for the actual Azure SDK call. Subclasses can override it to inject different behavior in tests.
     /// </summary>
     protected virtual async Task<string> CallAzureDiAsync(
         string modelId,

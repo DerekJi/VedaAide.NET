@@ -1,6 +1,6 @@
 namespace Veda.Core;
 
-/// <summary>单个问题的评估结果，包含实际回答、评分指标及检索来源。</summary>
+/// <summary>Evaluation result for a single question, including the actual answer, scoring metrics, and retrieved sources.</summary>
 public record EvalResult
 {
     public required string QuestionId { get; init; }

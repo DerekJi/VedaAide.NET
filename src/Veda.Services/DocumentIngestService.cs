@@ -2,10 +2,10 @@ using Veda.Core.Options;
 namespace Veda.Services;
 
 /// <summary>
-/// 文档摄取服务（SRP：只负责摄取流程）。
-/// 依赖：IDocumentProcessor、IEmbeddingService、IVectorStore、IFileExtractor（两个实现）。
-/// 文字层 PDF 直通提取：PdfTextLayerExtractor 优先，扫描件降级到 Azure DI。
-/// Azure DI 配额超限时自动降级到 Vision 模型（QuotaExceededException fallback）。
+/// Document ingestion service (SRP: only responsible for the ingestion pipeline).
+/// Dependencies: IDocumentProcessor, IEmbeddingService, IVectorStore, IFileExtractor (two implementations).
+/// Text-layer PDF pass-through extraction: PdfTextLayerExtractor first, scanned documents fall back to Azure DI.
+/// Falls back to the Vision model automatically when the Azure DI quota is exceeded (QuotaExceededException fallback).
 /// </summary>
 public sealed class DocumentIngestService(
     IDocumentProcessor processor,
@@ -32,7 +32,7 @@ public sealed class DocumentIngestService(
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
         ArgumentException.ThrowIfNullOrWhiteSpace(documentName);
 
-        // 版本化：检查是否已存在同名文档
+        // Versioning: check whether a document with the same name already exists
         var existingChunks = await vectorStore.GetCurrentChunksByDocumentNameAsync(documentName, ct);
         var version = 1;
         string? oldDocumentId = null;
@@ -56,23 +56,23 @@ public sealed class DocumentIngestService(
         var chunks = processor.Process(content, documentName, documentType, documentId);
         logger.LogInformation("Split '{Name}' into {Count} chunks", documentName, chunks.Count);
 
-        // 语义增强：为每个 chunk 生成并追加语义元数据（别名标签、检测到的术语等）
-        // 这确保摄入时的语义标注与检索时的查询扩展逻辑保持对齐
+        // Semantic enhancement: generate and append semantic metadata for each chunk (alias tags, detected terms, etc.)
+        // This keeps the semantic annotations at ingest time aligned with the query expansion logic at retrieval time
         foreach (var chunk in chunks)
         {
             chunk.Version = version;
-            // 写入 OwnerId scope，确保文档按用户隔离
+            // Write the OwnerId scope to keep documents isolated per user
             if (scope?.OwnerId is not null)
                 chunk.Metadata["_scope_ownerId"] = scope.OwnerId;
 
-            // 通过 GetEnhancedMetadataAsync 同时应用 Vocabulary 和 Tags 规则
+            // Apply both Vocabulary and Tags rules via GetEnhancedMetadataAsync
             var enhancement = await semanticEnhancer.GetEnhancedMetadataAsync(chunk.Content, ct);
 
-            // 写入别名标签
+            // Write alias tags
             if (enhancement.AliasTags.Count > 0)
                 chunk.Metadata["aliasTags"] = string.Join(",", enhancement.AliasTags);
 
-            // 写入检测到的术语和同义词（JSON 格式便于后续检索端使用）
+            // Write detected terms and synonyms (JSON format so the retrieval side can use them later)
             if (enhancement.DetectedTermsWithSynonyms.Count > 0)
             {
                 var termDict = enhancement.DetectedTermsWithSynonyms.ToDictionary(
@@ -92,8 +92,8 @@ public sealed class DocumentIngestService(
             chunks[i].EmbeddingModel = vedaOptions.Value.EmbeddingModel;
         }
 
-        // 第二层去重：过滤与已存储内容向量相似度过高的块（语义近似重复）。
-        // Certificate 类型使用更低阈值（0.70），避免内容结构相近的证书互相误杀。
+        // Second-layer dedup: filter out chunks whose vectors are too similar to already stored content (semantic near-duplicates).
+        // The Certificate type uses a lower threshold (0.70) to avoid falsely eliminating structurally similar certificates.
         var dedupThreshold = ChunkingOptions.ForDocumentType(documentType).DedupThreshold;
         var deduped = new List<DocumentChunk>();
         foreach (var chunk in chunks)
@@ -109,11 +109,11 @@ public sealed class DocumentIngestService(
                     chunk.Content[..Math.Min(LogSnippetLength, chunk.Content.Length)]);
         }
 
-        // 版本化：先标记旧版本 chunks 为已取代，再写入新 chunks。
-        // 顺序必须先标记后写入：若先 UpsertBatch 再标记，则 WHERE SupersededAtTicks==0
-        // 会同时命中刚写入的新 chunk，导致新 chunk 被立刻标记为已取代。
-        // 仅当有新 chunks 需要写入时才执行 supersede：若所有块均被去重跳过，
-        // 保留原有 chunks 不变，避免文档从列表中消失。
+        // Versioning: mark the old-version chunks as superseded first, then write the new chunks.
+        // Order matters — mark first, write later: if UpsertBatch ran first, the WHERE SupersededAtTicks==0
+        // would also match the freshly written chunks and immediately mark them superseded.
+        // Only supersede when there are new chunks to write: if every chunk is skipped by dedup,
+        // keep the existing chunks untouched so the document does not disappear from the listing.
         if (oldDocumentId is not null && deduped.Count > 0)
             await vectorStore.MarkDocumentSupersededAsync(documentName, documentId, ct);
 
@@ -124,7 +124,7 @@ public sealed class DocumentIngestService(
             "Stored {Stored}/{Total} chunks for '{Name}' v{Version} (skipped {Skipped} near-duplicates)",
             deduped.Count, chunks.Count, documentName, version, chunks.Count - deduped.Count);
 
-        // 知识库内容变更后清空语义缓存，避免返回过期答案（异步，不阻塞响应）。
+        // Clear the semantic cache after knowledge base content changes to avoid returning stale answers (async, does not block the response).
         _ = semanticCache.ClearAsync(CancellationToken.None);
 
         return new IngestResult(documentId, documentName, deduped.Count);
@@ -142,15 +142,15 @@ public sealed class DocumentIngestService(
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(mimeType);
 
-        // 缓冲 fileStream：允许 Azure DI 配额超限时将同一流交给 Vision 降级处理
+        // Buffer the fileStream: allows handing the same stream to the Vision fallback when the Azure DI quota is exceeded
         using var buffered = new MemoryStream();
         await fileStream.CopyToAsync(buffered, ct);
         buffered.Position = 0;
 
         string extractedText;
 
-        // PDF 文字层直通：纯文字 PDF 跳过 OCR 管线。
-        // Certificate 类型跳过 PdfPig（表格/排版复杂，GetWords 词序混乱），直走 Azure DI。
+        // PDF text-layer pass-through: plain-text PDFs skip the OCR pipeline.
+        // The Certificate type skips PdfPig (complex tables/layout, GetWords word order is scrambled) and goes straight to Azure DI.
         if (mimeType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
             && documentType != DocumentType.Certificate)
         {
@@ -158,14 +158,14 @@ public sealed class DocumentIngestService(
             if (textLayerResult is not null)
                 return await IngestAsync(textLayerResult, fileName, documentType, scope, ct);
 
-            // 打印件（文字层为空）：重置流并降级到 Azure DI
+            // Scanned copy (empty text layer): reset the stream and fall back to Azure DI
             logger.LogInformation(
                 "PdfTextLayerExtractor: '{Name}' is a scanned PDF, falling back to Document Intelligence",
                 fileName);
             buffered.Position = 0;
         }
 
-        // 路由：RichMedia → Vision 模型；其余 → Document Intelligence
+        // Routing: RichMedia → Vision model; everything else → Document Intelligence
         IFileExtractor extractor = documentType == DocumentType.RichMedia
             ? visionExtractor
             : docIntelExtractor;

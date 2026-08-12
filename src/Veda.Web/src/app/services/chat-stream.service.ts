@@ -33,8 +33,8 @@ export class ChatStreamService {
   }
 
   /**
-   * 携带临时附件文本的流式问答（Context Augmentation）。
-   * 通过 POST /api/querystream 发送，包含 extraContext 字段。
+   * Streaming Q&A that carries the ephemeral attachment text (Context Augmentation).
+   * Sent via POST /api/querystream and includes the extraContext field.
    */
   streamWithContext(
     question: string,

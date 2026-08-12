@@ -3,8 +3,9 @@ using Veda.Core.Extensions;
 namespace Veda.Prompts;
 
 /// <summary>
-/// 基础 CoT 实现：在用户消息中注入"列出推理步骤，再给出结论"的引导。
-/// 自动检测问题语言，选用中文或英文引导语，避免引导语语言影响 LLM 回答语言。
+/// Basic CoT implementation: injects a "list reasoning steps, then give a conclusion" instruction into the user message.
+/// Automatically detects the question language and picks a Chinese or English instruction,
+/// so the instruction language does not affect the LLM's answer language.
 /// </summary>
 public sealed class ChainOfThoughtStrategy : IChainOfThoughtStrategy
 {

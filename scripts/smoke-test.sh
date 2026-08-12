@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # =============================================================================
-# smoke-test.sh — VedaAide.NET API 冒烟测试
+# smoke-test.sh — VedaAide.NET API smoke test
 #
-# 用途：快速验证 API 核心流程（摄取 + 问答）是否正常工作。
-# 使用：
+# Purpose: quickly verify that the API core flows (ingestion + Q&A) work correctly.
+# Usage:
 #   chmod +x scripts/smoke-test.sh
 #   ./scripts/smoke-test.sh [API_BASE_URL] [--start-api]
 #
-# 参数：
-#   API_BASE_URL   可选，默认 http://localhost:5126
-#   --start-api    可选，自动启动 Veda.Api（测试结束后自动停止）
+# Arguments:
+#   API_BASE_URL   Optional; defaults to http://localhost:5126
+#   --start-api    Optional; automatically starts Veda.Api (stops it when the test finishes)
 #
-# 注意：停止 API 时只终止 Veda.Api 进程，不影响其他 dotnet 项目。
+# Note: stopping the API only terminates the Veda.Api process and does not affect other dotnet projects.
 # =============================================================================
 set -euo pipefail
 
@@ -36,9 +36,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"; pkill -f "Veda.Api" 2>/dev/null || true' EXIT
 
-# ── 可选：自动启动 API ─────────────────────────────────────────────────────────
+# ── Optional: auto-start the API ─────────────────────────────────────────────
 if [[ "$START_API" == "true" ]]; then
-  # 只停止 Veda.Api，不影响其他 dotnet 项目
+  # Stop only Veda.Api, leaving other dotnet projects untouched
   pkill -f "Veda.Api" 2>/dev/null && echo "Stopped previous Veda.Api." || true
   dotnet run --project "$REPO_ROOT/src/Veda.Api" &
   echo "Waiting for Veda.Api to start..."
@@ -51,7 +51,7 @@ fi
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 # curl_json <method> <url> <json_body>
-# 将 HTTP 状态码写入 CURL_CODE，响应体写入 CURL_BODY
+# Writes the HTTP status code to CURL_CODE and the response body to CURL_BODY
 curl_json() {
   local method="$1" url="$2" body="$3"
   CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" -X "$method" "$url" \
@@ -96,7 +96,7 @@ assert_not_contains() {
   fi
 }
 
-# ── 0. API 健康检查 ──────────────────────────────────────────────────────────
+# ── 0. API health check ──────────────────────────────────────────────────────────
 echo -e "\n${YELLOW}=== VedaAide Smoke Test ===${NC}"
 echo "Target: $API_BASE"
 echo ""
@@ -105,7 +105,7 @@ echo "--- 0. Health check (Swagger) ---"
 SWAGGER_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE/swagger/index.html")
 assert_http_code "Swagger UI accessible" "$SWAGGER_CODE" "200"
 
-# ── 1. 文档摄取（阶段一） ─────────────────────────────────────────────────────
+# ── 1. Document ingestion (Stage 1) ─────────────────────────────────────────────────────
 echo ""
 echo "--- 1. Document ingestion ---"
 curl_json POST "$API_BASE/api/documents" '{
@@ -118,28 +118,28 @@ assert_contains  "Response contains documentId"     "$CURL_BODY" "documentId"
 assert_contains  "Response contains chunksStored"   "$CURL_BODY" "chunksStored"
 assert_contains  "Response contains documentName"   "$CURL_BODY" "documentName"
 
-# ── 2. 输入验证 — 应返回 400 ─────────────────────────────────────────────────
+# ── 2. Input validation — should return 400 ─────────────────────────────────────────────────
 echo ""
 echo "--- 2. Input validation ---"
 curl_json POST "$API_BASE/api/documents" '{"content": "", "documentName": ""}'
 assert_http_code "Empty content returns HTTP 400" "$CURL_CODE" "400"
 
-# ── 3. 向量相似度去重（阶段二） ───────────────────────────────────────────────
+# ── 3. Vector similarity dedup (Stage 2) ───────────────────────────────────────────────
 echo ""
 echo "--- 3. Similarity dedup (Phase 2) ---"
 DEDUP_CONTENT='{"content": "VedaAide dedup probe: this exact sentence will be submitted twice to verify near-duplicate detection.", "documentName": "dedup-probe.txt"}'
 
-# 第一次摄取
+# First ingestion
 curl_json POST "$API_BASE/api/documents" "$DEDUP_CONTENT"
 assert_http_code "First ingestion returns 201"      "$CURL_CODE" "201"
 assert_contains  "First ingestion stores chunks"    "$CURL_BODY" "chunksStored"
 
-# 第二次摄取完全相同的内容 → 相似度 = 1.0，应触发去重 → chunksStored = 0
+# Second ingestion with identical content → similarity = 1.0, should trigger dedup → chunksStored = 0
 curl_json POST "$API_BASE/api/documents" "$DEDUP_CONTENT"
 assert_http_code "Second ingestion returns 201"                  "$CURL_CODE" "201"
 assert_contains  "Duplicate ingestion: chunksStored is 0"        "$CURL_BODY" '"chunksStored":0'
 
-# ── 4. 问答查询（阶段一） ────────────────────────────────────────────────────
+# ── 4. Q&A query (Stage 1) ────────────────────────────────────────────────────
 echo ""
 echo "--- 4. Query (RAG pipeline) ---"
 curl_json POST "$API_BASE/api/query" '{
@@ -152,12 +152,12 @@ assert_contains  "Response contains answer field"          "$CURL_BODY" "answer"
 assert_contains  "Response contains sources field"         "$CURL_BODY" "sources"
 assert_contains  "Response contains answerConfidence"      "$CURL_BODY" "answerConfidence"
 
-# ── 5. 防幻觉字段（阶段二） ──────────────────────────────────────────────────
+# ── 5. Hallucination guard field (Stage 2) ──────────────────────────────────────────────────
 echo ""
 echo "--- 5. Hallucination guard field (Phase 2) ---"
 assert_contains "Response contains isHallucination field" "$CURL_BODY" "isHallucination"
 
-# ── 6. 日期范围过滤（阶段二） ────────────────────────────────────────────────
+# ── 6. Date range filter (Stage 2) ────────────────────────────────────────────────
 echo ""
 echo "--- 6. Date range filter (Phase 2) ---"
 curl_json POST "$API_BASE/api/query" '{
@@ -168,13 +168,13 @@ assert_http_code "Query with future dateFrom returns 200"  "$CURL_CODE" "200"
 assert_contains  "Future dateFrom yields no-info answer"  "$CURL_BODY" "don"
 assert_not_contains "Future dateFrom returns no sources"  "$CURL_BODY" "documentName"
 
-# ── 7. Query 输入验证 — 应返回 400 ───────────────────────────────────────────
+# ── 7. Query input validation — should return 400 ───────────────────────────────────────────
 echo ""
 echo "--- 7. Query input validation ---"
 curl_json POST "$API_BASE/api/query" '{"question": ""}'
 assert_http_code "Empty question returns HTTP 400" "$CURL_CODE" "400"
 
-# ── 8. 结构化输出（三期 Sprint 3）────────────────────────────────────────────
+# ── 8. Structured output (Stage 3 Sprint 3) ────────────────────────────────────────────
 echo ""
 echo "--- 8. Structured output (Stage 3 Sprint 3) ---"
 curl_json POST "$API_BASE/api/query" '{
@@ -186,7 +186,7 @@ curl_json POST "$API_BASE/api/query" '{
 assert_http_code "Structured output query returns 200"   "$CURL_CODE" "200"
 assert_contains  "Response contains answer field"        "$CURL_BODY" "answer"
 
-# ── 9. 文档版本历史（三期 Sprint 3）──────────────────────────────────────────
+# ── 9. Document version history (Stage 3 Sprint 3) ──────────────────────────────────────────
 echo ""
 echo "--- 9. Document version history (Stage 3 Sprint 3) ---"
 CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$API_BASE/api/admin/documents/smoke-test-doc.txt/history" \
@@ -195,7 +195,7 @@ CURL_BODY=$(cat "$TMPFILE")
 assert_http_code "GET /api/admin/documents/{name}/history returns 200" "$CURL_CODE" "200"
 assert_contains  "History response contains documentName"              "$CURL_BODY" "documentName"
 
-# ── 10. 反馈采集（三期 Sprint 4）─────────────────────────────────────────────
+# ── 10. Feedback recording (Stage 3 Sprint 4) ─────────────────────────────────────────────
 echo ""
 echo "--- 10. Feedback recording (Stage 3 Sprint 4) ---"
 curl_json POST "$API_BASE/api/feedback" '{
@@ -208,7 +208,7 @@ curl_json POST "$API_BASE/api/feedback" '{
 }'
 assert_http_code "POST /api/feedback returns 202"   "$CURL_CODE" "202"
 
-# ── 11. 反馈统计（三期 Sprint 4）─────────────────────────────────────────────
+# ── 11. Feedback stats (Stage 3 Sprint 4) ─────────────────────────────────────────────
 echo ""
 echo "--- 11. Feedback stats (Stage 3 Sprint 4) ---"
 CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$API_BASE/api/feedback/stats?userId=smoke-test-user")
@@ -216,7 +216,7 @@ CURL_BODY=$(cat "$TMPFILE")
 assert_http_code "GET /api/feedback/stats returns 200"   "$CURL_CODE" "200"
 assert_contains  "Stats response contains totalEvents"   "$CURL_BODY" "totalEvents"
 
-# ── 12. 知识治理 — 可见性检查（三期 Sprint 4）────────────────────────────────
+# ── 12. Knowledge governance — visibility check (Stage 3 Sprint 4) ────────────────────────────────
 echo ""
 echo "--- 12. Governance visibility check (Stage 3 Sprint 4) ---"
 CURL_CODE=$(curl -s -o "$TMPFILE" -w "%{http_code}" "$API_BASE/api/governance/documents/nonexistent-doc/visible?userId=smoke-test-user")

@@ -1,9 +1,9 @@
 namespace Veda.Core.Interfaces;
 
-/// <summary>文档版本对比服务接口，用于生成结构化变更摘要。</summary>
+/// <summary>Document diff service contract for producing structured change summaries.</summary>
 public interface IDocumentDiffService
 {
-    /// <summary>对比新旧版本文档内容，生成结构化变更摘要。</summary>
+    /// <summary>Compares the old and new versions of a document and produces a structured change summary.</summary>
     Task<DocumentChangeSummary> DiffAsync(
         string documentId,
         string oldContent,
@@ -11,7 +11,7 @@ public interface IDocumentDiffService
         CancellationToken ct = default);
 }
 
-/// <summary>文档变更摘要。</summary>
+/// <summary>Summarizes document changes.</summary>
 public record DocumentChangeSummary(
     string DocumentId,
     int AddedChunks,

@@ -9,8 +9,8 @@ namespace Veda.Api.Controllers;
 public class QueryController(IQueryService queryService) : ControllerBase
 {
     /// <summary>
-    /// 问答：向量检索 → LLM 生成 → 返回答案及来源。
-    /// userId 从 JWT Token 提取（可信），不接受请求体中的 userId 以防跨用户数据访问。
+    /// Q&A: vector retrieval → LLM generation → returns the answer with sources.
+    /// The userId is taken from the JWT token (trusted); a userId in the request body is not accepted to prevent cross-user data access.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(RagQueryResponse), StatusCodes.Status200OK)]

@@ -3,8 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { FeedbackRequest } from '../shared/models';
 
 /**
- * 上报用户行为反馈到 POST /api/feedback。
- * 静默发送（fire-and-forget），失败仅记录警告，不影响 UI。
+ * Reports user behavior feedback to POST /api/feedback.
+ * Sent silently (fire-and-forget); failures only log a warning and never affect the UI.
  */
 @Injectable({ providedIn: 'root' })
 export class FeedbackService {

@@ -5,8 +5,8 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// 多用户知识治理服务实现。
-/// 管理共享组、文档授权、共识候选和隐私隔离。
+/// Multi-user knowledge governance service implementation.
+/// Manages sharing groups, document permissions, consensus candidates, and privacy isolation.
 /// </summary>
 public sealed class KnowledgeGovernanceService(
     VedaDbContext db,
@@ -122,7 +122,7 @@ public sealed class KnowledgeGovernanceService(
         if (isOwner) return true;
 
         // 2. Document is shared with a group the user belongs to
-        // 使用引号边界匹配（"userId"），避免 userId="user1" 误匹配 MembersJson=["user12"] 的子串问题。
+        // Use quoted-boundary matching ("userId") to avoid substring false positives, e.g. userId="user1" matching MembersJson=["user12"].
         var quotedUserId = $"\"{userId}\"";
         var groups = await db.SharingGroups
             .Where(g => g.MembersJson.Contains(quotedUserId))

@@ -1,7 +1,7 @@
 namespace Veda.Storage.Entities;
 
 /// <summary>
-/// SQLite 语义缓存实体。存储问题 embedding（BLOB）与对应答案，用于避免重复调用 LLM。
+/// SQLite semantic cache entity. Stores question embeddings (BLOB) and corresponding answers to avoid repeated LLM calls.
 /// </summary>
 public class SemanticCacheEntity
 {

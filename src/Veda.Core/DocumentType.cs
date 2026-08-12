@@ -2,12 +2,12 @@ namespace Veda.Core;
 
 public enum DocumentType
 {
-    BillInvoice,    // 账单/发票     -> 小颗粒 (256 token)，Document Intelligence prebuilt-invoice
-    Specification,  // 规范/PDS     -> 大颗粒 (1024 token)
-    Report,         // 报告         -> 中颗粒 (512 token)
-    PersonalNote,   // 个人备注/笔记 -> 小颗粒 (256 token)
-    RichMedia,      // 富媒体        -> 中颗粒 (512 token)，Vision 模型提取（GPT-4o-mini）
-    Identity,       // 护照/身份证/驾照 -> 小颗粒 (256 token)，Document Intelligence prebuilt-idDocument
-    Certificate,    // 证书/奖状      -> 小颗粒 (256 token)，跳过 PdfPig，走 Azure DI / Vision
-    Other           // 通用         -> 中颗粒 (512 token)
+    BillInvoice,    // Invoice/receipt      -> small chunks (256 tokens), Document Intelligence prebuilt-invoice
+    Specification,  // Spec/PDS             -> large chunks (1024 tokens)
+    Report,         // Report               -> medium chunks (512 tokens)
+    PersonalNote,   // Personal note/memo   -> small chunks (256 tokens)
+    RichMedia,      // Rich media           -> medium chunks (512 tokens), extracted via Vision model (GPT-4o-mini)
+    Identity,       // Passport/ID/driver's license -> small chunks (256 tokens), Document Intelligence prebuilt-idDocument
+    Certificate,    // Certificate/award    -> small chunks (256 tokens), skips PdfPig, uses Azure DI / Vision
+    Other           // Generic              -> medium chunks (512 tokens)
 }

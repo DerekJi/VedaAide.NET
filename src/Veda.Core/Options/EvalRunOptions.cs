@@ -1,11 +1,11 @@
 namespace Veda.Core.Options;
 
-/// <summary>评估运行的配置选项。</summary>
+/// <summary>Configuration options for an evaluation run.</summary>
 public record EvalRunOptions
 {
-    /// <summary>限制本次运行的问题 ID 列表；空数组表示运行全部 Golden Dataset。</summary>
+    /// <summary>Restricts this run to the given question IDs; an empty array means run the entire Golden Dataset.</summary>
     public string[] QuestionIds { get; init; } = [];
 
-    /// <summary>覆盖配置中的 Chat 模型名称（用于 A/B 对比）；null 表示使用默认配置。</summary>
+    /// <summary>Overrides the Chat model name in the configuration (for A/B comparison); null means use the default configuration.</summary>
     public string? ChatModelOverride { get; init; }
 }

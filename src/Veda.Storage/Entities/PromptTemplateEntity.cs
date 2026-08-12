@@ -1,7 +1,7 @@
 namespace Veda.Storage.Entities;
 
 /// <summary>
-/// EF Core 持久化的 Prompt 模板实体。
+/// EF Core-persisted Prompt template entity.
 /// </summary>
 public class PromptTemplateEntity
 {
@@ -10,7 +10,7 @@ public class PromptTemplateEntity
     public required string Version { get; set; }
     public required string Content { get; set; }
 
-    /// <summary>可选：绑定特定文档类型（null 表示通用模板）。</summary>
+    /// <summary>Optional: bound to a specific document type (null = generic template).</summary>
     public int? DocumentType { get; set; }
 
     public long CreatedAtTicks { get; set; } = DateTimeOffset.UtcNow.UtcTicks;

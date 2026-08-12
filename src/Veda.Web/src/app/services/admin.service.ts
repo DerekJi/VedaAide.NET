@@ -3,9 +3,9 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 /**
- * 封装管理员操作：删除单个文档、清空全部数据、清空语义缓存。
- * 对应 /api/admin/* 端点，需 X-Api-Key (Admin Key) 请求头。
- * 实际 KEY 由 API Proxy / nginx 层注入，前端无感知。
+ * Wraps admin operations: delete a single document, clear all data, and clear the semantic cache.
+ * Corresponds to the /api/admin/* endpoints and requires the X-Api-Key (Admin Key) request header.
+ * The actual KEY is injected by the API Proxy / nginx layer, invisible to the frontend.
  */
 @Injectable({ providedIn: 'root' })
 export class AdminService {

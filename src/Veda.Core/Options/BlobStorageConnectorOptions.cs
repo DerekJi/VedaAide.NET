@@ -1,25 +1,25 @@
 namespace Veda.Core.Options;
 
 /// <summary>
-/// BlobStorageConnector 配置节：<c>Veda:DataSources:BlobStorage</c>
+/// BlobStorageConnector configuration section: <c>Veda:DataSources:BlobStorage</c>
 /// </summary>
 public sealed class BlobStorageConnectorOptions
 {
-    /// <summary>是否启用此连接器。默认 false，须显式开启。</summary>
+    /// <summary>Whether to enable this connector. Defaults to false; must be explicitly enabled.</summary>
     public bool Enabled { get; set; } = false;
 
-    /// <summary>Azure Storage 连接字符串（含 SAS 或 AccountKey）。与 AccountUrl 二选一。</summary>
+    /// <summary>Azure Storage connection string (with SAS or AccountKey). Use either this or AccountUrl.</summary>
     public string? ConnectionString { get; set; }
 
-    /// <summary>存储账户 URL（如 https://myaccount.blob.core.windows.net），使用 DefaultAzureCredential 时填写。</summary>
+    /// <summary>Storage account URL (e.g. https://myaccount.blob.core.windows.net); set when using DefaultAzureCredential.</summary>
     public string? AccountUrl { get; set; }
 
-    /// <summary>目标 Blob 容器名称，必填。</summary>
+    /// <summary>Target blob container name; required.</summary>
     public string ContainerName { get; set; } = string.Empty;
 
-    /// <summary>只同步名称以此前缀开头的 Blob，留空表示同步整个容器。</summary>
+    /// <summary>Only sync blobs whose names start with this prefix; leave empty to sync the entire container.</summary>
     public string Prefix { get; set; } = string.Empty;
 
-    /// <summary>允许的文件扩展名（含点），留空表示使用默认值 .txt / .md。</summary>
+    /// <summary>Allowed file extensions (including the dot); leave empty to use the defaults .txt / .md.</summary>
     public string[] Extensions { get; set; } = [".txt", ".md"];
 }

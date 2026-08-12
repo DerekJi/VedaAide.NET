@@ -1,6 +1,6 @@
 namespace Veda.Core;
 
-/// <summary>一次评估运行的完整报告，包含所有问题的结果和汇总统计。</summary>
+/// <summary>Complete report of an evaluation run, containing results for all questions and aggregate statistics.</summary>
 public record EvaluationReport
 {
     public string RunId { get; init; } = Guid.NewGuid().ToString();

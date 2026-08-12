@@ -3,13 +3,13 @@ using Veda.Api.Models;
 namespace Veda.Api.GraphQL;
 
 /// <summary>
-/// HotChocolate GraphQL Query 类型。
-/// 并行 REST，提供更灵活的字段选择能力。
+/// HotChocolate GraphQL Query type.
+/// The GraphQL counterpart to REST, offering more flexible field selection.
 /// </summary>
 public sealed class Query
 {
     /// <summary>
-    /// 问答查询（非流式）：检索 + LLM 生成 + 防幻觉校验。
+    /// Question-answering query (non-streaming): retrieval + LLM generation + anti-hallucination check.
     /// </summary>
     public async Task<RagQueryResponse> AskAsync(
         string question,

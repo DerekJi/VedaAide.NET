@@ -8,10 +8,10 @@ using Veda.Core.Interfaces;
 namespace Veda.Services;
 
 /// <summary>
-/// LLM 路由器实现。
-/// Simple 模式 → DI 注入的默认 IChatService（Ollama 或 Azure OpenAI GPT-4o-mini）。
-/// Advanced 模式 → DeepSeek（通过 SK OpenAI 兼容连接器 + OllamaChatService 适配器）。
-/// 当 DeepSeek ApiKey 未配置时，Advanced 自动降级到 Simple。
+/// LLM router implementation.
+/// Simple mode → the DI-injected default IChatService (Ollama or Azure OpenAI GPT-4o-mini).
+/// Advanced mode → DeepSeek (via the SK OpenAI-compatible connector + OllamaChatService adapter).
+/// When the DeepSeek ApiKey is not configured, Advanced automatically falls back to Simple.
 /// </summary>
 public sealed class LlmRouterService : ILlmRouter
 {

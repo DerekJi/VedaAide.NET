@@ -8,12 +8,12 @@ using System.Text;
 namespace Veda.Services.DataSources;
 
 /// <summary>
-/// MCP Client 实现之二：从 Azure Blob Storage 容器批量摄取文档到 VedaAide 知识库。
-/// 配置节：<c>Veda:DataSources:BlobStorage</c>
-/// 认证：优先 ConnectionString，其次 AccountUrl + DefaultAzureCredential（Managed Identity / 本地 az login）。
-/// 通过 <see cref="ISyncStateStore"/> 跟踪内容哈希，跳过内容未变更的 Blob。
-/// 支持文本文件（.txt / .md）和二进制文件（PDF / 图片），分别路由至
-/// <see cref="IDocumentIngestor.IngestAsync"/> 和 <see cref="IDocumentIngestor.IngestFileAsync"/>。
+/// Second MCP Client implementation: bulk-ingests documents from an Azure Blob Storage container into the VedaAide knowledge base.
+/// Config section: <c>Veda:DataSources:BlobStorage</c>
+/// Auth: ConnectionString first, otherwise AccountUrl + DefaultAzureCredential (Managed Identity / local az login).
+/// Tracks content hashes via <see cref="ISyncStateStore"/> and skips blobs whose content has not changed.
+/// Supports text files (.txt / .md) and binary files (PDF / images), routed respectively to
+/// <see cref="IDocumentIngestor.IngestAsync"/> and <see cref="IDocumentIngestor.IngestFileAsync"/>.
 /// </summary>
 public sealed class BlobStorageConnector(
     IDocumentIngestor                           documentIngestor,

@@ -6,9 +6,9 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// 基于 SQLite 的语义缓存实现。
-/// 将所有缓存条目加载到内存后通过余弦相似度匹配。
-/// 适合中小规模场景（本地开发 / 低流量部署）。
+/// SQLite-based semantic cache implementation.
+/// Loads all cache entries into memory and matches them by cosine similarity.
+/// Suitable for small-to-medium scale scenarios (local development / low-traffic deployments).
 /// </summary>
 public sealed class SqliteSemanticCache(VedaDbContext db, SemanticCacheOptions opts) : ISemanticCache
 {

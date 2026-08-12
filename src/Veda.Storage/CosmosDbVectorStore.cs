@@ -10,9 +10,9 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// Azure CosmosDB for NoSQL 向量存储实现。
-/// 使用 DiskANN 近似最近邻索引（余弦距离）进行向量检索。
-/// Partition Key = /documentId，向量维度通过 CosmosDbOptions.EmbeddingDimensions 配置。
+/// Azure CosmosDB for NoSQL vector store implementation.
+/// Performs vector retrieval using a DiskANN approximate nearest-neighbor index (cosine distance).
+/// Partition Key = /documentId; vector dimensions are configured via CosmosDbOptions.EmbeddingDimensions.
 /// </summary>
 public sealed class CosmosDbVectorStore : IVectorStore
 {
@@ -20,7 +20,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
     private readonly ILogger<CosmosDbVectorStore> _logger;
     private readonly CosmosDbOptions _options;
 
-    /// <summary>向量检索时获取候选数量的倍数，剩余过滤在内存中完成。</summary>
+    /// <summary>Multiplier for the number of candidates fetched during vector search; the remaining filtering is done in memory.</summary>
     private const int CandidateMultiplier = 4;
 
     public CosmosDbVectorStore(
@@ -32,8 +32,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
         _container = client.GetDatabase(options.DatabaseName).GetContainer(options.ChunksContainerName);
         _logger = logger;
 
-        // 检查是否为 Cosmos DB provider，如果不是，则警告 EnableFullTextKeywordSearch 配置无效
-        // 目前通过 CosmosClient.Endpoint 判断，若为本地 SQLite，通常 endpoint 为空或为 file://
+        // Check whether the provider is Cosmos DB; if not, warn that EnableFullTextKeywordSearch is ineffective
+        // Currently determined via CosmosClient.Endpoint; for local SQLite the endpoint is usually empty or file://
         var endpoint = options.Endpoint?.ToLowerInvariant() ?? string.Empty;
         if (_options.EnableFullTextKeywordSearch &&
             (string.IsNullOrWhiteSpace(endpoint) || endpoint.StartsWith("file://") || endpoint.Contains("sqlite")))
@@ -53,8 +53,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
 
         if (candidates.Count == 0) return;
 
-        // 仅检查当前有效（未被 supersede）的 chunks 的哈希，避免被 superseded 的历史数据
-        // 阻止相同内容重新写入（例如文档重新上传时需要恢复活跃状态）。
+        // Only check hashes of currently active (non-superseded) chunks so superseded history does not
+        // block re-insertion of identical content (e.g. a re-uploaded document needs to be reactivated).
         var hashesJson = JsonSerializer.Serialize(candidates.Select(c => (object)c.Hash).ToList());
         var checkSql = $"SELECT VALUE c.contentHash FROM c WHERE c.supersededAtTicks = 0 AND ARRAY_CONTAINS({hashesJson}, c.contentHash, false)";
         var checkQuery = new QueryDefinition(checkSql);
@@ -108,7 +108,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         // Build optional WHERE conditions for scalar filters
         var conditions = new List<string>
         {
-            "c.supersededAtTicks = 0"  // 只检索当前有效块
+            "c.supersededAtTicks = 0"  // only retrieve currently active chunks
         };
         if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
         if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
@@ -274,7 +274,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         var candidateCount = Math.Max(topK * CandidateMultiplier, 20);
         var conditions = new List<string>
         {
-            "c.supersededAtTicks = 0"  // 只检索当前有效块
+            "c.supersededAtTicks = 0"  // only retrieve currently active chunks
         };
         if (filterType.HasValue) conditions.Add("c.documentType = @filterType");
         if (dateFrom.HasValue)   conditions.Add("c.createdAtTicks >= @dateFrom");
@@ -361,8 +361,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
 
     public async Task<int> ClearAllAsync(CancellationToken ct = default)
     {
-        // CosmosDB 不支持 TRUNCATE；必须逐条查询后删除。
-        // 跨分区查询 SELECT c.id, c.documentId，然后按 partitionKey 逐条删除。
+        // CosmosDB does not support TRUNCATE; must query and delete items one by one.
+        // Query c.id and c.documentId across partitions, then delete items one by one using their partition key.
         var queryDef = new QueryDefinition("SELECT c.id, c.documentId FROM c");
         var feed = _container.GetItemQueryIterator<CosmosIdOnly>(queryDef);
 
@@ -433,8 +433,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    // PartitionKey = /documentId — 必须与 item 中的 documentId 精确匹配。
-                    // 使用 PartitionKey.None 会导致跨分区更新被 CosmosDB 拒绝（403/404）。
+                    // PartitionKey = /documentId — must exactly match the item's documentId.
+                    // Using PartitionKey.None would cause CosmosDB to reject cross-partition updates (403/404).
                     await _container.PatchItemAsync<CosmosChunkDocument>(
                         item.Id, new PartitionKey(item.DocumentId), patchOps, cancellationToken: ct);
                 }
@@ -659,8 +659,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
     }
 
     /// <summary>
-    /// 将 float[] 序列化为 CosmosDB SQL 内联向量格式，例如 [0.1,-0.3,0.7]。
-    /// 使用 G7 格式确保精度与 CosmosDB 兼容，并使用 InvariantCulture 避免本地化问题。
+    /// Serializes a float[] into CosmosDB SQL inline vector format, e.g. [0.1,-0.3,0.7].
+    /// Uses G7 format for precision and CosmosDB compatibility, and InvariantCulture to avoid localization issues.
     /// </summary>
     private static string VectorToJson(float[] v)
     {
@@ -681,8 +681,8 @@ public sealed class CosmosDbVectorStore : IVectorStore
     }
 
     /// <summary>
-    /// 将 KnowledgeScope 字段追加为 WHERE 子句条件。
-    /// 作用域元数据作为带 "_scope_" 前缀的 key 存储在 metadata 字典中。
+    /// Appends KnowledgeScope fields as WHERE clause conditions.
+    /// Scope metadata is stored in the metadata dictionary under keys prefixed with "_scope_".
     /// </summary>
     private static void AppendScopeConditions(List<string> conditions, KnowledgeScope? scope)
     {
@@ -693,7 +693,7 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (scope.SourceType is not null) conditions.Add("c.metadata[\"_scope_sourceType\"] = @scopeSourceType");
         if (scope.Visibility is not null)
         {
-            // Public 过滤：历史文档（无 visibility 元数据）也视为 Public
+            // Public filter: legacy documents (without visibility metadata) are also treated as Public
             if (scope.Visibility == Visibility.Public)
                 conditions.Add("(NOT IS_DEFINED(c.metadata[\"_scope_visibility\"]) OR c.metadata[\"_scope_visibility\"] = @scopeVisibility)");
             else
@@ -710,12 +710,12 @@ public sealed class CosmosDbVectorStore : IVectorStore
         if (scope.Visibility is not null) queryDef = queryDef.WithParameter("@scopeVisibility", scope.Visibility.ToString());
     }
 
-    /// <summary>从查询字符串提取有意义的关键词（过滤停用词和短词）。</summary>
+    /// <summary>Extracts meaningful keywords from the query string (filtering out stop words and short words).</summary>
     private static List<string> ExtractKeywords(string query)
         => query
             .Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length >= 2)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(10) // 限制关键词数量，避免 SQL 过长
+            .Take(10) // limit keyword count to keep the SQL short
             .ToList();
 }

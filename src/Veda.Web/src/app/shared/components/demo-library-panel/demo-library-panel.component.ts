@@ -10,8 +10,9 @@ interface DemoEntry extends DemoDocument {
 }
 
 /**
- * 示例文档库面板：列出预置演示文档，支持勾选后一键加载到知识库。
- * 招聘方可零上传直接体验 RAG 问答效果。
+ * Demo document library panel: lists preset demo documents and supports one-click
+ * loading of selected documents into the knowledge base.
+ * Recruiters can experience RAG Q&A immediately without uploading any documents.
  */
 @Component({
   selector: 'app-demo-library-panel',

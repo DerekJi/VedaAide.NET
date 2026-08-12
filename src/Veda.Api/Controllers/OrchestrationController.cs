@@ -7,7 +7,7 @@ namespace Veda.Api.Controllers;
 [Route("api/orchestrate")]
 public sealed class OrchestrationController(IOrchestrationService orchestrationService) : ControllerBase
 {
-    /// <summary>Agent 驱动的问答流程（QueryAgent + EvalAgent）</summary>
+    /// <summary>Agent-driven Q&A flow (QueryAgent + EvalAgent)</summary>
     [HttpPost("query")]
     public async Task<IActionResult> Query(
         [FromBody] OrchestrationQueryRequest request,
@@ -20,7 +20,7 @@ public sealed class OrchestrationController(IOrchestrationService orchestrationS
         return Ok(result);
     }
 
-    /// <summary>Agent 驱动的文档摄取流程（DocumentAgent）</summary>
+    /// <summary>Agent-driven document ingestion flow (DocumentAgent)</summary>
     [HttpPost("ingest")]
     public async Task<IActionResult> Ingest(
         [FromBody] OrchestrationIngestRequest request,

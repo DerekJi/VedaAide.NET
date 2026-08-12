@@ -1,14 +1,14 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 向量存储的读写契约。Phase 1 使用 SQLite 实现，后续可替换为 Azure AI Search 等。
+/// Read/write contract for the vector store. Phase 1 uses a SQLite implementation, which can later be replaced with Azure AI Search or similar.
 /// </summary>
 public interface IVectorStore
 {
     Task UpsertAsync(DocumentChunk chunk, CancellationToken ct = default);
     Task UpsertBatchAsync(IEnumerable<DocumentChunk> chunks, CancellationToken ct = default);
 
-    /// <summary>向量语义检索通道，支持 KnowledgeScope 过滤。</summary>
+    /// <summary>Vector semantic search channel, supporting KnowledgeScope filtering.</summary>
     Task<IReadOnlyList<(DocumentChunk Chunk, float Similarity)>> SearchAsync(
         float[] queryEmbedding,
         int topK = 5,
@@ -20,8 +20,8 @@ public interface IVectorStore
         CancellationToken ct = default);
 
     /// <summary>
-    /// 关键词检索通道（BM25 平替）。
-    /// CosmosDB 使用 CONTAINS 全文匹配，SQLite 使用 LIKE 内存过滤。
+    /// Keyword search channel (a BM25 substitute).
+    /// CosmosDB uses CONTAINS full-text matching, while SQLite uses in-memory LIKE filtering.
     /// </summary>
     Task<IReadOnlyList<(DocumentChunk Chunk, float Score)>> SearchByKeywordsAsync(
         string query,
@@ -35,33 +35,33 @@ public interface IVectorStore
     Task<bool> ExistsAsync(string contentHash, CancellationToken ct = default);
     Task DeleteByDocumentAsync(string documentId, CancellationToken ct = default);
 
-    /// <summary>返回当前有效（未被取代）的、指定文档名称的所有 chunks。</summary>
+    /// <summary>Returns all currently valid (non-superseded) chunks for the specified document name.</summary>
     Task<IReadOnlyList<DocumentChunk>> GetCurrentChunksByDocumentNameAsync(
         string documentName, CancellationToken ct = default);
 
     /// <summary>
-    /// 将指定文档名称的所有当前 chunk 标记为被取代（版本升级时调用）。
+    /// Marks all current chunks for the specified document name as superseded (called on version upgrade).
     /// </summary>
     Task MarkDocumentSupersededAsync(
         string documentName, string newDocumentId, CancellationToken ct = default);
 
-    /// <summary>返回指定文档名称的所有版本历史（含已取代的 chunks）。</summary>
+    /// <summary>Returns the full version history for the specified document name (including superseded chunks).</summary>
     Task<IReadOnlyList<DocumentVersionInfo>> GetVersionHistoryAsync(
         string documentName, CancellationToken ct = default);
 
     /// <summary>
-    /// 列出所有当前有效文档的摘要（不含向量和内容），用于 MCP list_documents 工具。
-    /// 按文档名称排序，返回去重后的文档级汇总（每个文档的 chunk 数量）。
+    /// Lists summaries of all currently valid documents (without vectors or content), for the MCP list_documents tool.
+    /// Sorted by document name, returns deduplicated document-level summaries (chunk count per document).
     /// </summary>
     Task<IReadOnlyList<DocumentSummary>> GetAllDocumentsAsync(
         KnowledgeScope? scope = null,
         CancellationToken ct = default);
 
-    /// <summary>清空所有向量数据（admin 操作，不受 scope 限制）。返回被删除的 chunk 数量。</summary>
+    /// <summary>Clears all vector data (admin operation, not restricted by scope). Returns the number of deleted chunks.</summary>
     Task<int> ClearAllAsync(CancellationToken ct = default);
 }
 
-/// <summary>文档版本历史摘要（用于 history 端点）。</summary>
+/// <summary>Document version history summary (for the history endpoint).</summary>
 public record DocumentVersionInfo(
     string DocumentId,
     string DocumentName,
@@ -70,7 +70,7 @@ public record DocumentVersionInfo(
     DateTimeOffset CreatedAt,
     DateTimeOffset? SupersededAt);
 
-/// <summary>文档摘要（用于 list_documents MCP 工具），不含 embedding 和 content。</summary>
+/// <summary>Document summary (for the list_documents MCP tool), without embeddings or content.</summary>
 public record DocumentSummary(
     string DocumentId,
     string DocumentName,

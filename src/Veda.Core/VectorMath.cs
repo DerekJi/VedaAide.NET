@@ -1,13 +1,13 @@
 namespace Veda.Core;
 
 /// <summary>
-/// 向量空间数学工具。
-/// 职责：纯数学运算，与存储实现完全解耦（SRP）。
+/// Vector space math utilities.
+/// Responsibility: pure math operations, fully decoupled from storage implementations (SRP).
 /// </summary>
 public static class VectorMath
 {
     /// <summary>
-    /// 计算两个向量的余弦相似度。返回值范围 [-1, 1]；维度不一致时返回 0。
+    /// Computes the cosine similarity of two vectors. The return value ranges over [-1, 1]; returns 0 when the dimensions do not match.
     /// </summary>
     public static float CosineSimilarity(ReadOnlySpan<float> a, ReadOnlySpan<float> b)
     {

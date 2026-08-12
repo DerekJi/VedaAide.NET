@@ -3,8 +3,8 @@ using System.ComponentModel;
 namespace Veda.Agents;
 
 /// <summary>
-/// Semantic Kernel Plugin — 将知识库检索能力封装为 KernelFunction，
-/// 供 ChatCompletionAgent 在推理过程中自主调用（Reason-Act-Observe 循环）。
+/// Semantic Kernel Plugin — wraps knowledge-base retrieval as a KernelFunction
+/// that ChatCompletionAgent can invoke autonomously during reasoning (Reason-Act-Observe loop).
 /// </summary>
 public sealed class VedaKernelPlugin(IEmbeddingService embeddingService, IVectorStore vectorStore)
 {

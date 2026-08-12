@@ -1,13 +1,13 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 文档处理管道：解析原始内容并输出分块列表。
+/// Document processing pipeline: parses raw content and outputs a list of chunks.
 /// </summary>
 public interface IDocumentProcessor
 {
-    /// <param name="content">原始文本内容</param>
-    /// <param name="documentName">文件名，用于元数据</param>
-    /// <param name="documentType">影响分块粒度</param>
-    /// <param name="documentId">由 Service 层传入的文档 ID，确保调用方可持有并用于删除和测试</param>
+    /// <param name="content">Raw text content</param>
+    /// <param name="documentName">File name, used for metadata</param>
+    /// <param name="documentType">Affects chunk granularity</param>
+    /// <param name="documentId">Document ID passed in by the service layer, ensuring the caller can retain it for deletion and testing</param>
     IReadOnlyList<DocumentChunk> Process(string content, string documentName, DocumentType documentType, string documentId);
 }

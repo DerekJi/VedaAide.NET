@@ -3,8 +3,8 @@ using Veda.Core;
 namespace Veda.Evaluation.Scorers;
 
 /// <summary>
-/// 上下文召回率评分器：将期望答案与已检索到的文档块做 Embedding 比对，
-/// 判断检索结果是否覆盖了回答所需的信息。返回 [0, 1] 的浮点分数。
+/// Context recall scorer: compares the expected answer against the retrieved document chunks via Embedding
+/// similarity to determine whether the retrieval results cover the information needed to answer. Returns a float score in [0, 1].
 /// </summary>
 public sealed class ContextRecallScorer(IEmbeddingService embeddingService)
 {

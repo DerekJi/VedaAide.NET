@@ -1,36 +1,36 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 用户级私有记忆层接口。
-/// 记录行为事件，提供基于历史反馈的检索权重偏好。
+/// Interface for the user-level private memory layer.
+/// Records behavior events and provides retrieval weight preferences based on historical feedback.
 /// </summary>
 public interface IUserMemoryStore
 {
-    /// <summary>记录行为事件（异步，不阻塞主流程）。</summary>
+    /// <summary>Records a behavior event (async, does not block the main flow).</summary>
     Task RecordEventAsync(UserBehaviorEvent evt, CancellationToken ct = default);
 
     /// <summary>
-    /// 获取用户对特定 chunk 的权重 boost 因子。
-    /// 无历史时返回 1.0（不影响排序）；正向反馈后 > 1.0，负向反馈后 < 1.0。
+    /// Gets the weight boost factor for a specific chunk for the user.
+    /// Returns 1.0 (does not affect ranking) when there is no history; > 1.0 after positive feedback, < 1.0 after negative feedback.
     /// </summary>
     Task<float> GetBoostFactorAsync(string userId, string chunkId, CancellationToken ct = default);
 
-    /// <summary>获取用户的个性化术语偏好（正向反馈中频繁出现的词汇）。</summary>
+    /// <summary>Gets the user's personalized term preferences (terms that appear frequently in positive feedback).</summary>
     Task<IReadOnlyDictionary<string, float>> GetTermPreferencesAsync(
         string userId, CancellationToken ct = default);
 
-    /// <summary>返回反馈统计数据（用于 admin stats 端点）。</summary>
+    /// <summary>Returns feedback statistics (for the admin stats endpoint).</summary>
     Task<FeedbackStats> GetStatsAsync(CancellationToken ct = default);
 }
 
-/// <summary>反馈统计汇总。</summary>
+/// <summary>Summary of feedback statistics.</summary>
 public record FeedbackStats(
     int TotalEvents,
     int AcceptedCount,
     int RejectedCount,
     IReadOnlyList<RejectedChunkInfo> TopRejectedChunks);
 
-/// <summary>高频被标记无关的 chunk 信息。</summary>
+/// <summary>Information about chunks frequently marked as irrelevant.</summary>
 public record RejectedChunkInfo(
     string ChunkId,
     string? DocumentName,

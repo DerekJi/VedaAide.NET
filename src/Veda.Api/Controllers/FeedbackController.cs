@@ -4,8 +4,8 @@ using Veda.Core.Interfaces;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// 用户行为反馈端点。
-/// 前端上报用户互动行为（采纳/拒绝/修改等），用于个性化检索权重计算。
+/// User behavior feedback endpoints.
+/// The frontend reports user interactions (accept/reject/edit, etc.) used to personalize retrieval weights.
 /// </summary>
 [ApiController]
 [Route("api/feedback")]
@@ -14,7 +14,7 @@ public sealed class FeedbackController(
     ICurrentUserService currentUser,
     ILogger<FeedbackController> logger) : ControllerBase
 {
-    /// <summary>上报用户行为事件。</summary>
+    /// <summary>Records a user behavior event.</summary>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -43,7 +43,7 @@ public sealed class FeedbackController(
         return Accepted(new { message = "Feedback recorded." });
     }
 
-    /// <summary>获取反馈统计（管理员端点）。</summary>
+    /// <summary>Gets feedback statistics (admin endpoint).</summary>
     [HttpGet("stats")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStats(CancellationToken ct)

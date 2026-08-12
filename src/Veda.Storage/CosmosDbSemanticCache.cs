@@ -8,9 +8,9 @@ using Veda.Core.Interfaces;
 namespace Veda.Storage;
 
 /// <summary>
-/// 基于 Azure CosmosDB for NoSQL 的语义缓存实现。
-/// 使用单独的容器（SemanticCache）存储问题 embedding 与答案。
-/// 暂时通过内存余弦相似度匹配（CosmosDB DiskANN 需要专用容器向量策略，留待 Phase 3 优化）。
+/// Semantic cache implementation backed by Azure CosmosDB for NoSQL.
+/// Stores question embeddings and answers in a dedicated container (SemanticCache).
+/// Matching is currently done in memory via cosine similarity (CosmosDB DiskANN requires a dedicated container vector policy; deferred to Phase 3).
 /// </summary>
 public sealed class CosmosDbSemanticCache : ISemanticCache
 {

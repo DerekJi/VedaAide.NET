@@ -1,15 +1,15 @@
 namespace Veda.Core.Options;
 
-/// <summary>混合检索融合策略。</summary>
+/// <summary>Fusion strategy for hybrid retrieval.</summary>
 public enum FusionStrategy
 {
-    /// <summary>Reciprocal Rank Fusion：score = Σ 1/(k+rank)，k=60。</summary>
+    /// <summary>Reciprocal Rank Fusion: score = Σ 1/(k+rank), k = 60.</summary>
     Rrf,
-    /// <summary>加权合并：VectorWeight × vectorScore + KeywordWeight × keywordScore。</summary>
+    /// <summary>Weighted combination: VectorWeight × vectorScore + KeywordWeight × keywordScore.</summary>
     WeightedSum
 }
 
-/// <summary>混合检索执行参数。</summary>
+/// <summary>Execution parameters for hybrid retrieval.</summary>
 public record HybridRetrievalOptions(
     float VectorWeight = 0.7f,
     float KeywordWeight = 0.3f,

@@ -1,16 +1,16 @@
 namespace Veda.Core;
 
 /// <summary>
-/// DRY：统一 DocumentType 枚举解析，全项目复用。
-/// 从 Veda.Api.Extensions 迁移至 Veda.Core，使其可在 Core.Tests 中直接测试。
+/// DRY: centralizes DocumentType enum parsing for reuse across the project.
+/// Moved from Veda.Api.Extensions to Veda.Core so it can be tested directly in Core.Tests.
 /// </summary>
 public static class DocumentTypeParser
 {
-    /// <summary>解析为具体类型，解析失败返回 <paramref name="defaultType"/>。</summary>
+    /// <summary>Parses to a concrete type, returning <paramref name="defaultType"/> on failure.</summary>
     public static DocumentType ParseOrDefault(string? value, DocumentType defaultType = DocumentType.Other)
         => TryParse(value, out var result) ? result : defaultType;
 
-    /// <summary>解析为可空类型，解析失败返回 null（用于可选过滤场景）。</summary>
+    /// <summary>Parses to a nullable type, returning null on failure (for optional filtering scenarios).</summary>
     public static DocumentType? ParseOrNull(string? value)
         => TryParse(value, out var result) ? result : null;
 
@@ -20,7 +20,7 @@ public static class DocumentTypeParser
         return !string.IsNullOrWhiteSpace(value) && Enum.TryParse(value, ignoreCase: true, out result);
     }
 
-    /// <summary>从文件名推断 DocumentType（规则与 OrchestrationService 一致，集中至此处）。</summary>
+    /// <summary>Infers the DocumentType from a file name (rules kept in sync with OrchestrationService, centralized here).</summary>
     public static DocumentType InferFromName(string documentName)
     {
         var name = documentName.ToLowerInvariant();

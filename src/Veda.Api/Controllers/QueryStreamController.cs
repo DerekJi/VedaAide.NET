@@ -8,9 +8,9 @@ using Veda.Services;
 namespace Veda.Api.Controllers;
 
 /// <summary>
-/// SSE 流式问答端点：GET /api/querystream?question=...
-/// 前端通过 EventSource 订阅，依次收到 sources → token × N → done 三类事件。
-/// POST /api/querystream：携带临时附件上下文（Ephemeral RAG）时使用。
+/// SSE streaming Q&A endpoint: GET /api/querystream?question=...
+/// The frontend subscribes via EventSource and receives three event types in order: sources → token × N → done.
+/// POST /api/querystream: used when carrying temporary attachment context (Ephemeral RAG).
 /// </summary>
 [ApiController]
 [Route("api/querystream")]
@@ -21,7 +21,7 @@ public class QueryStreamController(IQueryStreamService queryStreamService, IOpti
         new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// 流式问答（Server-Sent Events）。
+    /// Streaming Q&A (Server-Sent Events).
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -67,8 +67,8 @@ public class QueryStreamController(IQueryStreamService queryStreamService, IOpti
     }
 
     /// <summary>
-    /// 携带临时附件上下文的流式问答（Context Augmentation / Ephemeral RAG）。
-    /// 前端上传文件提取文本后，将提取结果放入 <see cref="QueryStreamRequest.ExtraContext"/> 字段随请求发送。
+    /// Streaming Q&A with temporary attachment context (Context Augmentation / Ephemeral RAG).
+    /// After the frontend uploads and extracts a file, the extracted result is sent in the <see cref="QueryStreamRequest.ExtraContext"/> field with the request.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]

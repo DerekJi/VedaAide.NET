@@ -1,20 +1,20 @@
 namespace Veda.Core.Interfaces;
 
 /// <summary>
-/// 文件内容提取契约：从二进制文件流（图片 / PDF）中提取可供 RAG 管线消费的纯文本。
-/// 路由策略由 <see cref="DocumentIngestService"/> 决定：
-///   - <see cref="DocumentType.RichMedia"/> → Vision 模型（GPT-4o-mini）
-///   - 其余类型 → Azure AI Document Intelligence
+/// File content extraction contract: extracts plain text consumable by the RAG pipeline from binary file streams (images / PDFs).
+/// The routing strategy is decided by <see cref="DocumentIngestService"/>:
+///   - <see cref="DocumentType.RichMedia"/> → Vision model (GPT-4o-mini)
+///   - All other types → Azure AI Document Intelligence
 /// </summary>
 public interface IFileExtractor
 {
     /// <summary>
-    /// 从文件流中提取文本内容。
+    /// Extracts text content from a file stream.
     /// </summary>
-    /// <param name="fileStream">图片或 PDF 文件流（只读）。</param>
-    /// <param name="fileName">原始文件名，用于日志与错误诊断。</param>
-    /// <param name="mimeType">MIME 类型（如 image/jpeg、application/pdf）。</param>
-    /// <param name="documentType">文档类型，用于选择提取策略（如 prebuilt-invoice）。</param>
+    /// <param name="fileStream">Image or PDF file stream (read-only).</param>
+    /// <param name="fileName">Original file name, used for logging and error diagnostics.</param>
+    /// <param name="mimeType">MIME type (e.g. image/jpeg, application/pdf).</param>
+    /// <param name="documentType">Document type, used to select the extraction strategy (e.g. prebuilt-invoice).</param>
     Task<string> ExtractAsync(
         Stream fileStream,
         string fileName,

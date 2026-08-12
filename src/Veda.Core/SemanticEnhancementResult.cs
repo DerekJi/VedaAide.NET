@@ -1,17 +1,17 @@
 namespace Veda.Core;
 
 /// <summary>
-/// 语义增强结果：摄入和检索时的统一扩展信息。
-/// 确保摄入时生成的元数据与检索时的扩展逻辑保持一致。
+/// Semantic enhancement result: unified enrichment information for both ingestion and retrieval.
+/// Ensures the metadata generated during ingestion stays consistent with the enrichment logic at retrieval time.
 /// </summary>
 public sealed record SemanticEnhancementResult
 {
-    /// <summary>通过 Tags 规则匹配到的别名标签（如 "contract-type", "party-role" 等）。</summary>
+    /// <summary>Alias tags matched via the Tags rules (e.g. "contract-type", "party-role", etc.).</summary>
     public required IReadOnlyList<string> AliasTags { get; init; }
 
-    /// <summary>通过 Vocabulary 术语匹配到的所有相关术语及其同义词。</summary>
+    /// <summary>All relevant terms matched via the Vocabulary, together with their synonyms.</summary>
     public required IReadOnlyDictionary<string, IReadOnlyList<string>> DetectedTermsWithSynonyms { get; init; }
 
-    /// <summary>完整的扩展文本：原始内容 + 所有检测到的术语和同义词，用于向量化增强。</summary>
+    /// <summary>The full enriched text: original content plus all detected terms and synonyms, used for embedding enrichment.</summary>
     public required string EnrichedContent { get; init; }
 }

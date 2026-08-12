@@ -1,9 +1,9 @@
 namespace Veda.Core;
 
 /// <summary>
-/// 知识作用域元数据，用于多维度过滤与偏好排序。
-/// 所有属性均可选——不传 Scope 时不做任何过滤。
-/// Visibility = null 表示不按可见性过滤（兼容历史数据）。
+/// Knowledge scope metadata, used for multi-dimensional filtering and preference ranking.
+/// All properties are optional — no filtering is applied when no scope is passed.
+/// Visibility = null means no visibility-based filtering (for compatibility with historical data).
 /// </summary>
 public record KnowledgeScope(
     string? Domain = null,
@@ -14,10 +14,10 @@ public record KnowledgeScope(
     string? OwnerId = null,
     Visibility? Visibility = null);
 
-/// <summary>知识可见性级别。</summary>
+/// <summary>Knowledge visibility level.</summary>
 public enum Visibility
 {
-    Private,   // 仅所有者可见
-    Shared,    // 授权成员可见
-    Public     // 所有用户可见
+    Private,   // visible to the owner only
+    Shared,    // visible to authorized members
+    Public     // visible to all users
 }

@@ -5,10 +5,10 @@ using Veda.Agents.Orchestration;
 namespace Veda.Agents;
 
 /// <summary>
-/// LLM 驱动的 Agent 编排服务。
-/// 使用 Semantic Kernel <see cref="ChatCompletionAgent"/> + KernelFunction Plugin 循环，
-/// LLM 自主决定何时调用 search_knowledge_base（Reason-Act-Observe 循环），
-/// 实现 IRCoT (Interleaved Retrieval + Chain-of-Thought)。
+/// LLM-driven Agent orchestration service.
+/// Uses a Semantic Kernel <see cref="ChatCompletionAgent"/> + KernelFunction Plugin loop,
+/// where the LLM decides autonomously when to call search_knowledge_base (Reason-Act-Observe loop),
+/// implementing IRCoT (Interleaved Retrieval + Chain-of-Thought).
 /// </summary>
 public sealed class LlmOrchestrationService(
     Kernel                             kernel,

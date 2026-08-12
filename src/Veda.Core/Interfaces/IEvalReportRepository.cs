@@ -1,6 +1,6 @@
 namespace Veda.Core.Interfaces;
 
-/// <summary>评估报告的持久化与查询接口。</summary>
+/// <summary>Persistence and query interface for evaluation reports.</summary>
 public interface IEvalReportRepository
 {
     Task<IReadOnlyList<EvaluationReport>> ListAsync(int limit = 20, CancellationToken ct = default);

@@ -1,6 +1,6 @@
 namespace Veda.Storage.Entities;
 
-/// <summary>用户行为事件 SQLite 实体（隐私设计：不存储文档内容）。</summary>
+/// <summary>SQLite entity for user behavior events (privacy by design: no document content is stored).</summary>
 public class UserBehaviorEntity
 {
     public string Id { get; set; } = string.Empty;
@@ -13,7 +13,7 @@ public class UserBehaviorEntity
     public long OccurredAtTicks { get; set; }
 }
 
-/// <summary>共享组实体（用于家庭/团队知识共享）。</summary>
+/// <summary>Sharing group entity (used for family/team knowledge sharing).</summary>
 public class SharingGroupEntity
 {
     public string Id { get; set; } = string.Empty;
@@ -22,7 +22,7 @@ public class SharingGroupEntity
     public long CreatedAtTicks { get; set; }
 }
 
-/// <summary>文档共享权限实体。</summary>
+/// <summary>Document sharing permission entity.</summary>
 public class DocumentPermissionEntity
 {
     public string Id { get; set; } = string.Empty;
@@ -31,7 +31,7 @@ public class DocumentPermissionEntity
     public long GrantedAtTicks { get; set; }
 }
 
-/// <summary>共识候选实体（匿名化模式，用于跨用户知识聚合）。</summary>
+/// <summary>Consensus candidate entity (anonymized pattern, used for cross-user knowledge aggregation).</summary>
 public class ConsensusCandidateEntity
 {
     public string Id { get; set; } = string.Empty;

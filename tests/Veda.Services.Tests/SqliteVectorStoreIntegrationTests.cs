@@ -8,8 +8,8 @@ using Veda.Storage;
 namespace Veda.Services.Tests;
 
 /// <summary>
-/// 集成测试：直接操作真实的 SQLite in-memory 数据库，不使用 Mock。
-/// 使用 [SetUp]/[TearDown] 管理连接生命周期，保证 in-memory DB 在测试期间保持连接。
+/// Integration tests that operate directly on a real SQLite in-memory database without mocks.
+/// Uses [SetUp]/[TearDown] to manage the connection lifecycle so the in-memory DB stays alive during the tests.
 /// </summary>
 [TestFixture]
 public class SqliteVectorStoreIntegrationTests

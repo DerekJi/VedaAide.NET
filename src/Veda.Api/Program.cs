@@ -75,8 +75,8 @@ builder.Services.Configure<AzureAdOptions>(cfg.GetSection("AzureAd"));
 var entra = cfg.GetSection("AzureAd").Get<AzureAdOptions>() ?? new AzureAdOptions();
 var entraAudience = entra.Audience ?? entra.ClientId;
 
-// Development 专用无鉴权模式：Veda:DevMode:NoAuth=true 时绕过所有认证。
-// ⚠ 生产环境绝对禁止开启此选项。
+// Development-only no-auth mode: bypasses all authentication when Veda:DevMode:NoAuth=true.
+// ⚠ Must never be enabled in production.
 var isDevNoAuth = builder.Environment.IsDevelopment()
     && cfg.GetValue<bool>("Veda:DevMode:NoAuth", false);
 
@@ -123,8 +123,8 @@ else
 }
 builder.Services.AddAuthorization(options =>
 {
-    // AdminOnly: JWT roles claim 包含 "Admin"（Entra ID App Roles），
-    // 或 oid/sub claim 在 AzureAd:AdminOids 白名单中（适合 CIAM token 无 roles claim 的场景）。
+    // AdminOnly: JWT roles claim contains "Admin" (Entra ID App Roles),
+    // or the oid/sub claim is in the AzureAd:AdminOids allowlist (for CIAM tokens without a roles claim).
     var adminOids = entra.AdminOids;
     options.AddPolicy("AdminOnly", policy => policy
         .RequireAuthenticatedUser()
@@ -161,9 +161,9 @@ builder.Services.AddCors(options =>
             policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
     });
 
-    // 公开简历定制端点专用 CORS 策略，仅允许 resume 站 origin。
-    // 开发环境：放通所有 localhost（任意端口，如 4130、4200 等）。
-    // 生产环境：仅允许 derekji.github.io。
+    // Dedicated CORS policy for the public resume customization endpoint; only allows the resume site origin.
+    // Development: allows all localhost origins (any port, e.g. 4130, 4200, etc.).
+    // Production: only allows derekji.github.io.
     options.AddPolicy("ResumePublicPolicy", policy =>
     {
         var p = policy.WithMethods("POST").WithHeaders("Content-Type");
@@ -176,7 +176,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ── Rate Limiting (固定窗口，60 次/分钟/全局) ────────────────────────────
+// ── Rate Limiting (fixed window, 60 req/min, global) ────────────────────────────
 var publicResumeOpts = vedaOpts.PublicResume;
 builder.Services.AddRateLimiter(options =>
 {
@@ -187,7 +187,7 @@ builder.Services.AddRateLimiter(options =>
         policy.QueueLimit  = 0;
     });
 
-    // 公开简历端点：按来源 IP 分区，限额从 Veda:PublicResume:RateLimitPerIpPerHour 读取。
+    // Public resume endpoint: partitioned by source IP, limit read from Veda:PublicResume:RateLimitPerIpPerHour.
     options.AddPolicy("resume-public", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

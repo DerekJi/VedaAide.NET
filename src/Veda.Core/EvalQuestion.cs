@@ -1,6 +1,6 @@
 namespace Veda.Core;
 
-/// <summary>Golden dataset 中的一个标准问答对，用于批量评估 RAG 管道质量。</summary>
+/// <summary>A standard question-answer pair from the golden dataset, used to evaluate RAG pipeline quality in batch.</summary>
 public record EvalQuestion
 {
     public string Id { get; init; } = Guid.NewGuid().ToString();

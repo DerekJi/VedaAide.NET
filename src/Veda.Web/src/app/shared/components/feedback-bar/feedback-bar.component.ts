@@ -3,8 +3,8 @@ import { FeedbackService } from '../../../services/feedback.service';
 import { CHAT_LABELS, ChatLang } from '../../chat-labels';
 
 /**
- * 显式反馈条：👍 / 👎 按钮，在每条 assistant 消息末尾显示一次。
- * 点击后按钮禁用，防止重复提交。
+ * Explicit feedback bar: 👍 / 👎 buttons shown once at the end of each assistant message.
+ * The buttons are disabled after clicking to prevent duplicate submissions.
  */
 @Component({
   selector: 'app-feedback-bar',

@@ -2,8 +2,8 @@ using Veda.Core.Options;
 namespace Veda.Services;
 
 /// <summary>
-/// RAG 查询的共享辅助服务：提供检索、排名、上下文构建等公共逻辑。
-/// 供 QueryService 和 QueryStreamService 共用，避免代码重复。
+/// Shared helper service for RAG queries: provides common logic such as retrieval, reranking,
+/// and context building. Shared by QueryService and QueryStreamService to avoid code duplication.
 /// </summary>
 public sealed class RagQueryHelper(
     IVectorStore vectorStore,
@@ -14,11 +14,11 @@ public sealed class RagQueryHelper(
     IOptions<RagOptions> options,
     ILogger logger) : IRagQueryHelper
 {
-    /// <summary>引用来源的最大展示字符数。</summary>
+    /// <summary>Maximum display characters for a cited source.</summary>
     internal const int SourceContentMaxLength = 200;
 
     /// <summary>
-    /// 检索候选：根据配置选择混合检索或向量检索。
+    /// Retrieves candidates: picks hybrid or vector retrieval based on configuration.
     /// </summary>
     public async Task<IReadOnlyList<(DocumentChunk Chunk, float Similarity)>> RetrieveCandidatesAsync(
         string expandedQuestion,
@@ -36,7 +36,7 @@ public sealed class RagQueryHelper(
             : await RetrieveWithVectorAsync(queryEmbedding, candidateTopK, request, ct);
     }
 
-    /// <summary>混合检索：向量 + 关键词。</summary>
+    /// <summary>Hybrid retrieval: vector + keyword.</summary>
     private async Task<IReadOnlyList<(DocumentChunk Chunk, float Similarity)>> RetrieveWithHybridAsync(
         string expandedQuestion,
         float[] queryEmbedding,
@@ -59,7 +59,7 @@ public sealed class RagQueryHelper(
             ct: ct);
     }
 
-    /// <summary>纯向量检索。</summary>
+    /// <summary>Pure vector retrieval.</summary>
     private async Task<IReadOnlyList<(DocumentChunk Chunk, float Similarity)>> RetrieveWithVectorAsync(
         float[] queryEmbedding,
         int candidateTopK,
@@ -78,7 +78,7 @@ public sealed class RagQueryHelper(
     }
 
     /// <summary>
-    /// 排名与反馈 boost：轻量重排后应用用户反馈 boost。
+    /// Reranking and feedback boost: applies the user-feedback boost after a light rerank.
     /// </summary>
     public async Task<IReadOnlyList<(DocumentChunk Chunk, float Similarity)>> RerankAndBoostAsync(
         IReadOnlyList<(DocumentChunk Chunk, float Similarity)> candidates,
@@ -90,12 +90,12 @@ public sealed class RagQueryHelper(
         if (candidates.Count == 0)
             return [];
 
-        // 轻量重排
+        // Light rerank
         var reranked = Rerank(candidates, question, topK)
             .Select(c => (c.Chunk, Score: c.Similarity))
             .ToList();
 
-        // 应用反馈 boost
+        // Apply the feedback boost
         if (!string.IsNullOrWhiteSpace(userId))
         {
             return await feedbackBoost.ApplyBoostAsync(userId, reranked, ct);
@@ -105,8 +105,8 @@ public sealed class RagQueryHelper(
     }
 
     /// <summary>
-    /// 轻量重排：70% 向量相似度 + 30% 问题关键词覆盖率。
-    /// 不需额外 LLM 调用，Phase 4 可替换为 cross-encoder 模型。
+    /// Light rerank: 70% vector similarity + 30% question-keyword coverage.
+    /// Requires no extra LLM call; can be swapped for a cross-encoder model in Phase 4.
     /// </summary>
     public IReadOnlyList<(DocumentChunk Chunk, float Similarity)> Rerank(
         IReadOnlyList<(DocumentChunk Chunk, float Similarity)> candidates,
@@ -139,7 +139,7 @@ public sealed class RagQueryHelper(
     }
 
     /// <summary>
-    /// 构建上下文：从 Token 预算裁剪后的文本块列表构建上下文。
+    /// Builds the context from the list of text chunks trimmed to the token budget.
     /// </summary>
     public string BuildContext(IReadOnlyList<DocumentChunk> chunks, string? ephemeralContext = null)
     {
@@ -159,7 +159,7 @@ public sealed class RagQueryHelper(
     }
 
     /// <summary>
-    /// 检测答案是否为幻觉。
+    /// Detects whether the answer is a hallucination.
     /// </summary>
     public async Task<bool> DetectHallucinationAsync(
         string answer,
@@ -186,7 +186,7 @@ public sealed class RagQueryHelper(
         return isHallucination;
     }
 
-    /// <summary>构建临时附件上下文前缀。</summary>
+    /// <summary>Builds the ephemeral attachment context prefix.</summary>
     private static string BuildEphemeralPrefix(string ephemeralContext) =>
         $"[临时上传文件内容 — 仅供本次问答，不写入知识库]\n{ephemeralContext}\n---（以下为知识库检索结果）---\n";
 }

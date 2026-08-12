@@ -3,7 +3,7 @@ using Veda.Storage.Entities;
 namespace Veda.Storage;
 
 /// <summary>
-/// EF Core 实现的 Prompt 模板仓储。
+/// EF Core-based Prompt template repository.
 /// </summary>
 public sealed class PromptTemplateRepository(VedaDbContext db) : IPromptTemplateRepository
 {
