@@ -118,7 +118,7 @@ jobs:
         shell: bash
         run: |
           echo "### dotnet build" >> $GITHUB_STEP_SUMMARY
-          dotnet build VedaAide.slnx --no-restore -c Release 2>&1 | tail -10
+          dotnet build VedaAide.slnx --no-restore -c Release -nodeReuse:false 2>&1 | tail -10
 
       # ── 6. Run tests ────────────────────────────────────
       - name: Run Tests
@@ -128,7 +128,7 @@ jobs:
         shell: bash
         run: |
           echo "### dotnet test" >> $GITHUB_STEP_SUMMARY
-          dotnet test VedaAide.slnx --no-build --no-restore -c Release --logger "console;verbosity=minimal" 2>&1 | tail -20
+          dotnet test VedaAide.slnx --no-build --no-restore -c Release -nodeReuse:false --logger "console;verbosity=minimal" 2>&1 | tail -20
 
       # ── 7. Comment static check results on the PR ─────────
       - name: Post Check Results
@@ -152,10 +152,13 @@ jobs:
             });
 
       # ── 8. Auto-fix static check failures (if needed) ──────
+      #    continue-on-error: a transient reasonix/API failure must not
+      #    block the later review/fix/commit steps.
       - name: Auto-fix Static Issues
         if: |
           steps.check_author.outputs.skip != 'true' &&
           (steps.build.outcome == 'failure' || steps.test.outcome == 'failure')
+        continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         shell: bash
@@ -172,7 +175,17 @@ jobs:
           Follow the fix workflow in .reasonix/commands/fix-bug.md.
           FIX_EOF
 
-          npx reasonix@1.2.0 run --model "${{ steps.model_cfg.outputs.model }}" "$(cat "$RUNNER_TEMP/fix_static.txt")"
+          MODEL="${{ steps.model_cfg.outputs.model }}"
+          for attempt in 1 2 3; do
+            if npx reasonix@1.2.0 run --model "$MODEL" "$(cat "$RUNNER_TEMP/fix_static.txt")"; then
+              echo "Reasonix succeeded on attempt $attempt" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+            echo "Reasonix attempt $attempt failed (transient API/network error?), retrying in 15s..." >> $GITHUB_STEP_SUMMARY
+            sleep 15
+          done
+          echo "Reasonix failed after 3 attempts; continuing with whatever changes were made." >> $GITHUB_STEP_SUMMARY
+          exit 1
 
       # ══════════════════════════════════════════════════════
       # Phase 2: Code Review (based on code after static fixes)
@@ -186,6 +199,8 @@ jobs:
           echo "Diff size: $(wc -l < "$RUNNER_TEMP/pr_changes.diff") lines"
 
       # ── 11. Run code review ───────────────────────────────
+      #    continue-on-error: a transient reasonix/API failure must not
+      #    block the later review/fix/commit steps.
       - name: Run Code Review
         id: review
         if: steps.check_author.outputs.skip != 'true'
@@ -205,9 +220,18 @@ jobs:
           printf '\n\n## Code Change Diff\n\n' >> "$RUNNER_TEMP/review_prompt.txt"
           cat "$RUNNER_TEMP/pr_changes.diff" >> "$RUNNER_TEMP/review_prompt.txt"
 
-          npx reasonix@1.2.0 run \
-            --model deepseek-pro \
-            "$(cat "$RUNNER_TEMP/review_prompt.txt")" > "$RUNNER_TEMP/review/review-report.md"
+          for attempt in 1 2 3; do
+            if npx reasonix@1.2.0 run \
+                --model deepseek-pro \
+                "$(cat "$RUNNER_TEMP/review_prompt.txt")" > "$RUNNER_TEMP/review/review-report.md"; then
+              echo "Reasonix review succeeded on attempt $attempt" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+            echo "Reasonix review attempt $attempt failed, retrying in 15s..." >> $GITHUB_STEP_SUMMARY
+            sleep 15
+          done
+          echo "Reasonix review failed after 3 attempts; no review report will be posted." >> $GITHUB_STEP_SUMMARY
+          exit 1
 
       # ── 12. Post the review report to the PR ──────────────────
       - name: Post Review Comment
@@ -234,8 +258,11 @@ jobs:
             });
 
       # ── 13. Auto-fix based on review results (if needed) ────
+      #    continue-on-error: a transient reasonix/API failure must not
+      #    block the final verification + commit/push steps.
       - name: Auto-fix Review Issues
         if: steps.check_author.outputs.skip != 'true'
+        continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
@@ -265,9 +292,18 @@ jobs:
           printf '\n\n## Code Change Diff\n\n' >> "$RUNNER_TEMP/fix_review.txt"
           cat "$RUNNER_TEMP/pr_changes.diff" >> "$RUNNER_TEMP/fix_review.txt"
 
-          npx reasonix@1.2.0 run \
-            --model deepseek-pro \
-            "$(cat "$RUNNER_TEMP/fix_review.txt")"
+          for attempt in 1 2 3; do
+            if npx reasonix@1.2.0 run \
+                --model deepseek-pro \
+                "$(cat "$RUNNER_TEMP/fix_review.txt")"; then
+              echo "Reasonix fix succeeded on attempt $attempt" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+            echo "Reasonix fix attempt $attempt failed (transient API/network error?), retrying in 15s..." >> $GITHUB_STEP_SUMMARY
+            sleep 15
+          done
+          echo "Reasonix fix failed after 3 attempts; continuing with whatever changes were made." >> $GITHUB_STEP_SUMMARY
+          exit 1
 
       # ══════════════════════════════════════════════════════
       # Phase 3: Final verification + push
@@ -279,12 +315,15 @@ jobs:
         if: steps.check_author.outputs.skip != 'true'
         continue-on-error: true
         run: |
-          dotnet build VedaAide.slnx --no-restore -c Release
-          dotnet test VedaAide.slnx --no-build --no-restore -c Release --logger "console;verbosity=minimal" | tail -15
+          dotnet build VedaAide.slnx --no-restore -c Release -nodeReuse:false
+          dotnet test VedaAide.slnx --no-build --no-restore -c Release -nodeReuse:false --logger "console;verbosity=minimal" | tail -15
 
       # ── 15. Round 2 fix (if verification fails) ────────────────────
+      #    continue-on-error: even if round 2 also fails, the commit/push
+      #    step below still runs so the user can see the AI's changes.
       - name: Round 2 Fix if Needed
         if: steps.check_author.outputs.skip != 'true' && steps.verify.outcome == 'failure'
+        continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
@@ -295,13 +334,21 @@ jobs:
           2. Fix all failing items
           3. Repeat until everything is green
           PROMPT_END
-          npx reasonix@1.2.0 run \
-            --model deepseek-pro \
-            "$(cat "$RUNNER_TEMP/repair2.txt")"
+
+          for attempt in 1 2 3; do
+            if npx reasonix@1.2.0 run \
+                --model deepseek-pro \
+                "$(cat "$RUNNER_TEMP/repair2.txt")"; then
+              echo "Reasonix round-2 fix succeeded on attempt $attempt" >> $GITHUB_STEP_SUMMARY
+              break
+            fi
+            echo "Reasonix round-2 fix attempt $attempt failed, retrying in 15s..." >> $GITHUB_STEP_SUMMARY
+            sleep 15
+          done
 
           # Verify once more
-          dotnet build VedaAide.slnx --no-restore -c Release
-          dotnet test VedaAide.slnx --no-build --no-restore -c Release
+          dotnet build VedaAide.slnx --no-restore -c Release -nodeReuse:false
+          dotnet test VedaAide.slnx --no-build --no-restore -c Release -nodeReuse:false
 
       # ── 16. Commit and push all fixes in one shot ──────────
       - name: Commit and Push All Fixes

@@ -132,24 +132,38 @@ jobs:
           echo "Fix prompt assembled ($(wc -l < "$PROMPT_FILE") lines)"
 
       # ── 6. Run Reasonix online fix ─────────────────────────
+      #    continue-on-error: a transient API/network failure must not
+      #    block the commit/push below, so any partial fixes still land.
       - name: Run Reasonix to Fix Code
         id: fix
+        continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          npx reasonix@1.2.0 run --model "${{ steps.config.outputs.model }}" "$(cat "$RUNNER_TEMP/fix_prompt.txt")"
+          MODEL="${{ steps.config.outputs.model }}"
+          for attempt in 1 2 3; do
+            if npx reasonix@1.2.0 run --model "$MODEL" "$(cat "$RUNNER_TEMP/fix_prompt.txt")"; then
+              echo "Reasonix succeeded on attempt $attempt" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+            echo "Reasonix attempt $attempt failed (transient API/network error?), retrying in 15s..." >> $GITHUB_STEP_SUMMARY
+            sleep 15
+          done
+          echo "Reasonix failed after 3 attempts; continuing with whatever changes were made." >> $GITHUB_STEP_SUMMARY
+          exit 1
 
       # ── 7. Verify the fix result ──────────────────────────────────
       - name: Run Checks After Fix
         id: verify
         continue-on-error: true
         run: |
-          dotnet build VedaAide.slnx --no-restore
-          dotnet test VedaAide.slnx --no-build --no-restore --logger "console;verbosity=minimal" | tail -15
+          dotnet build VedaAide.slnx --no-restore -nodeReuse:false
+          dotnet test VedaAide.slnx --no-build --no-restore -nodeReuse:false --logger "console;verbosity=minimal" | tail -15
 
       # ── 8. If verification fails, let the AI self-repair once ────
       - name: Auto-fix Round 2
         if: steps.verify.outcome == 'failure'
+        continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
@@ -164,11 +178,20 @@ jobs:
           4. Run dotnet build VedaAide.slnx && dotnet test VedaAide.slnx -q
           5. Repeat until everything is green
           PROMPT_END
-          npx reasonix@1.2.0 run --model "${{ steps.config.outputs.model }}" "$(cat "$RUNNER_TEMP/repair_prompt.txt")"
+
+          MODEL="${{ steps.config.outputs.model }}"
+          for attempt in 1 2 3; do
+            if npx reasonix@1.2.0 run --model "$MODEL" "$(cat "$RUNNER_TEMP/repair_prompt.txt")"; then
+              echo "Reasonix repair succeeded on attempt $attempt" >> $GITHUB_STEP_SUMMARY
+              break
+            fi
+            echo "Reasonix repair attempt $attempt failed, retrying in 15s..." >> $GITHUB_STEP_SUMMARY
+            sleep 15
+          done
 
           # Run verification once more
-          dotnet build VedaAide.slnx --no-restore
-          dotnet test VedaAide.slnx --no-build --no-restore | tail -5
+          dotnet build VedaAide.slnx --no-restore -nodeReuse:false
+          dotnet test VedaAide.slnx --no-build --no-restore -nodeReuse:false | tail -5
 
       # ── 9. Commit and push ─────────────────────────────────
       - name: Commit and Push Fixes
