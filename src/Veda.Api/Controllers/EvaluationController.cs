@@ -55,11 +55,22 @@ public class EvaluationController(
         {
             QuestionIds       = req.QuestionIds ?? [],
             ChatModelOverride = req.ChatModelOverride,
+            DatasetSource     = req.DatasetSource ?? EvalDatasetSource.Database,
+            DatasetConfig     = req.DatasetConfig,
         };
 
-        var report = await runner.RunAsync(options, ct);
-        await reportRepo.SaveAsync(report, ct);
-        return Ok(report);
+        try
+        {
+            var report = await runner.RunAsync(options, ct);
+            await reportRepo.SaveAsync(report, ct);
+            return Ok(report);
+        }
+        // The dataset source is not supported by any registered IEvalDatasetProvider
+        // (HuggingFace/LocalFile are not implemented yet) — surface it as a client error instead of a generic 500.
+        catch (NotSupportedException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     // ── Reports ────────────────────────────────────────────────────────────────

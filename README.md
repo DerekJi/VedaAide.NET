@@ -132,7 +132,7 @@ Scores are stored, queryable via `/api/evaluation`, and support A/B comparison b
 **Evaluation System (Phase 7 — In Progress)**
 - ✅ Three-dimensional evaluation (Faithfulness, Answer Relevancy, Context Recall) implemented
 - 🚀 Expanding to 9 dimensions with retrieval + generation + efficiency metrics
-- 🚀 Multi-source dataset support (HuggingFace, Local, Database) — in design phase
+- ✅ `IEvalDatasetProvider` abstraction + Database provider (multi-source ready; HuggingFace/Local providers in progress)
 - 📋 CI/CD integration for regression detection — planned for Phase 4
 - 📊 Interactive HTML reports with version comparison — planned for Phase 3
 - See [evaluation research report](docs/designs/rag-evaluation-research.en.md) for detailed roadmap

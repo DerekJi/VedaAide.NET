@@ -4,11 +4,11 @@ using Veda.Core.Options;
 namespace Veda.Evaluation;
 
 /// <summary>
-/// Evaluation runner: loads questions from the Golden Dataset → calls the RAG pipeline →
-/// scores each answer along three dimensions → aggregates the results into an <see cref="EvaluationReport"/>.
+/// Evaluation runner: loads questions from the configured dataset source (default: Golden Dataset) →
+/// calls the RAG pipeline → scores each answer along three dimensions → aggregates the results into an <see cref="EvaluationReport"/>.
 /// </summary>
 public sealed class EvaluationRunner(
-    IEvalDatasetRepository datasetRepo,
+    IEvalDatasetProvider datasetProvider,
     IQueryService          queryService,
     FaithfulnessScorer     faithfulnessScorer,
     AnswerRelevancyScorer  relevancyScorer,
@@ -19,7 +19,10 @@ public sealed class EvaluationRunner(
         EvalRunOptions   options,
         CancellationToken ct = default)
     {
-        var allQuestions = await datasetRepo.ListAsync(ct);
+        var allQuestions = await datasetProvider.LoadAsync(
+            options.DatasetSource,
+            options.DatasetConfig ?? new EvalDatasetConfig(),
+            ct);
         var questions = (options.QuestionIds.Length == 0
             ? allQuestions
             : allQuestions.Where(q => options.QuestionIds.Contains(q.Id)).ToList())
@@ -27,7 +30,7 @@ public sealed class EvaluationRunner(
 
         if (questions.Count == 0)
         {
-            logger.LogWarning("EvaluationRunner: no questions found in Golden Dataset");
+            logger.LogWarning("EvaluationRunner: no questions found for source {Source}", options.DatasetSource);
             return new EvaluationReport();
         }
 
