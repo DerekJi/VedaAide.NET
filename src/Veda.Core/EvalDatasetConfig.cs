@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Veda.Core;
 
 /// <summary>
@@ -16,6 +18,7 @@ public record EvalDatasetConfig
     public string? Split { get; init; }
 
     /// <summary>Maximum number of records to load; null means no limit.</summary>
+    [Range(0, int.MaxValue)]
     public int? MaxRecords { get; init; }
 
     /// <summary>Prefer a locally cached copy over re-downloading (used by <see cref="EvalDatasetSource.HuggingFace"/>).</summary>

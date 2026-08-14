@@ -25,6 +25,15 @@ public class DatabaseEvalDatasetProviderTests
             .ToList();
 
     [Test]
+    public void Supports_Database_ReturnsTrue() =>
+        _sut.Supports(EvalDatasetSource.Database).Should().BeTrue();
+
+    [TestCase(EvalDatasetSource.HuggingFace)]
+    [TestCase(EvalDatasetSource.LocalFile)]
+    public void Supports_OtherSources_ReturnsFalse(EvalDatasetSource source) =>
+        _sut.Supports(source).Should().BeFalse();
+
+    [Test]
     public async Task LoadAsync_DatabaseSource_DelegatesToRepository()
     {
         var questions = Questions(2);
@@ -35,6 +44,18 @@ public class DatabaseEvalDatasetProviderTests
 
         result.Should().BeEquivalentTo(questions);
         _repo.Verify(r => r.ListAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task LoadAsync_NullConfig_UsesProviderDefaults()
+    {
+        var questions = Questions(2);
+        _repo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(questions);
+
+        var result = await _sut.LoadAsync(EvalDatasetSource.Database, config: null);
+
+        result.Should().BeEquivalentTo(questions);
     }
 
     [Test]
@@ -58,6 +79,19 @@ public class DatabaseEvalDatasetProviderTests
         var result = await _sut.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig { MaxRecords = 10 });
 
         result.Should().HaveCount(5);
+    }
+
+    [Test]
+    public async Task LoadAsync_NegativeMaxRecords_ThrowsArgumentOutOfRange()
+    {
+        _repo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Questions(5));
+
+        var act = () => _sut.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig { MaxRecords = -1 });
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
+            .WithMessage("*MaxRecords*");
+        _repo.Verify(r => r.ListAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]

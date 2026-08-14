@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Veda.Core.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -65,8 +66,9 @@ public class EvaluationController(
             await reportRepo.SaveAsync(report, ct);
             return Ok(report);
         }
-        // The dataset source is not supported by any registered IEvalDatasetProvider
-        // (HuggingFace/LocalFile are not implemented yet) — surface it as a client error instead of a generic 500.
+        // No registered IEvalDatasetProvider supports the requested source (e.g. HuggingFace/LocalFile
+        // are valid enum values but their providers are not implemented yet) — surface it as a client
+        // error instead of a generic 500.
         catch (NotSupportedException ex)
         {
             return BadRequest(new { error = ex.Message });
@@ -76,7 +78,8 @@ public class EvaluationController(
     // ── Reports ────────────────────────────────────────────────────────────────
 
     [HttpGet("reports")]
-    public async Task<IActionResult> ListReports([FromQuery] int limit = 20, CancellationToken ct = default)
+    public async Task<IActionResult> ListReports(
+        [FromQuery, Range(1, 200)] int limit = 20, CancellationToken ct = default)
     {
         var reports = await reportRepo.ListAsync(limit, ct);
         return Ok(reports);

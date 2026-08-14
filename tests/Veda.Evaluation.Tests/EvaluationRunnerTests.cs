@@ -12,19 +12,19 @@ namespace Veda.Evaluation.Tests;
 [TestFixture]
 public class EvaluationRunnerTests
 {
-    private Mock<IEvalDatasetProvider>  _datasetProvider = null!;
-    private Mock<IQueryService>          _queryService    = null!;
-    private Mock<IChatService>           _chatService  = null!;
-    private Mock<IEmbeddingService>      _embedding    = null!;
-    private EvaluationRunner             _sut          = null!;
+    private Mock<IEvalDatasetProvider> _datasetProvider = null!;
+    private Mock<IQueryService>        _queryService    = null!;
+    private Mock<IChatService>         _chatService     = null!;
+    private Mock<IEmbeddingService>    _embedding       = null!;
+    private EvaluationRunner           _sut             = null!;
 
     [SetUp]
     public void SetUp()
     {
         _datasetProvider = new Mock<IEvalDatasetProvider>();
         _queryService    = new Mock<IQueryService>();
-        _chatService  = new Mock<IChatService>();
-        _embedding    = new Mock<IEmbeddingService>();
+        _chatService     = new Mock<IChatService>();
+        _embedding       = new Mock<IEmbeddingService>();
 
         var faithfulness = new FaithfulnessScorer(_chatService.Object, NullLogger<FaithfulnessScorer>.Instance);
         var relevancy    = new AnswerRelevancyScorer(_embedding.Object);
@@ -190,6 +190,6 @@ public class EvaluationRunnerTests
         _datasetProvider.Verify(
             p => p.LoadAsync(EvalDatasetSource.Database, It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        capturedConfig.Should().NotBeNull();
+        capturedConfig.Should().BeEquivalentTo(new EvalDatasetConfig());
     }
 }

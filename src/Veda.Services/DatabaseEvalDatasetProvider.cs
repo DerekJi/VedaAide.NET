@@ -2,20 +2,31 @@ namespace Veda.Services;
 
 /// <summary>
 /// <see cref="IEvalDatasetProvider"/> backed by the Golden Dataset repository (the existing DB logic).
-/// Only supports <see cref="EvalDatasetSource.Database"/>; other sources throw <see cref="NotSupportedException"/>
-/// until dedicated providers (HuggingFace / LocalFile) are added.
+/// Handles <see cref="EvalDatasetSource.Database"/> only; other sources are reported as unsupported
+/// via <see cref="Supports"/> and rejected defensively by <see cref="LoadAsync"/> until dedicated
+/// providers (HuggingFace / LocalFile) are added.
 /// </summary>
 public sealed class DatabaseEvalDatasetProvider(IEvalDatasetRepository datasetRepo) : IEvalDatasetProvider
 {
+    public bool Supports(EvalDatasetSource source) => source == EvalDatasetSource.Database;
+
     public async Task<IReadOnlyList<EvalQuestion>> LoadAsync(
         EvalDatasetSource source,
-        EvalDatasetConfig config,
+        EvalDatasetConfig? config,
         CancellationToken ct = default)
     {
-        if (source != EvalDatasetSource.Database)
+        if (!Supports(source))
         {
             throw new NotSupportedException(
                 $"{nameof(DatabaseEvalDatasetProvider)} only supports {EvalDatasetSource.Database}; got {source}.");
+        }
+
+        config ??= new EvalDatasetConfig();
+        if (config.MaxRecords is < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(config.MaxRecords), config.MaxRecords,
+                "MaxRecords must be >= 0.");
         }
 
         var questions = await datasetRepo.ListAsync(ct);

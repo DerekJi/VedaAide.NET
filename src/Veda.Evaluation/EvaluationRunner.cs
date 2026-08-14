@@ -76,7 +76,10 @@ public sealed class EvaluationRunner(
         {
             response = await queryService.QueryAsync(request, ct);
         }
-        catch (Exception ex)
+        // Propagate genuine request cancellation (OperationCanceledException / TaskCanceledException
+        // raised because ct fired) instead of turning it into a fabricated zero-scored result.
+        // Internal LLM timeouts (ct not cancelled) still take the failure path below.
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             logger.LogError(ex, "EvaluationRunner: RAG query failed for question {Id}", question.Id);
             return new EvalResult

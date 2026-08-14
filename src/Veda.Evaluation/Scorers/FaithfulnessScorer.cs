@@ -34,8 +34,11 @@ public sealed class FaithfulnessScorer(IChatService chatService, ILogger<Faithfu
         try
         {
             var response = await chatService.CompleteAsync(SystemPrompt, userMessage, ct);
+            // Reject non-finite values (e.g. "NaN"): Math.Clamp(NaN) returns NaN and would poison
+            // the whole report (aggregates become NaN, and JSON serialization of NaN throws).
             if (float.TryParse(response.Trim(), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var score))
+                    System.Globalization.CultureInfo.InvariantCulture, out var score)
+                && float.IsFinite(score))
             {
                 return Math.Clamp(score, 0f, 1f);
             }
@@ -43,7 +46,7 @@ public sealed class FaithfulnessScorer(IChatService chatService, ILogger<Faithfu
             logger.LogWarning("FaithfulnessScorer: unexpected LLM response '{Response}', defaulting to 0", response);
             return 0f;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             logger.LogError(ex, "FaithfulnessScorer: LLM call failed");
             return 0f;
