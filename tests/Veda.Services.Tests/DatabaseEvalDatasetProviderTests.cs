@@ -108,14 +108,14 @@ public class DatabaseEvalDatasetProviderTests
 
     [TestCase(EvalDatasetSource.HuggingFace)]
     [TestCase(EvalDatasetSource.LocalFile)]
-    public async Task LoadAsync_UnsupportedSource_ThrowsNotSupportedException(EvalDatasetSource source)
+    public async Task LoadAsync_UnsupportedSource_ThrowsUnsupportedEvalDatasetSourceException(EvalDatasetSource source)
     {
         _repo.Setup(r => r.ListAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var act = () => _sut.LoadAsync(source, new EvalDatasetConfig());
 
-        await act.Should().ThrowAsync<NotSupportedException>();
+        await act.Should().ThrowAsync<UnsupportedEvalDatasetSourceException>();
         _repo.Verify(r => r.ListAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

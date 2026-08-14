@@ -17,14 +17,7 @@ public class EvalDatasetProviderDispatcherTests
             .Select(i => new EvalQuestion { Question = $"Q{i}", ExpectedAnswer = $"A{i}" })
             .ToList();
 
-    /// <summary>
-    /// Builds a container mirroring the production wiring: concrete providers self-register,
-    /// and the dispatcher is registered last as the single IEvalDatasetProvider the runner sees.
-    /// </summary>
-    private static (
-        ServiceProvider sp,
-        Mock<IEvalDatasetProvider> db,
-        Mock<IEvalDatasetProvider> hf) BuildContainer()
+    private static (Mock<IEvalDatasetProvider> db, Mock<IEvalDatasetProvider> hf) CreateProviderMocks()
     {
         var db = new Mock<IEvalDatasetProvider>();
         db.Setup(p => p.Supports(EvalDatasetSource.Database)).Returns(true);
@@ -36,10 +29,24 @@ public class EvalDatasetProviderDispatcherTests
         hf.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([new EvalQuestion { Question = "HF-Q", ExpectedAnswer = "A" }]);
 
+        return (db, hf);
+    }
+
+    /// <summary>
+    /// Builds a container mirroring the production wiring: leaf providers self-register via
+    /// TryAddEnumerable, and the router is registered under its own interface (never as a leaf provider).
+    /// </summary>
+    private static (
+        ServiceProvider sp,
+        Mock<IEvalDatasetProvider> db,
+        Mock<IEvalDatasetProvider> hf) BuildContainer()
+    {
+        var (db, hf) = CreateProviderMocks();
+
         var services = new ServiceCollection();
         services.AddScoped<IEvalDatasetProvider>(_ => db.Object);
         services.AddScoped<IEvalDatasetProvider>(_ => hf.Object);
-        services.AddScoped<IEvalDatasetProvider>(sp => new EvalDatasetProviderDispatcher(sp));
+        services.AddScoped<IEvalDatasetSourceRouter, EvalDatasetProviderDispatcher>();
 
         return (services.BuildServiceProvider(), db, hf);
     }
@@ -48,9 +55,9 @@ public class EvalDatasetProviderDispatcherTests
     public async Task LoadAsync_DispatchesToProviderThatSupportsTheSource()
     {
         var (sp, db, hf) = BuildContainer();
-        var dispatcher = sp.GetRequiredService<IEvalDatasetProvider>();
+        var router = sp.GetRequiredService<IEvalDatasetSourceRouter>();
 
-        var result = await dispatcher.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig());
+        var result = await router.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig());
 
         result.Should().ContainSingle(q => q.Question == "DB-Q");
         db.Verify(p => p.LoadAsync(
@@ -67,49 +74,53 @@ public class EvalDatasetProviderDispatcherTests
     public async Task LoadAsync_ForwardsConfigAndCancellationToken()
     {
         var (sp, db, _) = BuildContainer();
-        var dispatcher = sp.GetRequiredService<IEvalDatasetProvider>();
+        var router = sp.GetRequiredService<IEvalDatasetSourceRouter>();
         using var cts = new CancellationTokenSource();
         var config = new EvalDatasetConfig { RepoId = "ragas-v1/code-generated", MaxRecords = 5 };
 
-        await dispatcher.LoadAsync(EvalDatasetSource.Database, config, cts.Token);
+        await router.LoadAsync(EvalDatasetSource.Database, config, cts.Token);
 
         db.Verify(p => p.LoadAsync(EvalDatasetSource.Database, config, cts.Token), Times.Once);
     }
 
     [Test]
-    public async Task LoadAsync_NoProviderSupportsSource_ThrowsNotSupportedException()
+    public async Task LoadAsync_NoProviderSupportsSource_ThrowsUnsupportedEvalDatasetSourceException()
     {
         var (sp, _, _) = BuildContainer();
-        var dispatcher = sp.GetRequiredService<IEvalDatasetProvider>();
+        var router = sp.GetRequiredService<IEvalDatasetSourceRouter>();
 
-        var act = () => dispatcher.LoadAsync(EvalDatasetSource.LocalFile, new EvalDatasetConfig());
+        var act = () => router.LoadAsync(EvalDatasetSource.LocalFile, new EvalDatasetConfig());
 
-        await act.Should().ThrowAsync<NotSupportedException>()
+        await act.Should().ThrowAsync<UnsupportedEvalDatasetSourceException>()
             .WithMessage("*LocalFile*");
     }
 
     [Test]
-    public async Task LoadAsync_NoProvidersRegistered_ThrowsWithSetupGuidance()
+    public async Task LoadAsync_NoProvidersRegistered_ThrowsWithCleanMessage()
     {
         var services = new ServiceCollection();
-        services.AddScoped<IEvalDatasetProvider>(sp => new EvalDatasetProviderDispatcher(sp));
+        services.AddScoped<IEvalDatasetSourceRouter, EvalDatasetProviderDispatcher>();
         using var sp = services.BuildServiceProvider();
-        var dispatcher = sp.GetRequiredService<IEvalDatasetProvider>();
+        var router = sp.GetRequiredService<IEvalDatasetSourceRouter>();
 
-        var act = () => dispatcher.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig());
+        var act = () => router.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig());
 
-        await act.Should().ThrowAsync<NotSupportedException>()
-            .WithMessage("*AddVedaAiServices*");
+        await act.Should().ThrowAsync<UnsupportedEvalDatasetSourceException>()
+            .WithMessage("*providers are registered*");
     }
 
     [Test]
-    public void Supports_AlwaysFalse_DispatcherIsNotALeafProvider()
+    public void LeafProviderEnumerable_ContainsOnlyRegisteredProviders()
     {
-        var (sp, _, _) = BuildContainer();
-        var dispatcher = sp.GetRequiredService<IEvalDatasetProvider>();
+        var (sp, db, hf) = BuildContainer();
 
-        dispatcher.Supports(EvalDatasetSource.Database).Should().BeFalse();
-        dispatcher.Supports(EvalDatasetSource.HuggingFace).Should().BeFalse();
+        var providers = sp.GetServices<IEvalDatasetProvider>().ToArray();
+
+        // The router is registered under its own interface, so the leaf-provider enumerable contains
+        // exactly the registered providers (and can never contain the dispatcher).
+        providers.Should().HaveCount(2);
+        providers.Should().Contain(db.Object);
+        providers.Should().Contain(hf.Object);
     }
 
     [Test]
@@ -117,9 +128,28 @@ public class EvalDatasetProviderDispatcherTests
     {
         var (sp, _, _) = BuildContainer();
 
-        var resolved = sp.GetRequiredService<IEvalDatasetProvider>();
+        var resolved = sp.GetRequiredService<IEvalDatasetSourceRouter>();
 
         resolved.Should().BeOfType<EvalDatasetProviderDispatcher>();
+    }
+
+    [Test]
+    public async Task ContainerWiring_OrderIndependent_RouterWorksWhenRegisteredFirst()
+    {
+        // Regression test for the DI-ordering issue: the router must dispatch correctly even when it is
+        // registered BEFORE the leaf providers (the old design silently broke if registration order changed).
+        var (db, hf) = CreateProviderMocks();
+
+        var services = new ServiceCollection();
+        services.AddScoped<IEvalDatasetSourceRouter, EvalDatasetProviderDispatcher>();
+        services.AddScoped<IEvalDatasetProvider>(_ => db.Object);
+        services.AddScoped<IEvalDatasetProvider>(_ => hf.Object);
+        using var sp = services.BuildServiceProvider();
+
+        var router = sp.GetRequiredService<IEvalDatasetSourceRouter>();
+        var result = await router.LoadAsync(EvalDatasetSource.HuggingFace, new EvalDatasetConfig());
+
+        result.Should().ContainSingle(q => q.Question == "HF-Q");
     }
 
     [Test]
@@ -133,11 +163,11 @@ public class EvalDatasetProviderDispatcherTests
         services.AddScoped(_ => repo.Object);
         services.TryAddEnumerable(
             ServiceDescriptor.Scoped<IEvalDatasetProvider, DatabaseEvalDatasetProvider>());
-        services.AddScoped<IEvalDatasetProvider>(sp => new EvalDatasetProviderDispatcher(sp));
+        services.AddScoped<IEvalDatasetSourceRouter, EvalDatasetProviderDispatcher>();
         using var sp = services.BuildServiceProvider();
 
-        var dispatcher = sp.GetRequiredService<IEvalDatasetProvider>();
-        var result = await dispatcher.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig { MaxRecords = 1 });
+        var router = sp.GetRequiredService<IEvalDatasetSourceRouter>();
+        var result = await router.LoadAsync(EvalDatasetSource.Database, new EvalDatasetConfig { MaxRecords = 1 });
 
         result.Should().ContainSingle();
         repo.Verify(r => r.ListAsync(It.IsAny<CancellationToken>()), Times.Once);

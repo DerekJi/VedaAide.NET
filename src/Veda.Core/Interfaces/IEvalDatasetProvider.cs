@@ -4,7 +4,7 @@ namespace Veda.Core.Interfaces;
 /// Loads evaluation questions from a single data source.
 /// Each implementation handles one <see cref="EvalDatasetSource"/> (Database / HuggingFace / LocalFile)
 /// and declares which one via <see cref="Supports"/>. Callers dispatch through the registered providers
-/// (see <c>EvalDatasetProviderDispatcher</c>), so new sources can be added without touching the runner.
+/// (see <c>IEvalDatasetSourceRouter</c>), so new sources can be added without touching the runner.
 /// </summary>
 public interface IEvalDatasetProvider
 {
@@ -14,7 +14,7 @@ public interface IEvalDatasetProvider
     /// <summary>
     /// Loads questions for <paramref name="source"/> using <paramref name="config"/>.
     /// Implementations should treat a null <paramref name="config"/> as provider defaults,
-    /// and throw <see cref="NotSupportedException"/> if <paramref name="source"/> is not
+    /// and throw <see cref="UnsupportedEvalDatasetSourceException"/> if <paramref name="source"/> is not
     /// supported (defensive; normally guarded by <see cref="Supports"/>).
     /// </summary>
     Task<IReadOnlyList<EvalQuestion>> LoadAsync(

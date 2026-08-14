@@ -46,7 +46,12 @@ public sealed class FaithfulnessScorer(IChatService chatService, ILogger<Faithfu
             logger.LogWarning("FaithfulnessScorer: unexpected LLM response '{Response}', defaulting to 0", response);
             return 0f;
         }
-        catch (Exception ex) when (!ct.IsCancellationRequested)
+        // Genuine request cancellation propagates instead of being swallowed as a zero score.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
         {
             logger.LogError(ex, "FaithfulnessScorer: LLM call failed");
             return 0f;

@@ -68,10 +68,16 @@ public class EvaluationController(
         }
         // No registered IEvalDatasetProvider supports the requested source (e.g. HuggingFace/LocalFile
         // are valid enum values but their providers are not implemented yet) — surface it as a client
-        // error instead of a generic 500.
-        catch (NotSupportedException ex)
+        // error instead of a generic 500. We catch only the domain exception and return a sanitized
+        // ProblemDetails (no internal type names or DI details) rather than echoing the raw message.
+        catch (UnsupportedEvalDatasetSourceException ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new ProblemDetails
+            {
+                Title  = "Unsupported dataset source",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest,
+            });
         }
     }
 

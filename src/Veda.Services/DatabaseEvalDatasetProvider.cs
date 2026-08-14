@@ -3,8 +3,8 @@ namespace Veda.Services;
 /// <summary>
 /// <see cref="IEvalDatasetProvider"/> backed by the Golden Dataset repository (the existing DB logic).
 /// Handles <see cref="EvalDatasetSource.Database"/> only; other sources are reported as unsupported
-/// via <see cref="Supports"/> and rejected defensively by <see cref="LoadAsync"/> until dedicated
-/// providers (HuggingFace / LocalFile) are added.
+/// via <see cref="Supports"/> and rejected defensively by <see cref="LoadAsync"/> (throwing
+/// <see cref="UnsupportedEvalDatasetSourceException"/>) until dedicated providers (HuggingFace / LocalFile) are added.
 /// </summary>
 public sealed class DatabaseEvalDatasetProvider(IEvalDatasetRepository datasetRepo) : IEvalDatasetProvider
 {
@@ -17,8 +17,7 @@ public sealed class DatabaseEvalDatasetProvider(IEvalDatasetRepository datasetRe
     {
         if (!Supports(source))
         {
-            throw new NotSupportedException(
-                $"{nameof(DatabaseEvalDatasetProvider)} only supports {EvalDatasetSource.Database}; got {source}.");
+            throw new UnsupportedEvalDatasetSourceException(source);
         }
 
         config ??= new EvalDatasetConfig();

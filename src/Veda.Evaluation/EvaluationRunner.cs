@@ -8,18 +8,18 @@ namespace Veda.Evaluation;
 /// calls the RAG pipeline → scores each answer along three dimensions → aggregates the results into an <see cref="EvaluationReport"/>.
 /// </summary>
 public sealed class EvaluationRunner(
-    IEvalDatasetProvider datasetProvider,
-    IQueryService          queryService,
-    FaithfulnessScorer     faithfulnessScorer,
-    AnswerRelevancyScorer  relevancyScorer,
-    ContextRecallScorer    recallScorer,
+    IEvalDatasetSourceRouter datasetRouter,
+    IQueryService            queryService,
+    FaithfulnessScorer       faithfulnessScorer,
+    AnswerRelevancyScorer    relevancyScorer,
+    ContextRecallScorer      recallScorer,
     ILogger<EvaluationRunner> logger) : IEvaluationRunner
 {
     public async Task<EvaluationReport> RunAsync(
         EvalRunOptions   options,
         CancellationToken ct = default)
     {
-        var allQuestions = await datasetProvider.LoadAsync(
+        var allQuestions = await datasetRouter.LoadAsync(
             options.DatasetSource,
             options.DatasetConfig ?? new EvalDatasetConfig(),
             ct);
@@ -76,10 +76,13 @@ public sealed class EvaluationRunner(
         {
             response = await queryService.QueryAsync(request, ct);
         }
-        // Propagate genuine request cancellation (OperationCanceledException / TaskCanceledException
-        // raised because ct fired) instead of turning it into a fabricated zero-scored result.
-        // Internal LLM timeouts (ct not cancelled) still take the failure path below.
-        catch (Exception ex) when (!ct.IsCancellationRequested)
+        // Genuine request cancellation propagates instead of fabricating a zero-scored result.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        // Internal LLM failures / timeouts (ct not cancelled) still take the failure path below.
+        catch (Exception ex)
         {
             logger.LogError(ex, "EvaluationRunner: RAG query failed for question {Id}", question.Id);
             return new EvalResult

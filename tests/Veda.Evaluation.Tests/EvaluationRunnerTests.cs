@@ -12,16 +12,16 @@ namespace Veda.Evaluation.Tests;
 [TestFixture]
 public class EvaluationRunnerTests
 {
-    private Mock<IEvalDatasetProvider> _datasetProvider = null!;
-    private Mock<IQueryService>        _queryService    = null!;
-    private Mock<IChatService>         _chatService     = null!;
-    private Mock<IEmbeddingService>    _embedding       = null!;
-    private EvaluationRunner           _sut             = null!;
+    private Mock<IEvalDatasetSourceRouter> _datasetRouter = null!;
+    private Mock<IQueryService>             _queryService  = null!;
+    private Mock<IChatService>              _chatService   = null!;
+    private Mock<IEmbeddingService>         _embedding     = null!;
+    private EvaluationRunner                _sut           = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _datasetProvider = new Mock<IEvalDatasetProvider>();
+        _datasetRouter = new Mock<IEvalDatasetSourceRouter>();
         _queryService    = new Mock<IQueryService>();
         _chatService     = new Mock<IChatService>();
         _embedding       = new Mock<IEmbeddingService>();
@@ -31,7 +31,7 @@ public class EvaluationRunnerTests
         var recall       = new ContextRecallScorer(_embedding.Object);
 
         _sut = new EvaluationRunner(
-            _datasetProvider.Object,
+            _datasetRouter.Object,
             _queryService.Object,
             faithfulness,
             relevancy,
@@ -42,7 +42,7 @@ public class EvaluationRunnerTests
     [Test]
     public async Task RunAsync_EmptyDataset_ShouldReturnEmptyReport()
     {
-        _datasetProvider.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
+        _datasetRouter.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var report = await _sut.RunAsync(new EvalRunOptions());
@@ -60,7 +60,7 @@ public class EvaluationRunnerTests
             ExpectedAnswer = "X is Y.",
         };
 
-        _datasetProvider.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
+        _datasetRouter.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([question]);
 
         _queryService.Setup(q => q.QueryAsync(It.IsAny<RagQueryRequest>(), It.IsAny<CancellationToken>()))
@@ -96,7 +96,7 @@ public class EvaluationRunnerTests
         var q1 = new EvalQuestion { Question = "Q1", ExpectedAnswer = "A1" };
         var q2 = new EvalQuestion { Question = "Q2", ExpectedAnswer = "A2" };
 
-        _datasetProvider.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
+        _datasetRouter.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([q1, q2]);
 
         _queryService.Setup(q => q.QueryAsync(It.IsAny<RagQueryRequest>(), It.IsAny<CancellationToken>()))
@@ -123,7 +123,7 @@ public class EvaluationRunnerTests
     {
         var question = new EvalQuestion { Question = "Q?", ExpectedAnswer = "A." };
 
-        _datasetProvider.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
+        _datasetRouter.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([question]);
 
         _queryService.Setup(q => q.QueryAsync(It.IsAny<RagQueryRequest>(), It.IsAny<CancellationToken>()))
@@ -140,7 +140,7 @@ public class EvaluationRunnerTests
     {
         var question = new EvalQuestion { Question = "Q?", ExpectedAnswer = "A." };
 
-        _datasetProvider.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
+        _datasetRouter.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([question]);
 
         _queryService.Setup(q => q.QueryAsync(It.IsAny<RagQueryRequest>(), It.IsAny<CancellationToken>()))
@@ -160,7 +160,7 @@ public class EvaluationRunnerTests
             DatasetConfig = config,
         });
 
-        _datasetProvider.Verify(
+        _datasetRouter.Verify(
             p => p.LoadAsync(EvalDatasetSource.HuggingFace, config, It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -171,7 +171,7 @@ public class EvaluationRunnerTests
         var question = new EvalQuestion { Question = "Q?", ExpectedAnswer = "A." };
         EvalDatasetConfig? capturedConfig = null;
 
-        _datasetProvider.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
+        _datasetRouter.Setup(p => p.LoadAsync(It.IsAny<EvalDatasetSource>(), It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()))
             .Callback<EvalDatasetSource, EvalDatasetConfig, CancellationToken>((_, config, _) => capturedConfig = config)
             .ReturnsAsync([question]);
 
@@ -187,7 +187,7 @@ public class EvaluationRunnerTests
 
         await _sut.RunAsync(new EvalRunOptions());
 
-        _datasetProvider.Verify(
+        _datasetRouter.Verify(
             p => p.LoadAsync(EvalDatasetSource.Database, It.IsAny<EvalDatasetConfig>(), It.IsAny<CancellationToken>()),
             Times.Once);
         capturedConfig.Should().BeEquivalentTo(new EvalDatasetConfig());
