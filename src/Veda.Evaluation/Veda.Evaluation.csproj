@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Veda.Core\Veda.Core.csproj" />
-    <ProjectReference Include="..\Veda.Services\Veda.Services.csproj" />
   </ItemGroup>
 
   <ItemGroup>

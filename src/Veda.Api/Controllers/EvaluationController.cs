@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Veda.Core.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -55,17 +56,36 @@ public class EvaluationController(
         {
             QuestionIds       = req.QuestionIds ?? [],
             ChatModelOverride = req.ChatModelOverride,
+            DatasetSource     = req.DatasetSource ?? EvalDatasetSource.Database,
+            DatasetConfig     = req.DatasetConfig,
         };
 
-        var report = await runner.RunAsync(options, ct);
-        await reportRepo.SaveAsync(report, ct);
-        return Ok(report);
+        try
+        {
+            var report = await runner.RunAsync(options, ct);
+            await reportRepo.SaveAsync(report, ct);
+            return Ok(report);
+        }
+        // No registered IEvalDatasetProvider supports the requested source (e.g. HuggingFace/LocalFile
+        // are valid enum values but their providers are not implemented yet) — surface it as a client
+        // error instead of a generic 500. We catch only the domain exception and return a sanitized
+        // ProblemDetails (no internal type names or DI details) rather than echoing the raw message.
+        catch (UnsupportedEvalDatasetSourceException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title  = "Unsupported dataset source",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest,
+            });
+        }
     }
 
     // ── Reports ────────────────────────────────────────────────────────────────
 
     [HttpGet("reports")]
-    public async Task<IActionResult> ListReports([FromQuery] int limit = 20, CancellationToken ct = default)
+    public async Task<IActionResult> ListReports(
+        [FromQuery, Range(1, 200)] int limit = 20, CancellationToken ct = default)
     {
         var reports = await reportRepo.ListAsync(limit, ct);
         return Ok(reports);

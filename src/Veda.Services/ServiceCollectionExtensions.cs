@@ -1,10 +1,11 @@
-﻿using Veda.Core.Options;
+using Veda.Core.Options;
 using Azure;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenAI;
 using System.ClientModel;
 
@@ -117,6 +118,12 @@ public static class ServiceCollectionExtensions
 
         // Sprint 4: feedback boost service (no DB dependency, just wraps IUserMemoryStore)
         services.AddScoped<IFeedbackBoostService, FeedbackBoostService>();
+
+        // Eval dataset providers: each provider self-registers here so the dispatcher in
+        // Veda.Evaluation can route an EvalDatasetSource to the provider that Supports it.
+        // TryAddEnumerable keeps multiple providers (future HuggingFace / LocalFile) coexisting.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IEvalDatasetProvider, DatabaseEvalDatasetProvider>());
 
         return services;
     }

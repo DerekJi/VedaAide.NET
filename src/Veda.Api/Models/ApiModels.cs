@@ -84,5 +84,7 @@ public record SaveEvalQuestionRequest(
     string[]? Tags = null);
 
 public record RunEvaluationRequest(
-    string[]? QuestionIds       = null,
-    string?   ChatModelOverride = null);
+    string[]?          QuestionIds       = null,
+    string?            ChatModelOverride = null,
+    EvalDatasetSource? DatasetSource     = null,
+    EvalDatasetConfig? DatasetConfig     = null);

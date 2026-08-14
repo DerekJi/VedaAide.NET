@@ -4,22 +4,25 @@ using Veda.Core.Options;
 namespace Veda.Evaluation;
 
 /// <summary>
-/// Evaluation runner: loads questions from the Golden Dataset → calls the RAG pipeline →
-/// scores each answer along three dimensions → aggregates the results into an <see cref="EvaluationReport"/>.
+/// Evaluation runner: loads questions from the configured dataset source (default: Golden Dataset) →
+/// calls the RAG pipeline → scores each answer along three dimensions → aggregates the results into an <see cref="EvaluationReport"/>.
 /// </summary>
 public sealed class EvaluationRunner(
-    IEvalDatasetRepository datasetRepo,
-    IQueryService          queryService,
-    FaithfulnessScorer     faithfulnessScorer,
-    AnswerRelevancyScorer  relevancyScorer,
-    ContextRecallScorer    recallScorer,
+    IEvalDatasetSourceRouter datasetRouter,
+    IQueryService            queryService,
+    FaithfulnessScorer       faithfulnessScorer,
+    AnswerRelevancyScorer    relevancyScorer,
+    ContextRecallScorer      recallScorer,
     ILogger<EvaluationRunner> logger) : IEvaluationRunner
 {
     public async Task<EvaluationReport> RunAsync(
         EvalRunOptions   options,
         CancellationToken ct = default)
     {
-        var allQuestions = await datasetRepo.ListAsync(ct);
+        var allQuestions = await datasetRouter.LoadAsync(
+            options.DatasetSource,
+            options.DatasetConfig ?? new EvalDatasetConfig(),
+            ct);
         var questions = (options.QuestionIds.Length == 0
             ? allQuestions
             : allQuestions.Where(q => options.QuestionIds.Contains(q.Id)).ToList())
@@ -27,7 +30,7 @@ public sealed class EvaluationRunner(
 
         if (questions.Count == 0)
         {
-            logger.LogWarning("EvaluationRunner: no questions found in Golden Dataset");
+            logger.LogWarning("EvaluationRunner: no questions found for source {Source}", options.DatasetSource);
             return new EvaluationReport();
         }
 
@@ -73,6 +76,12 @@ public sealed class EvaluationRunner(
         {
             response = await queryService.QueryAsync(request, ct);
         }
+        // Genuine request cancellation propagates instead of fabricating a zero-scored result.
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        // Internal LLM failures / timeouts (ct not cancelled) still take the failure path below.
         catch (Exception ex)
         {
             logger.LogError(ex, "EvaluationRunner: RAG query failed for question {Id}", question.Id);
